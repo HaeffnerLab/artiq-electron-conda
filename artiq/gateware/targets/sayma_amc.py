@@ -291,7 +291,18 @@ class Satellite(SatelliteBase):
         self.csr_devices.append("slave_fpga_cfg")
         self.config["SLAVE_FPGA_GATEWARE"] = 0x200000
 
-        self.rtio_channels = rtio_channels = []
+        # AMC/RTM serwb
+        serwb_pads = platform.request("amc_rtm_serwb")
+        serwb_phy_amc = serwb.phy.SERWBPHY(platform.device, serwb_pads, mode="master", phy_width=4)
+        self.submodules.serwb_phy_amc = serwb_phy_amc
+        self.csr_devices.append("serwb_phy_amc")
+
+        serwb_core = serwb.core.SERWBCore(serwb_phy_amc, int(self.clk_freq), mode="slave", with_scrambling=True)
+        self.submodules += serwb_core
+        self.add_wb_slave(self.mem_map["serwb"], 8192, serwb_core.etherbone.wishbone.bus)
+
+        # RTIO
+        rtio_channels = []
         for i in range(4):
             phy = ttl_simple.Output(platform.request("user_led", i))
             self.submodules += phy

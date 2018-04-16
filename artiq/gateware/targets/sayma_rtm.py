@@ -219,57 +219,37 @@ class Satellite(_SatelliteBase):
             platform.request("hmc_spi"),
             platform.request("ad9154_spi", 0),
             platform.request("ad9154_spi", 1)))
-        self.csr_devices.append("converter_spi")
-        self.submodules.hmc7043_reset = gpio.GPIOOut(
-            platform.request("hmc7043_reset"), reset_out=1)
-        self.csr_devices.append("hmc7043_reset")
-        self.submodules.hmc7043_gpo = gpio.GPIOIn(
-            platform.request("hmc7043_gpo"))
-        self.csr_devices.append("hmc7043_gpo")
-        self.config["HAS_HMC830_7043"] = None
-        self.config["HAS_AD9154"] = None
-        self.config["AD9154_COUNT"] = 2
-        self.config["CONVERTER_SPI_HMC830_CS"] = 0
-        self.config["CONVERTER_SPI_HMC7043_CS"] = 1
-        self.config["CONVERTER_SPI_FIRST_AD9154_CS"] = 2
-        self.config["HMC830_REF"] = str(int(self.rtio_clk_freq/1e6))
+        csr_devices.append("converter_spi")
+        self.comb += platform.request("hmc7043_reset").eq(0)
 
-        # HMC workarounds
-        self.comb += platform.request("hmc830_pwr_en").eq(1)
-        self.submodules.hmc7043_out_en = gpio.GPIOOut(
-            platform.request("hmc7043_out_en"))
-        self.csr_devices.append("hmc7043_out_en")
+        # AMC/RTM serwb
+        serwb_pads = platform.request("amc_rtm_serwb")
+        platform.add_period_constraint(serwb_pads.clk_p, 10.)
+        serwb_phy_rtm = serwb.phy.SERWBPHY(platform.device, serwb_pads, mode="slave", phy_width=4)
+        self.submodules.serwb_phy_rtm = serwb_phy_rtm
+        self.comb += self.crg.serwb_refclk.eq(serwb_phy_rtm.serdes.refclk)
+        csr_devices.append("serwb_phy_rtm")
 
-        # DDMTD
-        sysref_pads = platform.request("rtm_fpga_sysref", 0)
-        self.submodules.sysref_ddmtd = jesd204_tools.DDMTD(sysref_pads, self.rtio_clk_freq)
-        self.csr_devices.append("sysref_ddmtd")
-        platform.add_false_path_constraints(
-            self.sysref_ddmtd.cd_helper.clk, self.drtio_transceiver.gtps[0].txoutclk)
-        platform.add_false_path_constraints(
-            self.sysref_ddmtd.cd_helper.clk, self.crg.cd_sys.clk)
+        serwb_core = serwb.core.SERWBCore(serwb_phy_rtm, int(clk_freq), mode="master", with_scrambling=True)
+        self.submodules += serwb_core
 
+        # process CSR devices and connect them to serwb
+        self.csr_regions = []
+        wb_slaves = WishboneSlaveManager(0x10000000)
+        for i, name in enumerate(csr_devices):
+            origin = i*CSR_RANGE_SIZE
+            module = getattr(self, name)
+            csrs = module.get_csrs()
 
-class SatmanSoCBuilder(Builder):
-    def __init__(self, *args, **kwargs):
-        Builder.__init__(self, *args, **kwargs)
-        firmware_dir = os.path.join(artiq_dir, "firmware")
-        self.software_packages = []
-        self.add_software_package("satman", os.path.join(firmware_dir, "satman"))
+            bank = wishbone.CSRBank(csrs)
+            self.submodules += bank
 
-    def initialize_memory(self):
-        satman = os.path.join(self.output_dir, "software", "satman",
-                              "satman.bin")
-        with open(satman, "rb") as boot_file:
-            boot_data = []
-            unpack_endian = ">I"
-            while True:
-                w = boot_file.read(4)
-                if not w:
-                    break
-                boot_data.append(struct.unpack(unpack_endian, w)[0])
+            wb_slaves.add(origin, CSR_RANGE_SIZE, bank.bus)
+            self.csr_regions.append((name, origin, 32, csrs))
 
-        self.soc.main_ram.mem.init = boot_data
+        self.submodules += wishbone.Decoder(serwb_core.etherbone.wishbone.bus,
+                                            wb_slaves.get_interconnect_slaves(),
+                                            register=True)
 
 
 def main():
