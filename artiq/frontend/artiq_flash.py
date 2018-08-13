@@ -62,7 +62,7 @@ Prerequisites:
                         help="SSH host to jump through")
     parser.add_argument("-t", "--target", default="kasli",
                         help="target board, default: %(default)s, one of: "
-                             "kasli sayma metlino kc705")
+                             "kasli sayma kc705")
     parser.add_argument("-V", "--variant", default=None,
                         help="board variant. Autodetected if only one is installed.")
     parser.add_argument("-I", "--preinit-command", default=[], action="append",
@@ -323,15 +323,9 @@ def main():
             "firmware":     ("spi1", 0x050000),
             "rtm_gateware": ("spi1", 0x200000),
         },
-        "metlino": {
-            "programmer":   ProgrammerAMC,
-            "gateware":     ("spi0", 0x000000),
-            "bootloader":   ("spi1", 0x000000),
-            "storage":      ("spi1", 0x040000),
-            "firmware":     ("spi1", 0x050000),
-        },
         "kc705": {
             "programmer":   partial(ProgrammerXC7, board="kc705", proxy="bscan_spi_xc7k325t.bit"),
+            "def_variant":  "nist_clock",
             "gateware":     ("spi0", 0x000000),
             "bootloader":   ("spi0", 0xaf0000),
             "storage":      ("spi0", 0xb30000),
