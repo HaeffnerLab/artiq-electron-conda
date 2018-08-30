@@ -153,7 +153,7 @@ class DRTIOSatellite(Module):
 
 
 class DRTIOMaster(Module):
-    def __init__(self, tsc, chanif):
+    def __init__(self, chanif, fine_ts_width=3):
         self.submodules.link_layer = link_layer.LinkLayer(
             chanif.encoder, chanif.decoders)
         self.comb += self.link_layer.rx_ready.eq(chanif.rx_ready)
@@ -161,12 +161,8 @@ class DRTIOMaster(Module):
         self.submodules.link_stats = link_layer.LinkLayerStats(self.link_layer, "rtio_rx")
         self.submodules.rt_packet = rt_packet_master.RTPacketMaster(self.link_layer)
         self.submodules.rt_controller = rt_controller_master.RTController(
-            tsc, self.rt_packet)
-
-    def get_csrs(self):
-        return (self.link_layer.get_csrs() +
-                self.link_stats.get_csrs() +
-                self.rt_controller.get_csrs())
+            self.rt_packet, fine_ts_width)
+        self.submodules.rt_manager = rt_controller_master.RTManager(self.rt_packet)
 
     @property
     def cri(self):
@@ -186,8 +182,10 @@ class DRTIORepeater(Module):
     def get_csrs(self):
         return (self.link_layer.get_csrs() +
                 self.link_stats.get_csrs() +
-                self.rt_controller.get_csrs())
+                self.rt_controller.get_csrs() +
+                self.rt_manager.get_csrs() +
+                self.aux_controller.get_csrs())
 
     @property
     def cri(self):
-        return self.rt_packet.cri
+        return self.rt_controller.cri

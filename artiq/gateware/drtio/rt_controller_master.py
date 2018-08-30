@@ -28,7 +28,7 @@ class _CSRs(AutoCSR):
 
 
 class RTController(Module):
-    def __init__(self, tsc, rt_packet):
+    def __init__(self, rt_packet, fine_ts_width):
         self.csrs = _CSRs()
         self.cri = cri.Interface()
 
