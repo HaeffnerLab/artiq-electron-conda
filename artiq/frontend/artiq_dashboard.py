@@ -17,7 +17,8 @@ from artiq.protocols.broadcast import Receiver
 from artiq.gui.models import ModelSubscriber
 from artiq.gui import state, log
 from artiq.dashboard import (experiments, shortcuts, explorer,
-                             moninj, datasets, schedule, applets_ccb)
+                             moninj, datasets, schedule, applets_ccb,
+                             pmt_control)
 
 
 def get_argparser():
@@ -45,7 +46,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, server):
         QtWidgets.QMainWindow.__init__(self)
 
-        icon = QtGui.QIcon(os.path.join(artiq_dir, "gui", "logo.svg"))
+        icon = QtGui.QIcon(os.path.join(artiq_dir, "gui", "lettice.svg"))
         self.setWindowIcon(icon)
         self.setWindowTitle("ARTIQ Dashboard - {}".format(server))
 
@@ -157,10 +158,12 @@ def main():
                                            sub_clients["explist"],
                                            sub_clients["schedule"],
                                            rpc_clients["schedule"],
-                                           rpc_clients["experiment_db"])
+                                           rpc_clients["experiment_db"],
+                                           )
     smgr.register(expmgr)
     d_shortcuts = shortcuts.ShortcutsDock(main_window, expmgr)
     smgr.register(d_shortcuts)
+    d_pmt = pmt_control.PMTControlDock(main_window, expmgr)
     d_explorer = explorer.ExplorerDock(expmgr, d_shortcuts,
                                        sub_clients["explist"],
                                        sub_clients["explist_status"],
@@ -192,7 +195,7 @@ def main():
 
     # lay out docks
     right_docks = [
-        d_explorer, d_shortcuts,
+        d_explorer, d_shortcuts, d_pmt,
         d_ttl_dds.ttl_dock, d_ttl_dds.dds_dock, d_ttl_dds.dac_dock,
         d_datasets, d_applets
     ]

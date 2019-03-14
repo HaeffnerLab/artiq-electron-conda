@@ -9,6 +9,7 @@ process via IPC.
 import sys
 import time
 import os
+import datetime
 import logging
 import traceback
 from collections import OrderedDict
@@ -272,8 +273,7 @@ def main():
                     rid, obj["pipeline_name"], expid, obj["priority"])
                 start_local_time = time.localtime(start_time)
                 dirname = os.path.join("results",
-                                   time.strftime("%Y-%m-%d", start_local_time),
-                                   time.strftime("%H", start_local_time))
+                                   time.strftime("%Y-%m-%d", start_local_time))
                 os.makedirs(dirname, exist_ok=True)
                 os.chdir(dirname)
                 argument_mgr = ProcessArgumentManager(expid["arguments"])
@@ -296,8 +296,11 @@ def main():
                 else:
                     put_object({"action": "completed"})
             elif action == "write_results":
-                filename = "{:09}-{}.h5".format(rid, exp.__name__)
-                with h5py.File(filename, "w") as f:
+                current_time = datetime.datetime.now().strftime("%H%M_%S")
+                if not os.path.exists(str(exp.__name__)):
+                    os.mkdir(str(exp.__name__))
+                filename = "{}.h5".format(current_time)
+                with h5py.File(str(exp.__name__) + "/" + filename, "w") as f:
                     dataset_mgr.write_hdf5(f)
                     f["artiq_version"] = artiq_version
                     f["rid"] = rid
