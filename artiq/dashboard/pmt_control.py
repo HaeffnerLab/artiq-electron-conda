@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class PMTControlDock(QtWidgets.QDockWidget):
     def __init__(self, main_window, exp_manager):
-        QtWidgets.QDockWidget.__init__(self, "PMT / Linetrigger Control")
+        QtWidgets.QDockWidget.__init__(self, "PMT / Linetrigger / Piezo Control")
         self.setObjectName("pmt_control")
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
                          QtWidgets.QDockWidget.DockWidgetFloatable)
@@ -42,14 +42,14 @@ class PMTControlDock(QtWidgets.QDockWidget):
         vLayout = QtWidgets.QVBoxLayout(frame)
         vLayout.addLayout(layout)
         vLayout.addStretch(1)
-
         self.setWidget(frame)
-
-        self.shortcut_widgets = dict()
 
         self.onButton = QtWidgets.QPushButton("On")
         self.onButton.setCheckable(True)
         self.onButton.clicked[bool].connect(self.set_state)
+        self.autoLoadButton = QtWidgets.QPushButton("On")
+        self.autoLoadButton.clicked[bool].connect(self.toggle_autoload)
+        self.autoLoadSpin = QtWidgets.QSpinBox()
 
         self.countDisplay = QtWidgets.QLCDNumber()
         self.countDisplay.setSegmentStyle(2)
@@ -86,27 +86,74 @@ class PMTControlDock(QtWidgets.QDockWidget):
         boldFont.setBold(True)
         self.pmtLabel = QtWidgets.QLabel("PMT")
         self.pmtLabel.setFont(boldFont)
+        self.pmtLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
         self.linetriggerLabel = QtWidgets.QLabel("LINETRIGGER")
         self.linetriggerLabel.setFont(boldFont)
+        self.linetriggerLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+        self.piezoLabel = QtWidgets.QLabel("PICOMOTOR")
+        self.piezoLabel.setFont(boldFont)
+        self.piezoLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
 
         layout.addWidget(QtWidgets.QLabel(""), 0, 0)
-        layout.addWidget(QtWidgets.QLabel(""), 1, 0)
-        layout.addWidget(self.pmtLabel, 2, 1)
-        layout.addWidget(self.onButton, 3, 0)
-        layout.addWidget(self.countDisplay, 3, 1)
-        layout.addWidget(self.unitsLabel, 3, 2)
-        layout.addWidget(self.durationLabel, 4, 0)
-        layout.addWidget(self.duration, 4, 1, 1, 2)
-        layout.addWidget(self.modeLabel, 5, 0)
-        layout.addWidget(self.setMode, 5, 1, 1, 2)
+        layout.addWidget(self.pmtLabel, 1, 0, 1, 3)
+        layout.addWidget(self.onButton, 2, 0)
+        layout.addWidget(self.countDisplay, 2, 1)
+        layout.addWidget(self.unitsLabel, 2, 2)
+        layout.addWidget(self.durationLabel, 3, 0)
+        layout.addWidget(self.duration, 3, 1, 1, 2)
+        layout.addWidget(self.modeLabel, 4, 0)
+        layout.addWidget(self.setMode, 4, 1, 1, 2)
+        layout.addWidget(QtWidgets.QLabel("Autoload: "), 5, 0)
+        layout.addWidget(self.autoLoadButton, 5, 1)
+        layout.addWidget(self.autoLoadSpin, 5, 2)
+
         layout.addWidget(QtWidgets.QLabel(""), 6, 0)
         layout.addWidget(QtWidgets.QLabel(""), 7, 0)
         layout.addWidget(QtWidgets.QLabel(""), 8, 0)
         layout.addWidget(QtWidgets.QLabel(""), 9, 0)
-        layout.addWidget(self.linetriggerLabel, 10, 1)
+        layout.addWidget(self.linetriggerLabel, 10, 0, 1, 3)
         layout.addWidget(self.linetriggerButton, 11, 0, 1, 3)
         layout.addWidget(QtWidgets.QLabel("Offset duration (us): "), 12, 0)
         layout.addWidget(self.linetriggerLineEdit, 12, 1, 1, 2)
+
+        layout.addWidget(QtWidgets.QLabel(""), 13, 0)
+        layout.addWidget(QtWidgets.QLabel(""), 14, 0)
+        layout.addWidget(QtWidgets.QLabel(""), 15, 0)
+        layout.addWidget(QtWidgets.QLabel(""), 16, 0)
+        layout.addWidget(self.piezoLabel, 17, 0, 1, 3)
+
+        ctls = ["Local X", "Local Y", "Global X", "Global Y"]
+        starting_row = 18
+        self.piezoStepSize = dict()
+        self.piezoCurrentPos = dict()
+        self.piezoLastPos = dict()
+        for i, ctl in enumerate(ctls):
+            layout.addWidget(QtWidgets.QLabel(ctl + ": "), 
+                             starting_row + i, 0)
+            self.piezoStepSize[ctl] = QtWidgets.QSpinBox()
+            self.piezoStepSize[ctl].setToolTip("Set step size.")
+            self.piezoStepSize[ctl].setObjectName(ctl)
+            self.piezoStepSize[ctl].setKeyboardTracking(False)
+            self.piezoStepSize[ctl].valueChanged.connect(self.piezo_step_size_changed)
+            self.piezoStepSize[ctl].setRange(0, 300)
+            layout.addWidget(self.piezoStepSize[ctl], 
+                             starting_row + i, 1)
+            self.piezoCurrentPos[ctl] = QtWidgets.QSpinBox()
+            self.piezoCurrentPos[ctl].setSingleStep(0)
+            self.piezoCurrentPos[ctl].setToolTip("Current position.")
+            self.piezoCurrentPos[ctl].setRange(-100000, 100000)
+            self.piezoCurrentPos[ctl].setObjectName(str(i + 1))
+            self.piezoLastPos[i + 1] = 0
+            self.piezoCurrentPos[ctl].setKeyboardTracking(False)
+            self.piezoCurrentPos[ctl].valueChanged.connect(self.piezo_changed)
+            layout.addWidget(self.piezoCurrentPos[ctl], 
+                             starting_row + i, 2)
+
+        if "picomotorserver" in self.cxn.servers:
+            self.piezo = self.cxn.PicomotorServer
+        else:
+            self.piezo = None
+
 
     def set_state(self, override=False):
         if override:
@@ -200,4 +247,27 @@ class PMTControlDock(QtWidgets.QDockWidget):
         pass
 
     def linetrigger_duration_changed(self):
+        pass
+
+    def piezo_step_size_changed(self):
+        sender = self.sender()
+        step = int(sender.value())
+        ctl = sender.objectName()
+        self.piezoCurrentPos[ctl].setSingleStep(step)
+    
+    def piezo_changed(self):
+        if "picomotorserver" in self.cxn.servers:
+            sender = self.sender()
+            piezo = int(sender.objectName())
+            current_pos = int(sender.value())
+            last_pos = self.piezoLastPos[piezo]
+            self.piezoLastPos[piezo] = current_pos
+            if self.piezo is None:
+                self.piezo = self.cxn.PicomotorServer
+            move = current_pos - last_pos
+            self.piezo.relative_move(piezo, move)
+        else:
+            QtWidgets.QMessageBox.warning(None, "Warning", "Picomotor is not connected.")
+
+    def toggle_autoload(self):
         pass
