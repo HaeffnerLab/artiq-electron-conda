@@ -86,7 +86,7 @@ class MdiArea(QtWidgets.QMdiArea):
         painter = QtGui.QPainter(self.viewport())
         x = (self.width() - self.pixmap.width())//2
         y = (self.height() - self.pixmap.height())//2
-        painter.setOpacity(0.5)
+        painter.setOpacity(1)
         painter.drawPixmap(x, y, self.pixmap)
 
 
@@ -151,8 +151,11 @@ def main():
         broadcast_clients[target] = client
 
     # initialize main window
+    tabs = QtWidgets.QTabWidget()
+    main_main_window = MainWindow(args.server if server_name is None else server_name)
+    main_main_window.setCentralWidget(tabs)
     main_window = MainWindow(args.server if server_name is None else server_name)
-    smgr.register(main_window)
+    smgr.register(main_main_window)
     mdi_area = MdiArea()
     mdi_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
     mdi_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
@@ -234,9 +237,16 @@ def main():
     logging.info("ARTIQ dashboard %s connected to %s",
                  artiq_version, server_description)
 
+    histograms_tab = QtWidgets.QTabWidget()
+    drift_tracker_tab = QtWidgets.QWidget()
+
     # run
-    main_window.show()
-    loop.run_until_complete(main_window.exit_request.wait())
+    tabs.addTab(main_window, "Control")
+    tabs.addTab(histograms_tab, "Readout")
+    tabs.addTab(drift_tracker_tab, "Drift Tracker")
+    main_main_window.show()
+    loop.run_until_complete(main_main_window.exit_request.wait())
+
 
 if __name__ == "__main__":
     main()
