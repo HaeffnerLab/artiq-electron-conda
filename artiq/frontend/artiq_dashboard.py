@@ -74,7 +74,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.restoreGeometry(QtCore.QByteArray(state["geometry"]))
         self.restoreState(QtCore.QByteArray(state["state"]))
 
-
 class MdiArea(QtWidgets.QMdiArea):
     def __init__(self):
         QtWidgets.QMdiArea.__init__(self)
@@ -153,8 +152,10 @@ def main():
     # initialize main window
     tabs = QtWidgets.QTabWidget()
     main_main_window = MainWindow(args.server if server_name is None else server_name)
+    main_window = MainWindow(args.server if server_name is None else server_name)
     main_main_window.setCentralWidget(tabs)
     smgr.register(main_main_window)
+    smgr.register(main_window, "sortoflikeamainwindowbutnotquite")
     mdi_area = MdiArea()
     mdi_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
     mdi_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
