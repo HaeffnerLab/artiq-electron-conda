@@ -103,6 +103,13 @@ class PeripheralManager:
         synchronization = peripheral.get("synchronization", False)
         channel = count(0)
         self.gen("""
+            device_db["eeprom_{name}"]={{
+                "type": "local",
+                "module": "artiq.coredevice.kasli_i2c",
+                "class": "KasliEEPROM",
+                "arguments": {{"port": "EEM{eem}"}}
+            }},
+
             device_db["spi_{name}"]={{
                 "type": "local",
                 "module": "artiq.coredevice.spi2",
@@ -110,6 +117,7 @@ class PeripheralManager:
                 "arguments": {{"channel": 0x{channel:06x}}}
             }}""",
             name=urukul_name,
+            eem=peripheral["ports"][0],
             channel=rtio_offset+next(channel))
         if synchronization:
             self.gen("""
@@ -171,13 +179,15 @@ class PeripheralManager:
                             "pll_n": 32,
                             "chip_select": {chip_select},
                             "cpld_device": "{name}_cpld",
-                            "sw_device": "ttl_{name}_sw{uchn}"{pll_vco}
+                            "sw_device": "ttl_{name}_sw{uchn}"{pll_vco}{sync_delay_seed}{io_update_delay}
                         }}
                     }}""",
                     name=urukul_name,
                     chip_select=4 + i,
                     uchn=i,
-                    pll_vco=",\n        \"pll_vco\": {}".format(pll_vco) if pll_vco is not None else "")
+                    pll_vco=",\n        \"pll_vco\": {}".format(pll_vco) if pll_vco is not None else "",
+                    sync_delay_seed=",\n        \"sync_delay_seed\": \"eeprom_{}:{}\"".format(urukul_name, 64 + 4*i) if synchronization else "",
+                    io_update_delay=",\n        \"io_update_delay\": \"eeprom_{}:{}\"".format(urukul_name, 64 + 4*i) if synchronization else "")
             elif dds == "ad9912":
                 self.gen("""
                     device_db["{name}_ch{uchn}"] = {{
