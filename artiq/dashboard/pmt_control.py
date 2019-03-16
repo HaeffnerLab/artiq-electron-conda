@@ -18,7 +18,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
 
         self.cxn = labrad.connect()
         self.p = self.cxn.parametervault
-        
+
         self.dset_ctl = Client("::1", 3251, "master_dataset_db")
         self.scheduler = Client("::1", 3251, "master_schedule")
         self.rid = None
@@ -48,6 +48,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.onButton.setCheckable(True)
         self.onButton.clicked[bool].connect(self.set_state)
         self.autoLoadButton = QtWidgets.QPushButton("On")
+        self.autoLoadButton.setCheckable(True)
         self.autoLoadButton.clicked[bool].connect(self.toggle_autoload)
         self.autoLoadSpin = QtWidgets.QSpinBox()
 
@@ -78,6 +79,8 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.setMode.currentIndexChanged.connect(self.set_mode)
 
         self.linetriggerButton = QtWidgets.QPushButton("Off")
+        self.linetriggerButton.setCheckable(True)
+        self.linetriggerButton.setChecked(True)
         self.linetriggerButton.clicked[bool].connect(self.toggle_linetrigger)
         self.linetriggerLineEdit = QtWidgets.QLineEdit("0")
         self.linetriggerLineEdit.returnPressed.connect(self.linetrigger_duration_changed)
@@ -128,7 +131,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.piezoCurrentPos = dict()
         self.piezoLastPos = dict()
         for i, ctl in enumerate(ctls):
-            layout.addWidget(QtWidgets.QLabel(ctl + ": "), 
+            layout.addWidget(QtWidgets.QLabel(ctl + ": "),
                              starting_row + i, 0)
             self.piezoStepSize[ctl] = QtWidgets.QSpinBox()
             self.piezoStepSize[ctl].setToolTip("Set step size.")
@@ -136,7 +139,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
             self.piezoStepSize[ctl].setKeyboardTracking(False)
             self.piezoStepSize[ctl].valueChanged.connect(self.piezo_step_size_changed)
             self.piezoStepSize[ctl].setRange(0, 300)
-            layout.addWidget(self.piezoStepSize[ctl], 
+            layout.addWidget(self.piezoStepSize[ctl],
                              starting_row + i, 1)
             self.piezoCurrentPos[ctl] = QtWidgets.QSpinBox()
             self.piezoCurrentPos[ctl].setSingleStep(0)
@@ -146,7 +149,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
             self.piezoLastPos[i + 1] = 0
             self.piezoCurrentPos[ctl].setKeyboardTracking(False)
             self.piezoCurrentPos[ctl].valueChanged.connect(self.piezo_changed)
-            layout.addWidget(self.piezoCurrentPos[ctl], 
+            layout.addWidget(self.piezoCurrentPos[ctl],
                              starting_row + i, 2)
 
         if "picomotorserver" in self.cxn.servers:
@@ -207,7 +210,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
     def set_mode(self):
         txt = str(self.setMode.currentText())
         if self.rid is None:
-            self.pulsed = txt == "pulsed"  
+            self.pulsed = txt == "pulsed"
         elif  txt == "continuous":
             if not self.pulsed:
                 return
@@ -230,21 +233,27 @@ class PMTControlDock(QtWidgets.QDockWidget):
         try:
             raw_val = self.dset_ctl.get("pmt_counts")[-1]
             try:
-                duration = float(self.duration.text())  # duration in mseconds
+                # duration in mseconds
+                duration = float(self.duration.text())  
             except ValueError:
                 # picked up a backspace or something
                 return
             val = raw_val / duration  # kcounts / second
             self.countDisplay.display(val)
         except KeyError:
-            # dataset doesn't exist 
+            # dataset doesn't exist
             self.countDisplay.display(0)
         except IndexError:
             # timer too fast
-            pass         
+            pass
 
     def toggle_linetrigger(self):
-        pass
+        sender = self.sender()
+        flag = sender.isChecked()
+        if flag:
+            sender.setText("Off")
+        else:
+            sender.setText("On")
 
     def linetrigger_duration_changed(self):
         pass
@@ -254,7 +263,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
         step = int(sender.value())
         ctl = sender.objectName()
         self.piezoCurrentPos[ctl].setSingleStep(step)
-    
+
     def piezo_changed(self):
         if "picomotorserver" in self.cxn.servers:
             sender = self.sender()
@@ -267,7 +276,33 @@ class PMTControlDock(QtWidgets.QDockWidget):
             move = current_pos - last_pos
             self.piezo.relative_move(piezo, move)
         else:
-            QtWidgets.QMessageBox.warning(None, "Warning", "Picomotor is not connected.")
+            QtWidgets.QMessageBox.warning(None, "Warning", 
+                                "Picomotor is not connected.")
 
     def toggle_autoload(self):
-        pass
+        sender = self.sender()
+        flag = sender.isChecked()
+        if flag:
+            sender.setText("Off")
+        else:
+            sender.setText("On")
+
+    def save_state(self):
+        return {"ctl": {ctl: self.piezoStepSize[ctl].value()
+                        for ctl in self.piezoStepSize.keys()},
+                "offset":  self.linetriggerLineEdit.text(),
+                "autoload": self.autoLoadSpin.value(),
+                "mode": self.setMode.currentText(),
+                "ltrigger": self.linetriggerButton.isChecked()
+               }   
+
+    def restore_state(self, state):
+        for ctl, value in state["ctl"].items():
+            self.piezoStepSize[ctl].setValue(value)
+            self.piezoCurrentPos[ctl].setSingleStep(int(value))
+        self.linetriggerLineEdit.setText(state["offset"])
+        self.autoLoadSpin.setValue(int(state["autoload"]))
+        self.setMode.setCurrentText(state["mode"])
+        self.linetriggerButton.setChecked(state["ltrigger"])
+        d = {False: "On", True: "Off"}
+        self.linetriggerButton.setText(d[state["ltrigger"]])
