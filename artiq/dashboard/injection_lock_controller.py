@@ -1,6 +1,6 @@
 import labrad
 from PyQt5 import QtCore, QtGui, QtWidgets
-
+from artiq.dashboard.InjectionLock import InjectionLock
 
 class InjectionLockDock(QtWidgets.QDockWidget):
     def __init__(self, main_window):
@@ -8,3 +8,5 @@ class InjectionLockDock(QtWidgets.QDockWidget):
         self.setObjectName("INJECTION LOCK")
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
                          QtWidgets.QDockWidget.DockWidgetFloatable)
+                
+        self.setWidget(InjectionLock())
