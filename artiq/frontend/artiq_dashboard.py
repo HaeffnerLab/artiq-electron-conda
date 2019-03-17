@@ -20,7 +20,9 @@ from artiq.tools import get_user_config_dir
 from artiq.gui.models import ModelSubscriber
 from artiq.gui import state, log
 from artiq.dashboard import (experiments, shortcuts, explorer,
-                             moninj, datasets, schedule, applets_ccb)
+                             moninj, datasets, schedule, applets_ccb,
+                             pmt_control)
+from artiq.dashboard.laser_room import LaserTab
 
 
 def get_argparser():
@@ -170,7 +172,7 @@ def main():
     smgr.register(expmgr)
     d_shortcuts = shortcuts.ShortcutsDock(main_window, expmgr)
     smgr.register(d_shortcuts)
-    d_pmt = pmt_control.PMTControlDock(main_window, expmgr)
+    d_pmt = pmt_control.PMTControlDock(main_window)
     smgr.register(d_pmt)
     d_explorer = explorer.ExplorerDock(expmgr, d_shortcuts,
                                        sub_clients["explist"],
@@ -239,11 +241,14 @@ def main():
     logging.info("ARTIQ dashboard %s connected to %s",
                  artiq_version, server_description)
 
+    tabs.addTab(main_window, "Control")
+
+    laser_room_tab =  LaserTab()
+    tabs.addTab(laser_room_tab, "Laser Room")
+
     histograms_tab = QtWidgets.QTabWidget()
     drift_tracker_tab = QtWidgets.QWidget()
-
-    # run
-    tabs.addTab(main_window, "Control")
+    
     tabs.addTab(histograms_tab, "Readout")
     tabs.addTab(drift_tracker_tab, "Drift Tracker")
     main_main_window.show()
