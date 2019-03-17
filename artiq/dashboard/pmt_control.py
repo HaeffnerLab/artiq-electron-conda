@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class PMTControlDock(QtWidgets.QDockWidget):
-    def __init__(self, main_window, exp_manager):
+    def __init__(self, main_window):
         QtWidgets.QDockWidget.__init__(self, "PMT / Linetrigger / Piezo Control")
         self.setObjectName("pmt_control")
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
@@ -27,13 +27,13 @@ class PMTControlDock(QtWidgets.QDockWidget):
                                 "class_name": "pmt_collect_continuously",
                                 "file": "run_continuously/run_pmt_continuously.py",
                                 "log_level": 30,
-                                "repo_rev": "N/A"}
+                                "repo_rev": None}
 
         self.expid_pulsed = {"arguments": {},
                              "class_name": "pmt_collect_pulsed",
                              "file": "run_continuously/run_pmt_pulsed.py",
                              "log_level": 30,
-                             "repo_rev": "N/A"}
+                             "repo_rev": None}
 
         frame = QtWidgets.QFrame()
         frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
@@ -55,8 +55,6 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.countDisplay = QtWidgets.QLCDNumber()
         self.countDisplay.setSegmentStyle(2)
         self.countDisplay.display(0)
-        # Using the timer for this seems like it's overly resource intensive
-        # does it matter?
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.updateLCD)
         self.timer.start(250)
