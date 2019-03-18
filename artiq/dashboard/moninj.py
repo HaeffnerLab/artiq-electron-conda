@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from collections import namedtuple
 
 from PyQt5 import QtCore, QtWidgets, QtGui
@@ -397,7 +398,11 @@ class _DeviceManager:
             new_core_connection = CommMonInj(self.monitor_cb, self.injection_status_cb,
                     self.disconnect_cb)
             try:
-                await new_core_connection.connect(self.core_addr, 1383)
+                if "artiq_remote_server_ip" in os.environ:
+                    addr = os.environ["artiq_remote_server_ip"]
+                else:
+                    addr = self.core_addr
+                await new_core_connection.connect(addr, 1383)
             except:
                 logger.error("failed to connect to core device moninj", exc_info=True)
                 await asyncio.sleep(10.)
@@ -460,6 +465,8 @@ class MonInj:
         self.subscriber = Subscriber("devices", self.dm.init_ddb, self.dm.notify)
 
     async def start(self, server, port):
+        if "artiq_remote_server_ip" in os.environ:
+            server = os.environ["artiq_remote_server_ip"]
         await self.subscriber.connect(server, port)
 
     async def stop(self):
