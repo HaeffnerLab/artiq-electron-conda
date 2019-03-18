@@ -32,7 +32,7 @@ class LaserDACDock(QtWidgets.QDockWidget):
 
         layout = QtWidgets.QHBoxLayout()
         layout.addStretch(1)
-        elecBox = QtWidgets.QGroupBox("Laser Control")
+        elecBox = QtWidgets.QGroupBox("")
         elecLayout = QtWidgets.QVBoxLayout()
         elecBox.setLayout(elecLayout)
         layout.addWidget(elecBox)

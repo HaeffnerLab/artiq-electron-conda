@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from collections import namedtuple
 
 from PyQt5 import QtCore, QtWidgets, QtGui
@@ -464,6 +465,8 @@ class MonInj:
         self.subscriber = Subscriber("devices", self.dm.init_ddb, self.dm.notify)
 
     async def start(self, server, port):
+        if "artiq_remote_server_ip" in os.environ:
+            server = os.environ["artiq_remote_server_ip"]
         await self.subscriber.connect(server, port)
 
     async def stop(self):
