@@ -14,12 +14,7 @@ class LaserTab(QtWidgets.QMainWindow):
 
         qfm = QtGui.QFontMetrics(self.font())
         self.resize(140*qfm.averageCharWidth(), 38*qfm.lineSpacing())
-
         self.exit_request = asyncio.Event()
-
-        # topWidget = QtWidgets.QWidget()
-        # topLayout = QtWidgets.QGridLayout()
-
         self.setup_background()
         self.add_docks()
     
@@ -30,12 +25,21 @@ class LaserTab(QtWidgets.QMainWindow):
     def save_state(self):
         return {
             "state": bytes(self.saveState()),
-            "geometry": bytes(self.saveGeometry())
+            "geometry": bytes(self.saveGeometry()),
+            "il1": self.d_injectionlock.il.q1Edit.value(),
+            "il2": self.d_injectionlock.il.q2Edit.value(),
+            "il3": self.d_injectionlock.il.q3Edit.value(),
+            "il4": self.d_injectionlock.il.q4Edit.value(),
         }
 
     def restore_state(self, state):
         self.restoreGeometry(QtCore.QByteArray(state["geometry"]))
         self.restoreState(QtCore.QByteArray(state["state"]))
+        # Injection lock stuff, doesnt work
+        self.d_injectionlock.il.q1Edit.setValue(state["il1"])
+        self.d_injectionlock.il.q2Edit.setValue(state["il2"])
+        self.d_injectionlock.il.q3Edit.setValue(state["il3"])
+        self.d_injectionlock.il.q4Edit.setValue(state["il4"])
 
     def setup_background(self):
         mdi_area = MdiArea()
@@ -44,12 +48,12 @@ class LaserTab(QtWidgets.QMainWindow):
         self.setCentralWidget(mdi_area)
     
     def add_docks(self):
-        d_laserdac = LaserDACDock(self)
-        d_multiplexer = MultiplexerDock(self)
-        d_injectionlock = InjectionLockDock(self)
-        self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, d_laserdac)
-        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, d_multiplexer)
-        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, d_injectionlock)
+        self.d_laserdac = LaserDACDock(self)
+        self.d_multiplexer = MultiplexerDock(self)
+        self.d_injectionlock = InjectionLockDock(self)
+        self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, self.d_laserdac)
+        self.addDockWidget(QtCore.Qt.RightDockWidgetArea, self.d_multiplexer)
+        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, self.d_injectionlock)
 
 
 class MdiArea(QtWidgets.QMdiArea):

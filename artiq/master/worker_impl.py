@@ -283,9 +283,9 @@ def main():
                 device_mgr.virtual_devices["scheduler"].set_run_info(
                     rid, obj["pipeline_name"], expid, obj["priority"])
                 start_local_time = time.localtime(start_time)
-                dirname = os.path.join("results",
-                                   time.strftime("%Y-%m-%d", start_local_time),
-                                   time.strftime("%H", start_local_time))
+                rootdir = os.path.join(os.path.expanduser("~"), "data")
+                dirname = os.path.join(rootdir,
+                                   time.strftime("%Y-%m-%d", start_local_time))
                 os.makedirs(dirname, exist_ok=True)
                 os.chdir(dirname)
                 argument_mgr = ProcessArgumentManager(expid["arguments"])

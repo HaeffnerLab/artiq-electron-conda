@@ -285,7 +285,7 @@ class ExplorerDock(QtWidgets.QDockWidget):
         expname = self._get_selected_expname()
         if expname is not None:
             expurl = "repo:" + expname
-            self.d_shortcuts.set_shortcut(nr, expurl)
+            # self.d_shortcuts.set_shortcut(nr, expurl)
             logger.info("Set shortcut F%d to '%s'", nr+1, expurl)
 
     def update_scanning(self, scanning):
