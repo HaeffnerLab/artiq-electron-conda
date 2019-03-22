@@ -20,6 +20,7 @@ from artiq.dashboard import (experiments, shortcuts, explorer,
                              moninj, datasets, schedule, applets_ccb,
                              pmt_control)
 from artiq.dashboard.laser_room import LaserTab
+from artiq.dashboard.drift_tracker import DriftTracker
 
 
 def get_argparser():
@@ -41,6 +42,23 @@ def get_argparser():
         help="database file for local GUI settings")
     add_common_args(parser)
     return parser
+
+
+class TabWidget(QtWidgets.QTabWidget):
+    def __init__(self):
+        QtWidgets.QTabWidget.__init__(self)
+        self.exit_request = asyncio.Event()
+        self.setObjectName("MainTabs")
+
+    def closeEvent(self, event):
+        event.ignore()
+        self.exit_request.set()
+
+    def save_state(self):
+        return {"tab_index": int(self.currentIndex())}
+
+    def restore_state(self, state):
+        self.setCurrentIndex(int(state["tab_index"]))
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -146,10 +164,11 @@ def main():
         broadcast_clients[target] = client
 
     # initialize main window
-    tabs = QtWidgets.QTabWidget()
+    tabs = TabWidget()
     main_main_window = MainWindow(args.server if server_name is None else server_name)
     main_window = MainWindow(args.server if server_name is None else server_name)
     main_main_window.setCentralWidget(tabs)
+    smgr.register(tabs)
     smgr.register(main_main_window)
     smgr.register(main_window, "sortoflikeamainwindowbutnotquite")
     mdi_area = MdiArea()
@@ -165,11 +184,11 @@ def main():
                                            rpc_clients["experiment_db"],
                                            )
     smgr.register(expmgr)
-    d_shortcuts = shortcuts.ShortcutsDock(main_window, expmgr)
-    smgr.register(d_shortcuts)
+    # d_shortcuts = shortcuts.ShortcutsDock(main_window, expmgr)
+    # smgr.register(d_shortcuts)
     d_pmt = pmt_control.PMTControlDock(main_window)
     smgr.register(d_pmt)
-    d_explorer = explorer.ExplorerDock(expmgr, d_shortcuts,
+    d_explorer = explorer.ExplorerDock(expmgr, None,
                                        sub_clients["explist"],
                                        sub_clients["explist_status"],
                                        rpc_clients["schedule"],
@@ -200,8 +219,8 @@ def main():
 
     # lay out docks
     right_docks = [
-        d_explorer, d_shortcuts, d_pmt,
-        d_ttl_dds.ttl_dock, d_ttl_dds.dds_dock, d_ttl_dds.dac_dock,
+        d_explorer, d_pmt,
+        d_ttl_dds.ttl_dock, d_ttl_dds.dds_dock, #d_ttl_dds.dac_dock,
         d_datasets, d_applets
     ]
     main_window.addDockWidget(QtCore.Qt.RightDockWidgetArea, right_docks[0])
@@ -209,15 +228,29 @@ def main():
         main_window.tabifyDockWidget(d1, d2)
     main_window.addDockWidget(QtCore.Qt.BottomDockWidgetArea, d_schedule)
 
+    tabs.addTab(main_window, "Control")
+
+    laser_room_tab =  LaserTab()
+    smgr.register(laser_room_tab)
+    tabs.addTab(laser_room_tab, "Laser Room")
+
+    histograms_tab = QtWidgets.QTabWidget()
+    
+    tabs.addTab(histograms_tab, "Readout")
+    drift_tracker_tab = DriftTracker()
+    smgr.register(drift_tracker_tab)
+    tabs.addTab(drift_tracker_tab, "Drift Tracker")
+
+    smgr.load()
+    smgr.start()
+    atexit_register_coroutine(smgr.stop)
+
     # load/initialize state
     if os.name == "nt":
         # HACK: show the main window before creating applets.
         # Otherwise, the windows of those applets that are in detached
         # QDockWidgets fail to be embedded.
         main_window.show()
-    smgr.load()
-    smgr.start()
-    atexit_register_coroutine(smgr.stop)
 
     # create first log dock if not already in state
     d_log0 = logmgr.first_log_dock()
@@ -232,16 +265,6 @@ def main():
     logging.info("ARTIQ dashboard %s connected to %s",
                  artiq_version, server_description)
 
-    tabs.addTab(main_window, "Control")
-
-    laser_room_tab =  LaserTab()
-    tabs.addTab(laser_room_tab, "Laser Room")
-
-    histograms_tab = QtWidgets.QTabWidget()
-    drift_tracker_tab = QtWidgets.QWidget()
-    
-    tabs.addTab(histograms_tab, "Readout")
-    tabs.addTab(drift_tracker_tab, "Drift Tracker")
     main_main_window.show()
     loop.run_until_complete(main_main_window.exit_request.wait())
 

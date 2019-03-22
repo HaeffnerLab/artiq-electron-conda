@@ -2,7 +2,6 @@ import labrad
 from labrad.units import WithUnit as U
 import logging
 from PyQt5 import QtCore, QtWidgets, QtGui
-from artiq.gui.tools import LayoutWidget
 from artiq.protocols.pc_rpc import Client
 
 

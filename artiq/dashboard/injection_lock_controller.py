@@ -8,5 +8,5 @@ class InjectionLockDock(QtWidgets.QDockWidget):
         self.setObjectName("INJECTION LOCK")
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
                          QtWidgets.QDockWidget.DockWidgetFloatable)
-                
-        self.setWidget(InjectionLock())
+        self.il = InjectionLock()
+        self.setWidget(self.il)
