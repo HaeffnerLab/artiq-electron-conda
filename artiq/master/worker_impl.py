@@ -298,6 +298,7 @@ def main():
                 else:
                     put_object({"action": "completed"})
             elif action == "write_results":
+                print("\n\nhere\n\n")
                 current_time = datetime.datetime.now().strftime("%H%M_%S")
                 if not os.path.exists(str(exp.__name__)):
                     os.mkdir(str(exp.__name__))

@@ -66,5 +66,3 @@ class LinecenterTracker(QtWidgets.QDockWidget):
         layout.addWidget(self.drift_canvas)
         layout.setAlignment(QtCore.Qt.AlignRight)
         self.main_widget.setLayout(layout)
-
-    # def make_connections(self):

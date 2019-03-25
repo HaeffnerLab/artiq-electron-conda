@@ -21,6 +21,7 @@ from artiq.dashboard import (experiments, shortcuts, explorer,
                              pmt_control)
 from artiq.dashboard.laser_room import LaserTab
 from artiq.dashboard.drift_tracker import DriftTracker
+from artiq.dashboard.readout_histogram import ReadoutHistogram
 
 
 def get_argparser():
@@ -233,9 +234,8 @@ def main():
     laser_room_tab =  LaserTab()
     smgr.register(laser_room_tab)
     tabs.addTab(laser_room_tab, "Laser Room")
-
-    histograms_tab = QtWidgets.QTabWidget()
     
+    histograms_tab = ReadoutHistogram()
     tabs.addTab(histograms_tab, "Readout")
     drift_tracker_tab = DriftTracker()
     smgr.register(drift_tracker_tab)

@@ -371,18 +371,13 @@ class DriftTracker(QtWidgets.QMainWindow):
         global global_address
         global password
         try:
-            # self.cxn = yield connectAsync(global_address, 
-            #                               password=password,
-            #                               tls_mode="off")
             self.server = yield self.cxn.sd_tracker_global
             yield self.setup_listeners()
-            # yield self.initialize_layout()
         except Exception as e:
             self.setDisabled(True)
 
     def disconnectypoo(self, *args):
         self.setDisabled(True)
-        # self.cxn.disconnect()
             
     @inlineCallbacks
     def setup_listeners(self):
