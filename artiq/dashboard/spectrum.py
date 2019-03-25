@@ -33,7 +33,10 @@ class Spectrum(QtWidgets.QDockWidget):
         self.spec.set_xlabel("MHz")
         self.spec.axes.get_yaxis().set_ticks([])
         self.spec.tick_params(which="both", direction="in", top=True,
-                              bottom=True, left=False, right=False)
+                              bottom=True, left=False, right=False,
+                              length=5)
+        self.spec.minorticks_on()
+        self.spec.tick_params(which="major", length=10, width=2)
         self.mpl_toolbar = NavigationToolbar(self.spec_canvas, self)
         self.spectral_lines = []
         self.fig.tight_layout()

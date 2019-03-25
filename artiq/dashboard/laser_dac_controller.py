@@ -15,8 +15,7 @@ class LaserDACDock(QtWidgets.QDockWidget):
     def __init__(self, main_window):
         QtWidgets.QDockWidget.__init__(self, "LASERDAC")
         self.setObjectName("LASERDAC")
-        self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
-                         QtWidgets.QDockWidget.DockWidgetFloatable)
+        self.setFeatures(QtWidgets.QDockWidget.DockWidgetFloatable)
 
         self.topLevelWidget = QtWidgets.QWidget(self)
         self.setWidget(self.topLevelWidget)

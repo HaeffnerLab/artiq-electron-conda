@@ -22,8 +22,7 @@ class MultiplexerDock(QtWidgets.QDockWidget):
     def __init__(self, main_window):
         QtWidgets.QDockWidget.__init__(self, "MULTIPLEXER")
         self.setObjectName("MULTIPLEXER")
-        self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
-                         QtWidgets.QDockWidget.DockWidgetFloatable)
+        self.setFeatures(QtWidgets.QDockWidget.DockWidgetFloatable)
         global laser_room_ip
         self.normal_cxn = labrad.connect(laser_room_ip,
                                          password="lab",
