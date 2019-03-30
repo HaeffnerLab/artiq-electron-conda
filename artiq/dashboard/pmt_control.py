@@ -14,9 +14,13 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.setObjectName("pmt_control")
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
                          QtWidgets.QDockWidget.DockWidgetFloatable)
-
-        self.cxn = labrad.connect()
-        self.p = self.cxn.parametervault
+        
+        try:
+            self.cxn = labrad.connect()
+            p = self.cxn.parametervault
+        except:
+            # No labrad at init, need to restart
+            return
 
         self.dset_ctl = Client("::1", 3251, "master_dataset_db")
         self.scheduler = Client("::1", 3251, "master_schedule")
@@ -63,7 +67,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
 
         self.durationLabel = QtWidgets.QLabel("Duration (ms): ")
         self.duration = QtWidgets.QLineEdit("100")
-        self.p.set_parameter(["PmtReadout", "duration", U(100, "ms")])
+        p.set_parameter(["PmtReadout", "duration", U(100, "ms")])
         validator = QtGui.QDoubleValidator()
         self.duration.setValidator(validator)
         self.duration.returnPressed.connect(self.duration_changed)
@@ -179,6 +183,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
 
     def duration_changed(self, *args, **kwargs):
         # connect to parametervault here
+        p = self.cxn.parametervault
         sender = self.sender()
         validator = sender.validator()
         state = validator.validate(sender.text(), 0)[0]
@@ -193,7 +198,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
             min = 1e-3 # 1 us
             raw_duration = float(sender.text())
             duration = raw_duration if raw_duration >= min else min
-            self.p.set_parameter(["PmtReadout", "duration", U(duration, "ms")])
+            p.set_parameter(["PmtReadout", "duration", U(duration, "ms")])
             if self.rid is None:
                 return
             else:

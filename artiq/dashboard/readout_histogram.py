@@ -22,7 +22,10 @@ class ReadoutHistogram(QtWidgets.QMainWindow):
         except Exception as e:
             print("Failed on readout_histogram connect: ", e)
             self.setDisabled(True)
-        self.setup_background()
+        if not "parametervault" in self.cxn.servers: 
+            # Right now it requires restart if labrad
+            # or just parametervault is initially unavailable.
+            return
         self.add_docks(self.cxn)
         self.connect()
 
@@ -33,20 +36,17 @@ class ReadoutHistogram(QtWidgets.QMainWindow):
     def save_state(self):
         pass
 
-    def restore_state(self):
-        pass
-
-    def setup_background(self):
+    def restore_state(self, state):
         pass
 
     @inlineCallbacks
     def connect(self):
         try:
-            self.acxn = yield connectAsync()
+            yield self.setup_listeners()
         except Exception as e:
             print("Failed on readout_histogram connect: ", e)
             self.setDisabled(True)
-        yield self.setup_listeners()
+        
         yield self.acxn.manager.subscribe_to_named_message("Server Connect", 
                                                            987111321, True)
         yield self.acxn.manager.subscribe_to_named_message("Server Disconnect", 
@@ -60,6 +60,10 @@ class ReadoutHistogram(QtWidgets.QMainWindow):
     def setup_listeners(self):
         try:
             del self.acxn
+        except AttributeError:
+            # acxn doesn't exist yet
+            pass
+        try:
             self.acxn = yield connectAsync()
         except Exception as e:
             print("109323083: ", e)
@@ -85,21 +89,24 @@ class ReadoutHistogram(QtWidgets.QMainWindow):
         self.tabifyDockWidget(self.d_pmt, self.d_camera)
         self.setTabPosition(QtCore.Qt.TopDockWidgetArea,
                             QtWidgets.QTabWidget.North)
+        self.d_pmt.show()
+        self.d_pmt.raise_()
 
     @inlineCallbacks
     def param_changed(self, *args):
-        # Should prob do this in pmt_readout_dock code
+        # Should maybe do this in pmt_readout_dock code
         if "".join(args[1]) == "StateReadoutthreshold_list":
             d = self.d_pmt
             p = self.acxn.parametervault
             lines = yield p.get_parameter(["StateReadout", "threshold_list"])
-            lines = lines[1]
-            lines.sort()
-            yield p.set_parameter(["StateReadout", "threshold_list", lines])
+            slines = sorted(lines)
+            if not list(slines) == list(lines):
+                yield p.set_parameter(["StateReadout", "threshold_list", lines])
             d.number_lines = len(lines)
             for line in d.lines: 
                 line.remove()
             d.lines = [d.ax.axvline(line, lw=3, color="r") for line in lines]
             d.n_thresholds.setValue(len(lines))
             d.curr_threshold.setMaximum(len(lines))
+            d.curr_threshold.setValue(1)
             d.canvas.draw()

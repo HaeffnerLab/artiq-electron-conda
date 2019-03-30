@@ -18,7 +18,7 @@ from artiq.gui.models import ModelSubscriber
 from artiq.gui import state, log
 from artiq.dashboard import (experiments, shortcuts, explorer,
                              moninj, datasets, schedule, applets_ccb,
-                             pmt_control)
+                             pmt_control, parameter_editor)
 from artiq.dashboard.laser_room import LaserTab
 from artiq.dashboard.drift_tracker import DriftTracker
 from artiq.dashboard.readout_histogram import ReadoutHistogram
@@ -189,6 +189,10 @@ def main():
     # smgr.register(d_shortcuts)
     d_pmt = pmt_control.PMTControlDock(main_window)
     smgr.register(d_pmt)
+    d_parameter_editor = parameter_editor.ParameterEditorDock()
+    smgr.register(d_parameter_editor)
+    d_show_parameter_editor = parameter_editor.ParameterEditorDock("Show Parameters", {"StateReadout": ["threshold_list"]})
+    smgr.register(d_show_parameter_editor, "sortoflikeparametereditorbutnotquite")
     d_explorer = explorer.ExplorerDock(expmgr, None,
                                        sub_clients["explist"],
                                        sub_clients["explist_status"],
@@ -220,7 +224,7 @@ def main():
 
     # lay out docks
     right_docks = [
-        d_explorer, d_pmt,
+        d_explorer, d_pmt, d_parameter_editor, d_show_parameter_editor,
         d_ttl_dds.ttl_dock, d_ttl_dds.dds_dock, #d_ttl_dds.dac_dock,
         d_datasets, d_applets
     ]
@@ -230,12 +234,11 @@ def main():
     main_window.addDockWidget(QtCore.Qt.BottomDockWidgetArea, d_schedule)
 
     tabs.addTab(main_window, "Control")
-
     laser_room_tab =  LaserTab()
     smgr.register(laser_room_tab)
     tabs.addTab(laser_room_tab, "Laser Room")
-    
     histograms_tab = ReadoutHistogram()
+    smgr.register(histograms_tab)
     tabs.addTab(histograms_tab, "Readout")
     drift_tracker_tab = DriftTracker()
     smgr.register(drift_tracker_tab)

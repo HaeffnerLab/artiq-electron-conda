@@ -12,7 +12,7 @@ class CameraReadoutDock(QtWidgets.QDockWidget):
         self.setObjectName("CameraReadoutHistogram")
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
                          QtWidgets.QDockWidget.DockWidgetFloatable)
-        self.cxn = cxn
+
 
     def save_state(self):
         pass
