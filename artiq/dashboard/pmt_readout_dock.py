@@ -30,7 +30,6 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
     def restore_state(self):
         pass
 
-    
 
     def make_GUI(self):
         layout = QtWidgets.QGridLayout()
@@ -42,14 +41,16 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
         self.ax = self.fig.add_subplot(111)
         self.ax.set_ylim((0, 50))
         self.mpl_toolbar = NavigationToolbar2QT(self.canvas, self)
-        self.ax.set_title("PMT Readout", fontsize=25)
+        # self.ax.set_title("PMT Readout", fontsize=25)
         self.fig.tight_layout()
         self.canvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
                                   QtWidgets.QSizePolicy.Expanding)
         self.ax.tick_params(axis="both", direction="in")
-        lines = self.p.get_parameter(["StateReadout", "threshold_list"])[1]
-        lines.sort()
-        self.p.set_parameter(["StateReadout", "threshold_list", lines])
+        lines = self.p.get_parameter(["StateReadout", "threshold_list"])
+        slines = sorted(lines)
+        if not list(slines) == list(lines):
+            self.p.set_parameter(["StateReadout", "threshold_list", slines])
+            lines = slines
         self.number_lines = len(lines)
         self.lines = [self.ax.axvline(line, lw=3, color="r") for line in lines]
         self.n_thresholds = QtWidgets.QSpinBox()
@@ -82,17 +83,18 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
             for _ in range(abs(diff)):
                 l = self.lines.pop()
                 l.remove()
+                del l
                 self.canvas.draw()
-            tlist = self.p.get_parameter(["StateReadout", "threshold_list"])[1]
+            tlist = self.p.get_parameter(["StateReadout", "threshold_list"])
             tlist = tlist[:diff]
             self.p.set_parameter(["StateReadout", "threshold_list", tlist])
 
         if diff > 0:
             for _ in range(diff):
                 self.lines.append(self.ax.axvline(0, lw=3, color="r"))
-                tlist = self.p.get_parameter(["StateReadout", "threshold_list"])[1]
+                tlist = self.p.get_parameter(["StateReadout", "threshold_list"])
                 maxt = max(tlist)
-                tlist = np.append(tlist, maxt + 1)
+                tlist = np.append(tlist, maxt + 2)
                 self.p.set_parameter(["StateReadout", "threshold_list", tlist])
                 self.canvas.draw()
 
@@ -100,10 +102,11 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
         self.current_line = int(val) - 1
 
     def on_click(self, event):
-        if type(event.button) == int:
+        if type(event.button) == int and not event.xdata is None:
             xval = int(round(event.xdata))
             idx = self.current_line
-            tlist = self.p.get_parameter(["StateReadout", "threshold_list"])[1]
+            tlist = self.p.get_parameter(["StateReadout", "threshold_list"])
+            tlist = tlist
             tlist[idx] = xval
             if idx > 0:
                 if tlist[idx - 1] >= tlist[idx]:
