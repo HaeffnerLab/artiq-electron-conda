@@ -1,5 +1,6 @@
 from PyQt5 import QtWidgets, QtCore, QtGui
-from artiq.dashboard.drift_tracker_junk.helper_widgets import dropdown
+from artiq.dashboard.drift_tracker.helper_widgets import dropdown
+
 
 class table_dropdowns_with_entry(QtWidgets.QTableWidget):
     """

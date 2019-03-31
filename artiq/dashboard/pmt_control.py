@@ -3,24 +3,22 @@ from labrad.units import WithUnit as U
 import logging
 from PyQt5 import QtCore, QtWidgets, QtGui
 from artiq.protocols.pc_rpc import Client
+from twisted.internet.defer import inlineCallbacks
 
 
 logger = logging.getLogger(__name__)
 
 
 class PMTControlDock(QtWidgets.QDockWidget):
-    def __init__(self, main_window):
+    def __init__(self, acxn):
         QtWidgets.QDockWidget.__init__(self, "PMT / Linetrigger / Piezo Control")
         self.setObjectName("pmt_control")
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
                          QtWidgets.QDockWidget.DockWidgetFloatable)
-        
-        try:
-            self.cxn = labrad.connect()
-            p = self.cxn.parametervault
-        except:
-            # No labrad at init, need to restart
-            return
+        self.acxn = acxn
+        self.setup_listeners()
+        self.pv = None
+        self.pm = None
 
         self.dset_ctl = Client("::1", 3251, "master_dataset_db")
         self.scheduler = Client("::1", 3251, "master_schedule")
@@ -67,7 +65,12 @@ class PMTControlDock(QtWidgets.QDockWidget):
 
         self.durationLabel = QtWidgets.QLabel("Duration (ms): ")
         self.duration = QtWidgets.QLineEdit("100")
-        p.set_parameter(["PmtReadout", "duration", U(100, "ms")])
+        try:
+            with labrad.connection() as cxn:
+                p = cxn.parametervault
+                p.set_parameter(["PmtReadout", "duration", U(100, "ms")])
+        except: 
+            self.duration.setDisabled(True)
         validator = QtGui.QDoubleValidator()
         self.duration.setValidator(validator)
         self.duration.returnPressed.connect(self.duration_changed)
@@ -150,14 +153,9 @@ class PMTControlDock(QtWidgets.QDockWidget):
             self.piezoLastPos[i + 1] = 0
             self.piezoCurrentPos[ctl].setKeyboardTracking(False)
             self.piezoCurrentPos[ctl].valueChanged.connect(self.piezo_changed)
-            layout.addWidget(self.piezoCurrentPos[ctl],
-                             starting_row + i, 2)
-
-        if "picomotorserver" in self.cxn.servers:
-            self.piezo = self.cxn.PicomotorServer
-        else:
-            self.piezo = None
-
+            layout.addWidget(self.piezoCurrentPos[ctl], starting_row + i, 2)
+        
+        self.connect_servers()
 
     def set_state(self, override=False):
         if override:
@@ -181,9 +179,11 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 self.rid = None
             self.onButton.setText("On")
 
+    @inlineCallbacks
     def duration_changed(self, *args, **kwargs):
         # connect to parametervault here
-        p = self.cxn.parametervault
+        if self.pv is None:
+            self.pv = yield self.acxn.get_server("ParameterVault")
         sender = self.sender()
         validator = sender.validator()
         state = validator.validate(sender.text(), 0)[0]
@@ -198,7 +198,9 @@ class PMTControlDock(QtWidgets.QDockWidget):
             min = 1e-3 # 1 us
             raw_duration = float(sender.text())
             duration = raw_duration if raw_duration >= min else min
-            p.set_parameter(["PmtReadout", "duration", U(duration, "ms")])
+            yield self.pv.set_parameter(["PmtReadout", "duration", U(duration, "ms")])
+            a = yield self.pv.get_parameter(["PmtReadout", "duration"])
+            print("p:::: ", a)
             if self.rid is None:
                 return
             else:
@@ -207,7 +209,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 self.set_state(True)
         except ValueError:
             # Shouldn't happen
-            pass
+            yield print("ValueError")
 
     def set_mode(self):
         txt = str(self.setMode.currentText())
@@ -266,20 +268,17 @@ class PMTControlDock(QtWidgets.QDockWidget):
         ctl = sender.objectName()
         self.piezoCurrentPos[ctl].setSingleStep(step)
 
+    @inlineCallbacks
     def piezo_changed(self):
-        if "picomotorserver" in self.cxn.servers:
-            sender = self.sender()
-            piezo = int(sender.objectName())
-            current_pos = int(sender.value())
-            last_pos = self.piezoLastPos[piezo]
-            self.piezoLastPos[piezo] = current_pos
-            if self.piezo is None:
-                self.piezo = self.cxn.PicomotorServer
-            move = current_pos - last_pos
-            self.piezo.relative_move(piezo, move)
-        else:
-            QtWidgets.QMessageBox.warning(None, "Warning", 
-                                "Picomotor is not connected.")
+        if self.pm is None:
+            yield print("not connected to picomotor")
+        sender = self.sender()
+        piezo = int(sender.objectName())
+        current_pos = int(sender.value())
+        last_pos = self.piezoLastPos[piezo]
+        self.piezoLastPos[piezo] = current_pos
+        move = current_pos - last_pos
+        yield self.pm.relative_move(piezo, move)
 
     def toggle_autoload(self):
         sender = self.sender()
@@ -295,8 +294,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 "offset":  self.linetriggerLineEdit.text(),
                 "autoload": self.autoLoadSpin.value(),
                 "mode": self.setMode.currentText(),
-                "ltrigger": self.linetriggerButton.isChecked()
-               }   
+                "ltrigger": self.linetriggerButton.isChecked()}   
 
     def restore_state(self, state):
         for ctl, value in state["ctl"].items():
@@ -308,3 +306,42 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.linetriggerButton.setChecked(state["ltrigger"])
         d = {False: "On", True: "Off"}
         self.linetriggerButton.setText(d[state["ltrigger"]])
+
+
+    def setup_listeners(self):
+        self.acxn.add_on_connect("ParameterVault", self.parameter_vault_connect)
+        self.acxn.add_on_disconnect("ParameterVault", self.parameter_vault_disconnect)
+        self.acxn.add_on_connect("picomotorserver", self.picomotor_connect)
+        self.acxn.add_on_disconnect("picomotorserver", self.picomotor_disconnect)
+
+    def parameter_vault_connect(self):
+        self.duration.setDisabled(False)
+
+    def parameter_vault_disconnect(self):
+        self.duration.setDisabled(True)
+    
+    def picomotor_connect(self):
+        for spinbox in self.piezoStepSize.values():
+            spinbox.setDisabled(False)
+        for spinbox in self.piezoCurrentPos.values():
+            spinbox.setDisabled(False)
+
+    def picomotor_disconnect(self):
+        for spinbox in self.piezoStepSize.values():
+            spinbox.setDisabled(True)
+        for spinbox in self.piezoCurrentPos.values():
+            spinbox.setDisabled(True)
+
+    @inlineCallbacks
+    def connect_servers(self):
+        if self.pv is None:
+            try:
+                self.pv = yield self.acxn.get_server("ParameterVault")
+            except:
+                self.parameter_vault_disconnect()
+        if self.pm is None:
+            try:
+                self.pm = yield self.acxn.get_server("picomotorserver")
+            except:
+                self.picomotor_disconnect()
+

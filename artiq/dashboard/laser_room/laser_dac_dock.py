@@ -2,9 +2,9 @@ import labrad
 from PyQt5 import QtCore, QtGui, QtWidgets
 from labrad.wrappers import connectAsync
 from labrad.types import Error
-from artiq.dashboard.laser_room_DAC_configuration import hardwareConfiguration as hc
-from artiq.dashboard.QCustomSpinBox import QCustomSpinBox
-from twisted.internet import defer
+from artiq.dashboard.laser_room.laser_room_DAC_configuration import hardwareConfiguration as hc
+from artiq.dashboard.laser_room.QCustomSpinBox import QCustomSpinBox
+from twisted.internet.defer import inlineCallbacks
 
 
 laser_room_ip = "192.168.169.49"
@@ -24,7 +24,6 @@ class LaserDACDock(QtWidgets.QDockWidget):
 
     def makeGUI(self):
         self.dacDict = dict(**hc.elec_dict, **hc.sma_dict)
-        
         self.controls = {k: QCustomSpinBox(hc.channel_name_dict[k], 
                          self.dacDict[k].allowedVoltageRange) 
                          for k in self.dacDict.keys()}
@@ -47,11 +46,6 @@ class LaserDACDock(QtWidgets.QDockWidget):
                 elecLayout.addWidget(self.controls[e])
       
         self.inputUpdated = False                
-        # self.timer = QtCore.QTimer(self)        
-        # self.timer.timeout.connect(self.sendToServer)
-        # self.timer.start(UpdateTime)
-
-        
         for k in self.dacDict.keys():
             self.controls[k].onNewValues.connect(self.inputHasUpdated(k))
 
@@ -59,7 +53,7 @@ class LaserDACDock(QtWidgets.QDockWidget):
         elecLayout.setAlignment(QtCore.Qt.AlignCenter)               
         self.topLevelWidget.setLayout(layout)
 
-    @defer.inlineCallbacks
+    @inlineCallbacks
     def connect(self):
         global laser_room_ip
         self.cxn = yield connectAsync(laser_room_ip, password="lab", tls_mode="off")
@@ -67,7 +61,7 @@ class LaserDACDock(QtWidgets.QDockWidget):
         if self.initialized:
             yield self.followSignal(0, 0)
 
-    @defer.inlineCallbacks    
+    @inlineCallbacks    
     def setupListeners(self):
         try:
             self.dacserver = yield self.cxn['LASERDAC Server']
@@ -100,13 +94,13 @@ class LaserDACDock(QtWidgets.QDockWidget):
             self.dacserver.set_individual_analog_voltages([(self.changedChannel, value)])
             self.inputUpdated = False
 
-    @defer.inlineCallbacks
+    @inlineCallbacks
     def followSignal(self, x, s):
         av = yield self.dacserver.get_analog_voltages()
         for (c, v) in av:
             self.controls[c].setValueNoSignal(v)
 
-    @defer.inlineCallbacks
+    @inlineCallbacks
     def followServerConnect(self, cntx, server_name):
         server_name = server_name[1]
         if server_name == 'LASERDAC Server':
@@ -119,7 +113,7 @@ class LaserDACDock(QtWidgets.QDockWidget):
         else:
             yield None
 
-    @defer.inlineCallbacks
+    @inlineCallbacks
     def followServerDisconnect(self, cntx, server_name):
         server_name = server_name[1]
         if server_name == 'LASERDAC Server':
@@ -132,12 +126,3 @@ class LaserDACDock(QtWidgets.QDockWidget):
     def setEnabled(self, value):
         for key in self.controls.keys():
             self.controls[key].spinLevel.setEnabled(value)
-    
-
-if __name__ == "__main__":
-    a = QtWidgets.QApplication( [] )
-    from twisted.internet import reactor
-    DAC_Control = LaserDACDock(reactor)
-    DAC_Control.show()
-    reactor.run()
-        
