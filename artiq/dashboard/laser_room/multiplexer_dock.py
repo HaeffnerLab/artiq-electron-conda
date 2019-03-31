@@ -1,11 +1,11 @@
 import labrad
 import os
-import artiq.dashboard.RGBconverter as RGB
+import artiq.dashboard.laser_room.RGBconverter as RGB
 from functools import partial
 from PyQt5 import uic, QtWidgets, QtCore
 from labrad.wrappers import connectAsync
 from labrad.types import Error
-from artiq.dashboard.MULTIPLEXER_CONTROL_config import multiplexer_control_config as config
+from artiq.dashboard.laser_room.MULTIPLEXER_CONTROL_config import multiplexer_control_config as config
 from twisted.internet.defer import inlineCallbacks
 
 

@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-
+#!/usr/bin/env python3)
 import argparse
 import asyncio
 import atexit
@@ -22,9 +21,17 @@ from artiq.gui import state, log
 from artiq.dashboard import (experiments, shortcuts, explorer,
                              moninj, datasets, schedule, applets_ccb,
                              pmt_control, parameter_editor)
-from artiq.dashboard.laser_room import LaserTab
-from artiq.dashboard.drift_tracker import DriftTracker
-from artiq.dashboard.readout_histogram import ReadoutHistogram
+from artiq.dashboard.laser_room.laser_room_tab import LaserRoomTab
+from artiq.dashboard.drift_tracker.drift_tracker import DriftTracker
+from artiq.dashboard.readout_histograms.readout_histograms import ReadoutHistograms
+import labrad
+from lattice.clients.connection import connection
+from twisted.internet.defer import inlineCallbacks
+
+
+needs_parameter_vault = list()
+laser_room_ip_address = "192.168.169.49"
+lase_room_password = "lab"
 
 
 def get_argparser():
@@ -109,8 +116,27 @@ class MdiArea(QtWidgets.QMdiArea):
         painter.setOpacity(1)
         painter.drawPixmap(x, y, self.pixmap)
 
+@inlineCallbacks
+def parameter_vault_connect(*args):
+    for widget in needs_parameter_vault:
+        yield widget.setup_listeners()
+        widget.setDisabled(False)
+
+def parameter_vault_disconnect(*args):
+    for widget in needs_parameter_vault:
+        widget.setDisabled(True)
 
 def main():
+    # connect to labrad
+    acxn = connection()
+    acxn.connect()
+    acxn.add_on_connect("ParameterVault", parameter_vault_connect)
+    acxn.add_on_disconnect("ParameterVault", parameter_vault_disconnect)
+    # connect to laser room labrad
+    laser_room_acxn = connection()
+    laser_room_acxn.connect(host=laser_room_ip_address,
+                                 password=lase_room_password,
+                                 tls_mode="off")
     # initialize application
     args = get_argparser().parse_args()
     widget_log_handler = log.init_log(args, "dashboard")
@@ -192,12 +218,16 @@ def main():
     smgr.register(expmgr)
     # d_shortcuts = shortcuts.ShortcutsDock(main_window, expmgr)
     # smgr.register(d_shortcuts)
-    d_pmt = pmt_control.PMTControlDock(main_window)
+    d_pmt = pmt_control.PMTControlDock(acxn)
     smgr.register(d_pmt)
-    d_parameter_editor = parameter_editor.ParameterEditorDock()
+    d_parameter_editor = parameter_editor.ParameterEditorDock(acxn=acxn)
     smgr.register(d_parameter_editor)
-    d_show_parameter_editor = parameter_editor.ParameterEditorDock("Show Parameters", {"StateReadout": ["threshold_list"]})
+    needs_parameter_vault.append(d_parameter_editor)
+    d_show_parameter_editor = parameter_editor.ParameterEditorDock(acxn=acxn, 
+                                                                   name="Show Parameters", 
+                                                                   show_params={"StateReadout": ["threshold_list"]})
     smgr.register(d_show_parameter_editor, "sortoflikeparametereditorbutnotquite")
+    needs_parameter_vault.append(d_show_parameter_editor)
     d_explorer = explorer.ExplorerDock(expmgr, None,
                                        sub_clients["explist"],
                                        sub_clients["explist_status"],
@@ -239,13 +269,14 @@ def main():
     main_window.addDockWidget(QtCore.Qt.BottomDockWidgetArea, d_schedule)
 
     tabs.addTab(main_window, "Control")
-    laser_room_tab =  LaserTab()
+    laser_room_tab =  LaserRoomTab()
     smgr.register(laser_room_tab)
     tabs.addTab(laser_room_tab, "Laser Room")
-    histograms_tab = ReadoutHistogram()
+    histograms_tab = ReadoutHistograms(acxn)
     smgr.register(histograms_tab)
+    needs_parameter_vault.append(histograms_tab)
     tabs.addTab(histograms_tab, "Readout")
-    drift_tracker_tab = DriftTracker()
+    drift_tracker_tab = DriftTracker(laser_room_acxn)
     smgr.register(drift_tracker_tab)
     tabs.addTab(drift_tracker_tab, "Drift Tracker")
 

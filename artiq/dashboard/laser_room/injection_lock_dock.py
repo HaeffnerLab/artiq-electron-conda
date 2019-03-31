@@ -1,7 +1,17 @@
+from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5 import QtGui, QtCore, QtWidgets
 from twisted.internet.defer import inlineCallbacks
 import time
 import sys
+
+
+class InjectionLockDock(QtWidgets.QDockWidget):
+    def __init__(self, main_window):
+        QtWidgets.QDockWidget.__init__(self, "INJECTION LOCK")
+        self.setObjectName("INJECTION LOCK")
+        self.setFeatures(QtWidgets.QDockWidget.DockWidgetFloatable)
+        self.il = InjectionLock()
+        self.setWidget(self.il)
 
 
 class InjectionLock(QtWidgets.QFrame):
@@ -42,17 +52,13 @@ class InjectionLock(QtWidgets.QFrame):
 
         grid.addWidget(QtWidgets.QLabel('729super  Scan Range:'), 1, 0)
         grid.addWidget(self.q1Edit, 1, 1)
-
         grid.addWidget(QtWidgets.QLabel('729inject  Scan Range:'), 2, 0)
         grid.addWidget(self.q2Edit, 1, 2)
-
         grid.addWidget(self.q3Edit, 2, 1)
-
         grid.addWidget(self.q4Edit, 2, 2)
 
         self.applyBtn = QtWidgets.QPushButton('Relock', self)
         self.applyBtn.clicked.connect(self.start_thread_supervisor)
-        #self.applyBtn.clicked.connect(self.getback1)
         grid.addWidget(self.applyBtn, 1, 3)
 
         self.stopBtn = QtWidgets.QPushButton('Stop', self)
@@ -65,13 +71,10 @@ class InjectionLock(QtWidgets.QFrame):
 
         self.applyBtn2 = QtWidgets.QPushButton('Relock', self)
         self.applyBtn2.clicked.connect(self.start_thread_slave)
-        #self.applyBtn2.clicked.connect(self.getback2)
-
         grid.addWidget(self.applyBtn2, 2, 3)
 
         self.stopBtn2 = QtWidgets.QPushButton('Stop', self)
         self.stopBtn2.clicked.connect(self.stop_thread_slave)
-
         grid.addWidget(self.stopBtn2, 2, 4)
         
         self.statusBtn2 = QtWidgets.QPushButton('Status', self)
@@ -81,9 +84,6 @@ class InjectionLock(QtWidgets.QFrame):
         self.setLayout(grid)
         self.setGeometry(500, 500, 1000, 300)
         self.setFont(QtGui.QFont('MS Shell Dlg 2', pointSize=10))
-
-        #self.stopBtn.setEnabled(False)
-        #self.stopBtn2.setEnabled(False)
 
     @inlineCallbacks
     def connect(self):
@@ -193,12 +193,12 @@ class InjectionLock(QtWidgets.QFrame):
         count1 = 0
         for text in self.q1Edit.text():
             if (text == ' '):
-                break;
+                break
             count1 += 1
         count2 = 0
         for text in self.q2Edit.text():
             if (text == ' '):
-                break;
+                break
             count2 += 1
 
         self.inj.relock_supervisor(float(self.q1Edit.text()[0:count1]), float(self.q2Edit.text()[0:count2]))
@@ -209,26 +209,15 @@ class InjectionLock(QtWidgets.QFrame):
         count3 = 0
         for text in self.q3Edit.text():
             if (text == ' '):
-                break;
+                break
             count3 += 1
         count4 = 0
         for text in self.q4Edit.text():
             if (text == ' '):
-                break;
+                break
             count4 += 1
 
         self.inj.relock_slave(float(self.q3Edit.text()[0:count3]), float(self.q4Edit.text()[0:count4]))
         
     def closeEvent(self, x):
         self.reactor.stop()
-
-# if __name__ == '__main__':
-#     a = QtGui.QApplication([])
-#     import qt4reactor
-
-#     qt4reactor.install()
-#     from twisted.internet import reactor
-
-#     injectionlock_control = InjectionLock_Control(reactor)
-#     injectionlock_control.show()
-#     reactor.run()

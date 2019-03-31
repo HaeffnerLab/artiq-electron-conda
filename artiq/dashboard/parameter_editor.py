@@ -1,18 +1,17 @@
-import labrad
-from labrad.wrappers import connectAsync
 import asyncio
+import labrad
 import labrad.units as u
 from labrad.units import WithUnit as U
 from labrad.types import types as labradTypes
 from ast import literal_eval
 from decimal import Decimal
-import logging
 import numpy as np
 from PyQt5 import QtCore, QtWidgets, QtGui
 from artiq.protocols.pc_rpc import Client
-from artiq.gui.tools import LayoutWidget, QRecursiveFilterProxyModel
+from artiq.gui.tools import LayoutWidget
+import logging
 from twisted.internet.defer import inlineCallbacks
-from twisted.internet.threads import blockingCallFromThread
+
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +30,9 @@ types = ["parameter",
 
 class ParameterEditorDock(QtWidgets.QDockWidget):
 
-    def __init__(self, name="Parameter Editor", show_params=None):
+    def __init__(self, acxn=None, name="Parameter Editor", show_params=None):
         QtWidgets.QDockWidget.__init__(self, name)
+        self.acxn = acxn
         self.show_params = show_params
         self.setObjectName(name.replace(" ", "_"))
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
@@ -44,7 +44,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
             self.cxn = labrad.connect()
         except:
             self.setDisabled(True)
-        self.connect()
+        self.setup_listeners()
         self.make_GUI()
 
     def make_GUI(self):
@@ -129,43 +129,17 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         self.cxn.disconnect()
 
     @inlineCallbacks
-    def connect(self):
-        try:
-            self.acxn = yield connectAsync()
-            yield self.setup_listeners()
-        except Exception as e:
-            print("Failed on parameter_editor connect: ", e)
-            self.setDisabled(True)
-        yield self.setup_listeners()
-        yield self.acxn.manager.subscribe_to_named_message("Server Connect", 
-                                                           987111321, True)
-        yield self.acxn.manager.subscribe_to_named_message("Server Disconnect", 
-                                                           987111322, True)
-        yield self.acxn.manager.addListener(listener=self.connectypoo, 
-                                            source=None, ID=987111321)
-        yield self.acxn.manager.addListener(listener=self.disconnectypoo, 
-                                            source=None, ID=987111322)
-
-    @inlineCallbacks
     def setup_listeners(self):
-        yield self.acxn.parametervault.signal__parameter_change(parameterchangedID)
-        yield self.acxn.parametervault.addListener(listener=self.refresh_values, 
-                                                   source=None, ID=parameterchangedID)
-
-    @inlineCallbacks
-    def connectypoo(self, *args):
-        if args[1][1] == "ParameterVault":
-            self.setDisabled(False)
-            yield self.setup_listeners()
-
-    def disconnectypoo(self, *args):
-        if args[1][1] == "ParameterVault":
-            self.setDisabled(True)
+        context = yield self.acxn.context()
+        p = yield self.acxn.get_server("ParameterVault")
+        yield p.signal__parameter_change(parameterchangedID, context=context)
+        yield p.addListener(listener=self.refresh_values, source=None, 
+                            ID=parameterchangedID, context=context)
 
     @inlineCallbacks
     def refresh_values(self, *args):
         loc = args[1]
-        p = yield self.acxn.parametervault
+        p = yield self.acxn.get_server("ParameterVault")
         try:
             val = yield p.get_parameter(loc)
             self.widget_dict[loc].update_value(val)
@@ -212,7 +186,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
 
     @inlineCallbacks
     def on_saveparams_action(self, *params):
-        p = yield self.acxn.parametervault
+        p = yield self.acxn.get_server("ParameterVault")
         yield p.save_parameters_to_registry()
 
     # @inlineCallbacks
@@ -357,9 +331,7 @@ class editInputMenu(QtWidgets.QDialog):
 
     def no_thresholds_change(self, n):
         val = self.item[1]
-        print("\n\nval: ", val)
         diff = n - len(val)
-        print("\n\ndiff: ", diff) 
         if diff == 0:
             return
         elif diff > 0:
@@ -367,10 +339,8 @@ class editInputMenu(QtWidgets.QDialog):
                 nmax = self.item[1][-1]
             else:
                 nmax = 0
-            print("nmax: ", nmax)
             for i in range(diff):
                 val = np.append(val, nmax + (i + 1) * 2)
-                print("newval: ", val)
         elif diff < 0:
             val = val[:diff]
         widget = self.parent.widget_dict[self.collection, self.name]
@@ -492,11 +462,11 @@ class EditorFactory():
     def check_connection(self, cxn):
         try:
             if self.p is None:
-                self.p = yield cxn["parametervault"]
+                self.p = yield cxn.get_server("ParameterVault")
             else:
                 yield self.p.ID
             if self.r is None:
-                self.r = yield cxn["registry"]
+                self.r = yield cxn.get_server("registry")
             else:
                 yield self.r.ID
             self.setDisabled(False)
@@ -730,8 +700,11 @@ class IntListEditor(BaseEditor):
 
     @inlineCallbacks
     def on_param_changed_locally(self, newval):
-        sender = self.sender()
-        obj_idx = int(sender.objectName()) 
+        try:
+            sender = self.sender()
+            obj_idx = int(sender.objectName())
+        except (AttributeError, ValueError):
+            obj_idx = 0
         val = [int(widget.value()) for widget in self.widgets]
         if self.check_connection(self.acxn) and self.check_bounds(val):
             yield self.p.set_parameter([self.collection, self.name, val])
@@ -741,6 +714,7 @@ class IntListEditor(BaseEditor):
         else:
             sender.setValue(self.state[obj_idx])            
 
+    @inlineCallbacks
     def update_value(self, val):
         if list(self.state) == list(val):
             return
@@ -753,25 +727,33 @@ class IntListEditor(BaseEditor):
         else:
             self.refreshsignal.emit(list(val))
         self.state = val
+        if self.r is not None:
+            yield self.r.cd("", "Servers", "Parameter Vault", self.collection)
+            yield self.r.set(self.name, (self.editor, val))
+        else:
+            self.r = yield self.acxn.get_server("registry")
+            yield self.r.cd("", "Servers", "Parameter Vault", self.collection)
+            yield self.r.set(self.name, (self.editor, val))
+        
 
     def refresh_widgets(self, val):
-            for widget in self.widgets:
-                self.layout.removeWidget(widget)
-                widget.deleteLater()
-                widget = None
-            del self.widgets
-            self.widgets = []
-            for i in range(len(val)):
-                try:
-                    widget = QtWidgets.QSpinBox()
-                    widget.setButtonSymbols(2)
-                    widget.setObjectName(str(i))
-                    widget.setValue(int(val[i]))
-                    widget.valueChanged.connect(self.on_param_changed_locally)
-                    self.layout.addWidget(widget)
-                    self.widgets.append(widget)
-                except Exception as e:
-                    print("bout: ", e)
+        for widget in self.widgets:
+            self.layout.removeWidget(widget)
+            widget.deleteLater()
+            widget = None
+        del self.widgets
+        self.widgets = []
+        for i in range(len(val)):
+            try:
+                widget = QtWidgets.QSpinBox()
+                widget.setButtonSymbols(2)
+                widget.setObjectName(str(i))
+                widget.setValue(int(val[i]))
+                widget.valueChanged.connect(self.on_param_changed_locally)
+                self.layout.addWidget(widget)
+                self.widgets.append(widget)
+            except Exception as e:
+                print("bout: ", e)
 
 
 BoolEditor.register()

@@ -3,12 +3,12 @@ import os
 import asyncio
 from PyQt5 import QtCore, QtGui, QtWidgets
 from artiq import __artiq_dir__ as artiq_dir
-from artiq.dashboard.laser_dac_controller import LaserDACDock
-from artiq.dashboard.multiplexer_controller import MultiplexerDock
-from artiq.dashboard.injection_lock_controller import InjectionLockDock
+from artiq.dashboard.laser_room.laser_dac_dock import LaserDACDock
+from artiq.dashboard.laser_room.multiplexer_dock import MultiplexerDock
+from artiq.dashboard.laser_room.injection_lock_dock import InjectionLockDock
 
 
-class LaserTab(QtWidgets.QMainWindow):
+class LaserRoomTab(QtWidgets.QMainWindow):
     def __init__(self):
         QtWidgets.QMainWindow.__init__(self)
 
@@ -23,19 +23,16 @@ class LaserTab(QtWidgets.QMainWindow):
         self.exit_request.set()
 
     def save_state(self):
-        return {
-            "state": bytes(self.saveState()),
-            "geometry": bytes(self.saveGeometry()),
-            "il1": self.d_injectionlock.il.q1Edit.value(),
-            "il2": self.d_injectionlock.il.q2Edit.value(),
-            "il3": self.d_injectionlock.il.q3Edit.value(),
-            "il4": self.d_injectionlock.il.q4Edit.value(),
-        }
+        return {"state": bytes(self.saveState()),
+                "geometry": bytes(self.saveGeometry()),
+                "il1": self.d_injectionlock.il.q1Edit.value(),
+                "il2": self.d_injectionlock.il.q2Edit.value(),
+                "il3": self.d_injectionlock.il.q3Edit.value(),
+                "il4": self.d_injectionlock.il.q4Edit.value()}
 
     def restore_state(self, state):
         self.restoreGeometry(QtCore.QByteArray(state["geometry"]))
         self.restoreState(QtCore.QByteArray(state["state"]))
-        # Injection lock stuff, doesnt work
         self.d_injectionlock.il.q1Edit.setValue(state["il1"])
         self.d_injectionlock.il.q2Edit.setValue(state["il2"])
         self.d_injectionlock.il.q3Edit.setValue(state["il3"])
@@ -70,7 +67,4 @@ class MdiArea(QtWidgets.QMdiArea):
         y = (self.height() - self.pixmap.height())//2
         painter.setOpacity(1)
         painter.drawPixmap(x, y, self.pixmap)
-
-
-
         

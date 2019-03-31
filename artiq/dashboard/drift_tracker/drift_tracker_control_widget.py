@@ -6,11 +6,11 @@ from matplotlib.figure import Figure
 import matplotlib.gridspec as gridspec
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
-from artiq.dashboard.drift_tracker_junk.helper_widgets import saved_frequencies_table
-from artiq.dashboard.drift_tracker_junk.compound_widgets import table_dropdowns_with_entry
-from artiq.dashboard.drift_tracker_junk.switch_button import TextChangingButton
-import artiq.dashboard.drift_tracker_junk.drift_tracker_config as c
-import artiq.dashboard.drift_tracker_junk.client_config as cl
+from artiq.dashboard.drift_tracker.helper_widgets import saved_frequencies_table
+from artiq.dashboard.drift_tracker.compound_widgets import table_dropdowns_with_entry
+from artiq.dashboard.drift_tracker.switch_button import TextChangingButton
+import artiq.dashboard.drift_tracker.drift_tracker_config as c
+import artiq.dashboard.drift_tracker.client_config as cl
 
 
 logger = logging.getLogger(__name__)

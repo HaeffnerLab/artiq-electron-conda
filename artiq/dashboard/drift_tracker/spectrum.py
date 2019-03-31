@@ -6,7 +6,8 @@ from matplotlib.figure import Figure
 import matplotlib.gridspec as gridspec
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
-import artiq.dashboard.drift_tracker_junk.drift_tracker_config as c
+import artiq.dashboard.drift_tracker.drift_tracker_config as c
+
 
 logger = logging.getLogger(__name__)
 

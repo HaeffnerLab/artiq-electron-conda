@@ -1,4 +1,3 @@
-# Need to break this up into smaller pieces of code
 import labrad
 import csv
 from datetime import datetime
@@ -10,11 +9,11 @@ import time
 import numpy as np
 from PyQt5 import QtCore, QtGui, QtWidgets
 from artiq import __artiq_dir__ as artiq_dir
-from artiq.dashboard.linecenter_tracker import LinecenterTracker
-from artiq.dashboard.spectrum import Spectrum
-import artiq.dashboard.drift_tracker_junk.drift_tracker_config as c
-import artiq.dashboard.drift_tracker_junk.client_config as cl
-from artiq.dashboard.drift_tracker_control_widget import DriftTrackerControl
+from artiq.dashboard.drift_tracker.linecenter_tracker import LinecenterTracker
+from artiq.dashboard.drift_tracker.spectrum import Spectrum
+import artiq.dashboard.drift_tracker.drift_tracker_config as c
+import artiq.dashboard.drift_tracker.client_config as cl
+from artiq.dashboard.drift_tracker.drift_tracker_control_widget import DriftTrackerControl
 from twisted.internet.defer import inlineCallbacks
 
 
@@ -25,8 +24,9 @@ colors = c.default_color_cycle[0 : len(cl.client_list)]
 
 class DriftTracker(QtWidgets.QMainWindow):
     signalpoo = QtCore.pyqtSignal([list])
-    def __init__(self):
+    def __init__(self, acxn):
         QtWidgets.QMainWindow.__init__(self)
+        self.acxn = acxn
         qfm = QtGui.QFontMetrics(self.font())
         self.resize(140 * qfm.averageCharWidth(), 38 * qfm.lineSpacing())
         self.exit_request = asyncio.Event()
@@ -42,11 +42,6 @@ class DriftTracker(QtWidgets.QMainWindow):
         os.makedirs(self.path, exist_ok=True)
         self.subscribed = False
         try:
-            global global_address
-            global password
-            self.normal_cxn = labrad.connect(global_address, 
-                                            password=password,
-                                            tls_mode="off")
             self.connect()
             self.connect_dt_control_widget()
             self.initialize_layout()
@@ -118,50 +113,60 @@ class DriftTracker(QtWidgets.QMainWindow):
 
     def initialize_layout(self):
         lcc = self.d_control
-        server = self.normal_cxn.sd_tracker_global
-        transitions = server.get_transition_names()
-        lcc.entry_table.fill_out(transitions)
-        duration_B, duration_line_center = server.history_duration_local(cl.client_name)
-        lcc.track_B_duration.blockSignals(True)
-        lcc.track_line_center_duration.blockSignals(True)
-        lcc.track_B_duration.setValue(duration_B["min"])
-        lcc.track_line_center_duration.setValue(duration_line_center["min"])
-        lcc.track_B_duration.blockSignals(False)
-        lcc.track_line_center_duration.blockSignals(False)
-        duration_line_center_global = server.history_duration_global_line_center(cl.client_name)
-        lcc.track_global_line_center_duration.blockSignals(True)
-        lcc.track_global_line_center_duration.setValue(duration_line_center_global["min"])
-        lcc.track_global_line_center_duration.blockSignals(False)
-        bool_keep_last_point = server.bool_keep_last_point(cl.client_name)
-        lcc.bool_keep_last_button.set_value_no_signal(bool_keep_last_point)
-        global_or_local = server.bool_global(cl.client_name)
-        global_fit_list = server.get_global_fit_list(cl.client_name)
-        lcc.global_checkbox.set_value_no_signal(self.global_or_local)
-        lcc.global_checkbox.setChecked(False)
-        if global_or_local:
+        global global_address
+        global password
+        with (labrad.connection(global_address, 
+                                password=password,
+                                tls_mode="off")) as cxn:
+            try:
+                server = cxn.sd_tracker_global
+            except:
+                # SD tracker needs to be connected initially
+                self.setDisabled(True)
+                return
+            transitions = server.get_transition_names()
+            lcc.entry_table.fill_out(transitions)
+            duration_B, duration_line_center = server.history_duration_local(cl.client_name)
+            lcc.track_B_duration.blockSignals(True)
+            lcc.track_line_center_duration.blockSignals(True)
+            lcc.track_B_duration.setValue(duration_B["min"])
+            lcc.track_line_center_duration.setValue(duration_line_center["min"])
+            lcc.track_B_duration.blockSignals(False)
+            lcc.track_line_center_duration.blockSignals(False)
+            duration_line_center_global = server.history_duration_global_line_center(cl.client_name)
             lcc.track_global_line_center_duration.blockSignals(True)
-            lcc.track_global_line_center_duration.setEnabled(True)
+            lcc.track_global_line_center_duration.setValue(duration_line_center_global["min"])
             lcc.track_global_line_center_duration.blockSignals(False)
-            for name in global_fit_list:
-                lcc.client_checkbox[name].blockSignals(True)
-                lcc.client_checkbox[name].setChecked(True)
-                lcc.client_checkbox[name].blockSignals(False)
-        else:
-            lcc.track_global_line_center_duration.blockSignals(True)
-            lcc.track_global_line_center_duration.setEnabled(False)
-            lcc.track_global_line_center_duration.blockSignals(False)
-            for client in cl.client_list:
-                if client == cl.client_name:
-                    lcc.client_checkbox[client].blockSignals(True)
-                    lcc.client_checkbox[client].setChecked(True)
-                    lcc.client_checkbox[client].setEnabled(False)
-                    lcc.client_checkbox[client].blockSignals(False)
-                else:
-                    lcc.client_checkbox[client].blockSignals(True)
-                    lcc.client_checkbox[client].setEnabled(False)
-                    lcc.client_checkbox[client].setChecked(False)
-                    lcc.client_checkbox[client].blockSignals(False)
-        self.on_new_fit(None, None)
+            bool_keep_last_point = server.bool_keep_last_point(cl.client_name)
+            lcc.bool_keep_last_button.set_value_no_signal(bool_keep_last_point)
+            global_or_local = server.bool_global(cl.client_name)
+            global_fit_list = server.get_global_fit_list(cl.client_name)
+            lcc.global_checkbox.set_value_no_signal(self.global_or_local)
+            lcc.global_checkbox.setChecked(False)
+            if global_or_local:
+                lcc.track_global_line_center_duration.blockSignals(True)
+                lcc.track_global_line_center_duration.setEnabled(True)
+                lcc.track_global_line_center_duration.blockSignals(False)
+                for name in global_fit_list:
+                    lcc.client_checkbox[name].blockSignals(True)
+                    lcc.client_checkbox[name].setChecked(True)
+                    lcc.client_checkbox[name].blockSignals(False)
+            else:
+                lcc.track_global_line_center_duration.blockSignals(True)
+                lcc.track_global_line_center_duration.setEnabled(False)
+                lcc.track_global_line_center_duration.blockSignals(False)
+                for client in cl.client_list:
+                    if client == cl.client_name:
+                        lcc.client_checkbox[client].blockSignals(True)
+                        lcc.client_checkbox[client].setChecked(True)
+                        lcc.client_checkbox[client].setEnabled(False)
+                        lcc.client_checkbox[client].blockSignals(False)
+                    else:
+                        lcc.client_checkbox[client].blockSignals(True)
+                        lcc.client_checkbox[client].setEnabled(False)
+                        lcc.client_checkbox[client].setChecked(False)
+                        lcc.client_checkbox[client].blockSignals(False)
+            self.on_new_fit(None, None)
     
     def connect_dt_control_widget(self):
         # Should probably just do all of this sort of stuff inside of the 
@@ -185,72 +190,79 @@ class DriftTracker(QtWidgets.QMainWindow):
             lcc.client_checkbox[client].stateChanged.connect(self.on_new_fit_global)
         lcc.bool_keep_last_button.toggled.connect(self.bool_keep_last_point)
 
+    @inlineCallbacks
     def on_remove_B(self, x):
+        server = yield self.acxn.get_server("SD Tracker Global")
         to_remove = self.d_control.remove_B_count.value()
-        server = self.normal_cxn.sd_tracker_global
-        server.remove_b_measurement(to_remove, cl.client_name)
+        yield server.remove_b_measurement(to_remove, cl.client_name)
 
-    def on_remove_line_center(self):
+    @inlineCallbacks
+    def on_remove_line_center(self, *params):
+        server = yield self.acxn.get_server("SD Tracker Global")
         to_remove = self.d_control.remove_line_center_count.value()
-        server = self.normal_cxn.sd_tracker_global
         try:
-            server.remove_line_center_measurement(to_remove, cl.client_name)
+            yield server.remove_line_center_measurement(to_remove, cl.client_name)
         except Exception as e:
             pass
             # print("\n\non_remove_line_center: ", e, "\n\n")
 
-    def on_remove_all_B_and_line_centers(self):
-        server = self.normal_cxn.sd_tracker_global
-        server.remove_all_measurements(cl.client_name)
+    @inlineCallbacks
+    def on_remove_all_B_and_line_centers(self, *params):
+        server = yield self.acxn.get_server("SD Tracker Global")
+        yield server.remove_all_measurements(cl.client_name)
 
-    def on_entry(self):
-        server = self.normal_cxn.sd_tracker_global
+    @inlineCallbacks
+    def on_entry(self, *params):
+        server = yield self.acxn.get_server("SD Tracker Global")
         info = self.d_control.entry_table.get_info()
         with_units = [(name, U(val, "MHz")) for name, val in info]
         try:
-            server.set_measurements(with_units, cl.client_name)
-            b_field = server.get_last_b_field_local(cl.client_name)
-            line_center = server.get_last_line_center_local(cl.client_name)
+            yield server.set_measurements(with_units, cl.client_name)
+            b_field = yield server.get_last_b_field_local(cl.client_name)
+            line_center = yield server.get_last_line_center_local(cl.client_name)
             self.d_control.Bfield_entry.setValue(b_field * 1e3)
             self.d_control.linecenter_entry.setValue(line_center * 1e3)
         except Exception as e:
             pass
             # print("\n\non_entry: ", e, "\n\n")
 
-    def on_entry_line1(self):
-        server = self.normal_cxn.sd_tracker_global
+    @inlineCallbacks
+    def on_entry_line1(self, *params):
+        server = yield self.acxn.get_server("SD Tracker Global")
         info = self.d_control.entry_table.get_info()
         with_units = [(name, U(val, "MHz")) for name, val in info]
         with_units = [with_units[0]]
         try:
-            server.set_measurements_with_one_line(with_units, cl.client_name)
+            yield server.set_measurements_with_one_line(with_units, cl.client_name)
         except Exception as e:
             pass
             # print("\n\non_entry_line1", e, "\n\n")
 
-    def on_entry_line2(self):
-        server = self.normal_cxn.sd_tracker_global
+    @inlineCallbacks
+    def on_entry_line2(self, *params):
+        server = yield self.acxn.get_server("SD Tracker Global")
         info = self.d_control.entry_table.get_info()
         with_units = [(name, U(val, "MHz")) for name, val in info]
         with_units = [with_units[1]]
         try:
-            server.set_measurements_with_one_line(with_units, cl.client_name)
+            yield server.set_measurements_with_one_line(with_units, cl.client_name)
         except Exception as e:
             pass
             # print("\n\non_entry_line2", e, "\n\n")
     
-    def on_entry_Bfield_and_center(self):
+    @inlineCallbacks
+    def on_entry_Bfield_and_center(self, *params):
         lcc = self.d_control
-        server = self.normal_cxn.sd_tracker_global
+        server = yield self.acxn.get_server("SD Tracker Global")
         B_with_units = U(lcc.Bfield_entry.value() / 1e3, "gauss")
         f_with_units = U(lcc.linecenter_entry.value() / 1e3, "MHz")
         hlp1 = [("Bfield", B_with_units)]
         hlp2 = [("line_center", f_with_units)] # workaround, needs fixing
         try:
-            server.set_measurements_with_bfield_and_line_center(hlp1, hlp2, 
-                                                                cl.client_name)
+            yield server.set_measurements_with_bfield_and_line_center(hlp1, hlp2, 
+                                                                      cl.client_name)
             # get the currently chosen lines
-            hlp = server.get_lines_from_bfield_and_center(B_with_units, f_with_units)
+            hlp = yield server.get_lines_from_bfield_and_center(B_with_units, f_with_units)
             hlp = dict(hlp)
             # e.g. [('S-1/2D-3/2', -14.3), ('S-1/2D-5/2', -19.3)]
             line_info = lcc.entry_table.get_info()
@@ -262,54 +274,59 @@ class DriftTracker(QtWidgets.QMainWindow):
             pass
             # print("\n\non_netry_bfield_and_center: ", e, "\n\n")
 
-    def on_entry_Bfield(self):
-        server = self.normal_cxn.sd_tracker_global
+    @inlineCallbacks
+    def on_entry_Bfield(self, *params):
+        server = yield self.acxn.get_server("SD Tracker Global")
         B_with_units = U(self.d_control.Bfield_entry.value() / 1e3, "gauss")
         hlp1 = [("Bfield", B_with_units)]
         try:
-            server.set_measurements_with_bfield(hlp1, cl.client_name)
+            yield server.set_measurements_with_bfield(hlp1, cl.client_name)
         except Exception as e:
             pass
             # print("\n\non_entry_bfield: ", e, "\n\n")
 
-    def on_entry_center(self):
-        server = self.normal_cxn.sd_tracker_global
+    @inlineCallbacks
+    def on_entry_center(self, *params):
+        server = yield self.acxn.get_server("SD Tracker Global")
         f_with_units = U(self.d_control.linecenter_entry.value() / 1e3, "MHz")
         hlp2 = [("line_center", f_with_units)]
         try:
-            server.set_measurements_with_line_center(hlp2, cl.client_name)
+            yield server.set_measurements_with_line_center(hlp2, cl.client_name)
         except Exception as e:
             pass
             # print("\n\non_entry_center: ", e, "\n\n")
 
+    @inlineCallbacks
     def on_new_B_track_duration(self, value):
-        server = self.normal_cxn.sd_tracker_global
+        server = yield self.acxn.get_server("SD Tracker Global")
         rate_B = U(value, "min")
         rate_line_center = U(self.d_control.track_line_center_duration.value(), "min")
-        server.history_duration_local(cl.client_name, (rate_B, rate_line_center))
+        yield server.history_duration_local(cl.client_name, (rate_B, rate_line_center))
     
+    @inlineCallbacks
     def on_new_line_center_track_duration(self, value):
-        server = self.normal_cxn.sd_tracker_global
+        server = yield self.acxn.get_server("SD Tracker Global")
         rate_line_center = U(value, "min")
         rate_B = U(self.d_control.track_B_duration.value(), "min")
-        server.history_duration_local(cl.client_name, (rate_B, rate_line_center))
+        yield server.history_duration_local(cl.client_name, (rate_B, rate_line_center))
 
+    @inlineCallbacks
     def on_new_global_line_center_track_duration(self, value):
-        server = self.normal_cxn.sd_tracker_global
+        server = yield self.acxn.get_server("SD Tracker Global")
         rate_global_line_center = U(value, "min")
-        server.history_duration_global_line_center(cl.client_name, 
-                                                   rate_global_line_center)
+        yield server.history_duration_global_line_center(cl.client_name, 
+                                                         rate_global_line_center)
 
+    @inlineCallbacks
     def do_copy_info_to_clipboard(self):
         try:
-            server = self.normal_cxn.sd_tracker_global
-            lines = server.get_current_lines(cl.client_name)
-            b_history, center_history = server.get_fit_history(cl.client_name)
+            server = yield self.acxn.get_server("SD Tracker Global")
+            lines = yield server.get_current_lines(cl.client_name)
+            b_history, center_history = yield server.get_fit_history(cl.client_name)
             b_value =  b_history[-1][1]
             center_value = center_history[-1][1]
         except Exception as e:
-            pass
-            # print("\n\ndo_copy_to_clipboard", e, "\n\n")
+            yield print("\n\ndo_copy_to_clipboard", e, "\n\n")
         else:
             date = time.strftime("%m/%d/%Y")
             d = dict(lines)
@@ -317,16 +334,17 @@ class DriftTracker(QtWidgets.QMainWindow):
             if self.clipboard is not None:
                 self.clipboard.setText(text)
 
+    @inlineCallbacks
     def global_or_local(self, toggled):
-        server = self.normal_cxn.sd_tracker_global
+        server = yield self.acxn.get_server("SD Tracker Global")
         lcc = self.d_control
         if bool(toggled):
-            server.bool_global(cl.client_name, True)
+            yield server.bool_global(cl.client_name, True)
             for client in cl.client_list:
                 lcc.client_checkbox[client].setEnabled(True)
             lcc.track_global_line_center_duration.setEnabled(True)
         else:
-            server.bool_global(cl.client_name, False)
+            yield server.bool_global(cl.client_name, False)
             for client in cl.client_list:
                 lcc.client_checkbox[client].setChecked(False)
                 lcc.client_checkbox[client].setEnabled(False)
@@ -334,36 +352,26 @@ class DriftTracker(QtWidgets.QMainWindow):
             lcc.track_global_line_center_duration.setEnabled(False)
         self.on_new_fit_global()
 
-    def on_new_fit_global(self):
-        server = self.normal_cxn.sd_tracker_global
+    @inlineCallbacks
+    def on_new_fit_global(self, *params):
+        server = yield self.acxn.get_server("SD Tracker Global")
         fit_list = []
         for client in cl.client_list:
             if self.d_control.client_checkbox[client].isChecked():
                 fit_list.append(client)
-        server.set_global_fit_list(cl.client_name, fit_list)
+        yield server.set_global_fit_list(cl.client_name, fit_list)
 
+    @inlineCallbacks
     def bool_keep_last_point(self, toggled):
-        server = self.normal_cxn.sd_tracker_global
-        server.bool_keep_last_point(cl.client_name, toggled)
+        server = yield self.acxn.get_server("SD Tracker Global")
+        yield server.bool_keep_last_point(cl.client_name, toggled)
 
     @inlineCallbacks
     def connect(self):
-        global global_address
-        global password
-        try:
-            self.cxn = yield connectAsync(global_address, 
-                                          password=password,
-                                          tls_mode="off")
-            self.server = yield self.cxn.sd_tracker_global
-            yield self.setup_listeners()
-            self.subscribed = True
-        except Exception as e:
-            self.setDisabled(True)
-            # print("\n\nconnect: ", e, "\n\n")
-        yield self.cxn.manager.subscribe_to_named_message("Server Connect", 987111321, True)
-        yield self.cxn.manager.subscribe_to_named_message("Server Disconnect", 987111322, True)
-        yield self.cxn.manager.addListener(listener=self.connectypoo, source=None, ID=987111321)
-        yield self.cxn.manager.addListener(listener=self.disconnectypoo, source=None, ID=987111322)
+        yield self.setup_listeners()
+        self.subscribed = True
+        yield self.acxn.add_on_connect("SD Tracker Global", self.connectypoo)
+        yield self.acxn.add_on_disconnect("SD Tracker Global", self.disconnectypoo)
 
     @inlineCallbacks
     def connectypoo(self, *args):
@@ -371,10 +379,9 @@ class DriftTracker(QtWidgets.QMainWindow):
         global global_address
         global password
         try:
-            self.server = yield self.cxn.sd_tracker_global
             yield self.setup_listeners()
         except Exception as e:
-            self.setDisabled(True)
+            yield self.setDisabled(True)
 
     def disconnectypoo(self, *args):
         self.setDisabled(True)
@@ -382,12 +389,11 @@ class DriftTracker(QtWidgets.QMainWindow):
     @inlineCallbacks
     def setup_listeners(self):
         try:
-            yield self.server.signal__new_fit(c.ID)
-            yield self.server.signal__new_save_lattice(c.ID + 1)
-            yield self.server.addListener(listener=self.on_new_fit, 
-                                          source=None, ID=c.ID)
-            yield self.server.addListener(listener=self.on_new_save, 
-                                          source=None, ID=c.ID + 1)
+            server = yield self.acxn.get_server("SD Tracker Global")
+            yield server.signal__new_fit(c.ID)
+            yield server.signal__new_save_lattice(c.ID + 1)
+            yield server.addListener(listener=self.on_new_fit, source=None, ID=c.ID)
+            yield server.addListener(listener=self.on_new_save, source=None, ID=c.ID + 1)
         except Exception as e:
             pass
         
@@ -399,7 +405,7 @@ class DriftTracker(QtWidgets.QMainWindow):
     def on_new_save(self, x, y, *args):
         lcc = self.d_control
         try:
-            server = yield self.cxn.sd_tracker_global
+            server = yield self.acxn.get_server("SD Tracker Global")
         except Exception as e:
             # pass
             print("\n\non_new_save: ", e, "\n\n")
@@ -426,7 +432,7 @@ class DriftTracker(QtWidgets.QMainWindow):
     @inlineCallbacks
     def update_lines(self):
         try:
-            server = yield self.cxn.sd_tracker_global
+            server = yield self.acxn.get_server("SD Tracker Global")
             lines = yield server.get_current_lines(cl.client_name)
             # print("linesies: ", lines)
         except Exception as e:
@@ -438,7 +444,7 @@ class DriftTracker(QtWidgets.QMainWindow):
     @inlineCallbacks
     def update_fit(self):
         try:
-            server = yield self.cxn.sd_tracker_global
+            server = yield self.acxn.get_server("SD Tracker Global")
             lct = self.d_linecentertracker
             history_B = yield server.get_fit_history(cl.client_name)
             history_B = history_B[0]
@@ -553,24 +559,26 @@ class DriftTracker(QtWidgets.QMainWindow):
             lct.line_drift_fit_line.append(label)
         lct.drift_canvas.draw()
 
+    @inlineCallbacks
     def readout_update(self):
         try:
-            server = self.normal_cxn.sd_tracker_global
-            center = server.get_current_center(cl.client_name)
+            server = yield self.acxn.get_server("SD Tracker Global")
+            center = yield server.get_current_center(cl.client_name)
             self.d_control.current_line_center.setText("%.8f MHz"%center["MHz"])
         except Exception as e:
-            # print("\n\n", e, "\n\n")
+            yield print("\n\n", e, "\n\n")
             self.d_control.current_line_center.setText("Error")
         try:
-            B = server.get_current_b_local(cl.client_name)
+            B = yield server.get_current_b_local(cl.client_name)
             self.d_control.current_B.setText("%.8f gauss"%B["gauss"])
         except Exception as e:
-            # print("\n\nreadout_update: ", e, "\n\n")
+            yield print("\n\nreadout_update: ", e, "\n\n")
             self.d_control.current_B.setText("Error")
         try:
-            time = server.get_current_time()
+            time = yield server.get_current_time()
             self.d_control.current_time.setText("%.2f min"%time["min"])
-        except:
+        except Exception as e:
+            yield print("\n\n", e, "\n\n")
             self.d_control.current_time.setText("Error")
     
     @inlineCallbacks
@@ -612,7 +620,7 @@ class DriftTracker(QtWidgets.QMainWindow):
                 lines.append(label)
             legend = axes.legend(loc=1)
             lines.append(legend)
-            server = yield self.cxn.sd_tracker_global
+            server = yield self.acxn.get_server("SD Tracker Global")
             if lcc.global_checkbox.isChecked():
                 try:
                     fit_data = yield server.get_line_center_global_fit_data(cl.client_name)
