@@ -1,4 +1,5 @@
 import labrad
+import logging
 import csv
 from datetime import datetime
 from labrad.wrappers import connectAsync
@@ -20,6 +21,7 @@ from twisted.internet.defer import inlineCallbacks
 global_address = "192.168.169.49"
 password = "lab"
 colors = c.default_color_cycle[0 : len(cl.client_list)]
+logger = logging.getLogger(__name__)
 
 
 class DriftTracker(QtWidgets.QMainWindow):
@@ -49,6 +51,7 @@ class DriftTracker(QtWidgets.QMainWindow):
             self.update_show.timeout.connect(self.readout_update)
             self.update_show.start(c.show_rate * 1e3)
         except:
+            logger.error("failed in initialization", exc_info=True)
             self.setDisabled(True) 
         
     def closeEvent(self, event):
@@ -94,11 +97,12 @@ class DriftTracker(QtWidgets.QMainWindow):
         lcc.tabs.setCurrentIndex(int(state["current_tab"]))      
 
     def setup_background(self):
-        mdi_area = MdiArea()
-        mdi_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
-        mdi_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
-        mdi_area.setMinimumSize(0, 0)  # doesn't work
-        self.setCentralWidget(mdi_area)
+        pass
+        # mdi_area = MdiArea()
+        # mdi_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        # mdi_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        # mdi_area.setMinimumSize(0, 0)  # doesn't work
+        # self.setCentralWidget(mdi_area)
     
     def add_docks(self):
         self.d_linecentertracker = LinecenterTracker()
@@ -121,7 +125,7 @@ class DriftTracker(QtWidgets.QMainWindow):
             try:
                 server = cxn.sd_tracker_global
             except:
-                # SD tracker needs to be connected initially
+                logger.error("SD tracker not initially connected")
                 self.setDisabled(True)
                 return
             transitions = server.get_transition_names()
@@ -202,9 +206,8 @@ class DriftTracker(QtWidgets.QMainWindow):
         to_remove = self.d_control.remove_line_center_count.value()
         try:
             yield server.remove_line_center_measurement(to_remove, cl.client_name)
-        except Exception as e:
-            pass
-            # print("\n\non_remove_line_center: ", e, "\n\n")
+        except:
+            logger.warning("Issue removing line center point: ", exc_info=True)
 
     @inlineCallbacks
     def on_remove_all_B_and_line_centers(self, *params):
@@ -222,9 +225,8 @@ class DriftTracker(QtWidgets.QMainWindow):
             line_center = yield server.get_last_line_center_local(cl.client_name)
             self.d_control.Bfield_entry.setValue(b_field * 1e3)
             self.d_control.linecenter_entry.setValue(line_center * 1e3)
-        except Exception as e:
-            pass
-            # print("\n\non_entry: ", e, "\n\n")
+        except:
+            logger.warning("Issue entering lines: ", exc_info=True)
 
     @inlineCallbacks
     def on_entry_line1(self, *params):
@@ -234,9 +236,8 @@ class DriftTracker(QtWidgets.QMainWindow):
         with_units = [with_units[0]]
         try:
             yield server.set_measurements_with_one_line(with_units, cl.client_name)
-        except Exception as e:
-            pass
-            # print("\n\non_entry_line1", e, "\n\n")
+        except:
+            logger.warning("Issue entering line 1: ", exc_info=True)
 
     @inlineCallbacks
     def on_entry_line2(self, *params):
@@ -246,9 +247,8 @@ class DriftTracker(QtWidgets.QMainWindow):
         with_units = [with_units[1]]
         try:
             yield server.set_measurements_with_one_line(with_units, cl.client_name)
-        except Exception as e:
-            pass
-            # print("\n\non_entry_line2", e, "\n\n")
+        except:
+            logger.warning("Issue entering line 2: ", exc_info=True)
     
     @inlineCallbacks
     def on_entry_Bfield_and_center(self, *params):
@@ -270,9 +270,8 @@ class DriftTracker(QtWidgets.QMainWindow):
                 # get the current line from the server
                 new_freq = hlp[line_info[k][0]]
                 lcc.entry_table.cellWidget(k, 1).setValue(new_freq[new_freq.units])                
-        except Exception as e:
-            pass
-            # print("\n\non_netry_bfield_and_center: ", e, "\n\n")
+        except:
+            logger.warning("Issue entering linecenter and bfield: ", exc_info=True)
 
     @inlineCallbacks
     def on_entry_Bfield(self, *params):
@@ -281,9 +280,8 @@ class DriftTracker(QtWidgets.QMainWindow):
         hlp1 = [("Bfield", B_with_units)]
         try:
             yield server.set_measurements_with_bfield(hlp1, cl.client_name)
-        except Exception as e:
-            pass
-            # print("\n\non_entry_bfield: ", e, "\n\n")
+        except:
+            logger.warning("Issue entering bfield: ", exc_info=True)
 
     @inlineCallbacks
     def on_entry_center(self, *params):
@@ -292,9 +290,8 @@ class DriftTracker(QtWidgets.QMainWindow):
         hlp2 = [("line_center", f_with_units)]
         try:
             yield server.set_measurements_with_line_center(hlp2, cl.client_name)
-        except Exception as e:
-            pass
-            # print("\n\non_entry_center: ", e, "\n\n")
+        except:
+            logger.warning("Issue entering linecenter: ", exc_info=True)
 
     @inlineCallbacks
     def on_new_B_track_duration(self, value):
@@ -325,12 +322,19 @@ class DriftTracker(QtWidgets.QMainWindow):
             b_history, center_history = yield server.get_fit_history(cl.client_name)
             b_value =  b_history[-1][1]
             center_value = center_history[-1][1]
-        except Exception as e:
-            yield print("\n\ndo_copy_to_clipboard", e, "\n\n")
+        except:
+            logger.warning("Issue copyin to clipboard: ", exc_info=True)
+            yield print("Issue copyin to clipboard")
         else:
             date = time.strftime("%m/%d/%Y")
             d = dict(lines)
-            text = "| {0} || {1:.4f} MHz || {2:.4f} MHz || {3:.4f} MHz || {4:.4f} MHz || {5:.4f} G || comment".format(date, d["S+1/2D-3/2"]["MHz"], d["S-1/2D-5/2"]["MHz"], d["S-1/2D-1/2"]["MHz"], center_value["MHz"], b_value["gauss"])
+            text = (
+            "| {0} || {1:.4f} MHz || {2:.4f} MHz || {3:.4f} MHz ||" 
+              "{4:.4f} MHz || {5:.4f} G || comment").format(date, d["S+1/2D-3/2"]["MHz"], 
+                                                                  d["S-1/2D-5/2"]["MHz"], 
+                                                                  d["S-1/2D-1/2"]["MHz"], 
+                                                                  center_value["MHz"], 
+                                                                  b_value["gauss"])
             if self.clipboard is not None:
                 self.clipboard.setText(text)
 
@@ -380,7 +384,7 @@ class DriftTracker(QtWidgets.QMainWindow):
         global password
         try:
             yield self.setup_listeners()
-        except Exception as e:
+        except:
             yield self.setDisabled(True)
 
     def disconnectypoo(self, *args):
@@ -394,7 +398,7 @@ class DriftTracker(QtWidgets.QMainWindow):
             yield server.signal__new_save_lattice(c.ID + 1)
             yield server.addListener(listener=self.on_new_fit, source=None, ID=c.ID)
             yield server.addListener(listener=self.on_new_save, source=None, ID=c.ID + 1)
-        except Exception as e:
+        except:
             pass
         
     def on_new_fit(self, x, y, *args):
@@ -406,9 +410,8 @@ class DriftTracker(QtWidgets.QMainWindow):
         lcc = self.d_control
         try:
             server = yield self.acxn.get_server("SD Tracker Global")
-        except Exception as e:
-            # pass
-            print("\n\non_new_save: ", e, "\n\n")
+        except:
+            logger.warning("Failed on_new_save: ", exc_info=True)
         t = time.time()
         dt = datetime.now().strftime("%m%d")
         datafile = os.path.join(self.path, dt + ".csv")
@@ -434,10 +437,9 @@ class DriftTracker(QtWidgets.QMainWindow):
         try:
             server = yield self.acxn.get_server("SD Tracker Global")
             lines = yield server.get_current_lines(cl.client_name)
-            # print("linesies: ", lines)
-        except Exception as e:
+        except:
+            logger.info("No lines")
             self.signalpoo.emit([])
-            # print("\n\nupdate_lines: ", e, "\n\n")
         else:
             self.signalpoo.emit(lines)
     
@@ -459,9 +461,8 @@ class DriftTracker(QtWidgets.QMainWindow):
                 excluded_line_center[client] = excluded_line_center[client][1]
             fit_b = yield server.get_fit_parameters_local("bfield", cl.client_name)
             fit_f = yield server.get_fit_line_center(cl.client_name)
-        except Exception as e:
-            pass
-            # print("\n\nupdate fit: ", e, "\n\n")
+        except :
+            logger.warning("Failed to update the fit", exc_info=True)
         else:
             inunits_b = [(t["min"], b["mgauss"]) for (t, b) in history_B]
             inunits_b_nofit = [(t["min"], b["mgauss"]) for (t, b) in excluded_B]
@@ -565,21 +566,21 @@ class DriftTracker(QtWidgets.QMainWindow):
             server = yield self.acxn.get_server("SD Tracker Global")
             center = yield server.get_current_center(cl.client_name)
             self.d_control.current_line_center.setText("%.8f MHz"%center["MHz"])
-        except Exception as e:
-            yield print("\n\n", e, "\n\n")
-            self.d_control.current_line_center.setText("Error")
+        except:
+            logger.warning("Failure in readout_update: ", exc_info=True)
+            yield self.d_control.current_line_center.setText("Error")
         try:
             B = yield server.get_current_b_local(cl.client_name)
             self.d_control.current_B.setText("%.8f gauss"%B["gauss"])
-        except Exception as e:
-            yield print("\n\nreadout_update: ", e, "\n\n")
-            self.d_control.current_B.setText("Error")
+        except:
+            logger.warning("Failure in readout_update: ", exc_info=True)
+            yield self.d_control.current_B.setText("Error")
         try:
             time = yield server.get_current_time()
             self.d_control.current_time.setText("%.2f min"%time["min"])
-        except Exception as e:
-            yield print("\n\n", e, "\n\n")
-            self.d_control.current_time.setText("Error")
+        except:
+            logger.warning("Failure in readout_update: ", exc_info=True)
+            yield self.d_control.current_time.setText("Error")
     
     @inlineCallbacks
     def update_track(self, meas, axes, lines):
@@ -611,9 +612,8 @@ class DriftTracker(QtWidgets.QMainWindow):
                 y_all = np.append(y_all, y)
             try:
                 last = y_all[np.where(x_all == x_all.max())][0]
-            except Exception as e:
-                pass
-                # print("\n\nupdate_track", e, "\n\n")
+            except:
+                logger.warning("Issue in update_track", exc_info=True)
             else:
                 label = axes.annotate("Last Global Point: {0:.2f} {1}".format(last, axes.get_ylabel()), 
                                       xy=(.3, .9), xycoords="axes fraction", fontsize=13)
@@ -631,8 +631,8 @@ class DriftTracker(QtWidgets.QMainWindow):
                     xmax = np.amax(x_fit_data)
                     ymin = np.amin(y_fit_data)
                     ymax = np.amax(y_fit_data)
-                except ValueError as e:
-                    print("\n\nupdate_track part 2: ", e, "\n\n")
+                except ValueError:
+                    logger.warning("ValueError", exc_info=True)
                     return
             else:
                 try:
@@ -640,8 +640,8 @@ class DriftTracker(QtWidgets.QMainWindow):
                     xmax = np.amax(np.array([m[0] for m in fitted[cl.client_name]]))
                     ymin = np.amin(np.array([m[1] for m in fitted[cl.client_name]]))
                     ymax = np.amax(np.array([m[1] for m in fitted[cl.client_name]]))
-                except ValueError as e:
-                    print("\n\n", e, "\n\n")
+                except:
+                    logger.warning("ValueError", exc_info=True)
                     return
 
             if xmin == xmax:
@@ -664,8 +664,8 @@ class DriftTracker(QtWidgets.QMainWindow):
             # annotate the last point
             try:
                 last = y[-1]
-            except IndexError as e:
-                print("\n\n", e, "\n\n")
+            except IndexError:
+                logger.warning("IndexError", exc_info=True)
             else:
                 label = axes.annotate("Last Point: {0:.2f} {1}".format(last, axes.get_ylabel()), xy=(.3, .9), 
                                       xycoords="axes fraction", fontsize=13)
@@ -683,8 +683,8 @@ class DriftTracker(QtWidgets.QMainWindow):
                 xmax = np.amax(x)
                 ymin = np.amin(y)
                 ymax = np.amax(y)
-            except ValueError as e:
-                print("\n\n", e, "\n\n")
+            except ValueError:
+                logger.warning("ValueError", exc_info=True)
                 return
 
             if xmin == xmax:

@@ -7,6 +7,7 @@ from artiq.dashboard.laser_room.QCustomSpinBox import QCustomSpinBox
 from twisted.internet.defer import inlineCallbacks
 
 
+# TODO: Consolidate laser room labrad connections
 laser_room_ip = "192.168.169.49"
 SIGNALID = 270835
 
@@ -105,8 +106,8 @@ class LaserDACDock(QtWidgets.QDockWidget):
         server_name = server_name[1]
         if server_name == 'LASERDAC Server':
             self.dacserver = yield self.cxn['LASERDAC Server']
-            yield self.dacserver.signal__ports_updated(SIGNALID2)
-            yield self.dacserver.addListener(listener = self.followSignal, source = None, ID = SIGNALID2)
+            yield self.dacserver.signal__ports_updated(SIGNALID)
+            yield self.dacserver.addListener(listener = self.followSignal, source = None, ID = SIGNALID)
             self.initialized = True
             yield self.followSignal(0, 0)
             self.setEnabled(True)

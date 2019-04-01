@@ -5,6 +5,9 @@ import time
 import sys
 
 
+# TODO: Consolidate laser room labrad connections
+
+
 class InjectionLockDock(QtWidgets.QDockWidget):
     def __init__(self, main_window):
         QtWidgets.QDockWidget.__init__(self, "INJECTION LOCK")

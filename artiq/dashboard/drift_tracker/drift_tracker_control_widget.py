@@ -1,4 +1,3 @@
-import logging
 from PyQt5 import QtCore, QtWidgets, QtGui
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
@@ -11,9 +10,6 @@ from artiq.dashboard.drift_tracker.compound_widgets import table_dropdowns_with_
 from artiq.dashboard.drift_tracker.switch_button import TextChangingButton
 import artiq.dashboard.drift_tracker.drift_tracker_config as c
 import artiq.dashboard.drift_tracker.client_config as cl
-
-
-logger = logging.getLogger(__name__)
 
 
 class DriftTrackerControl(QtWidgets.QDockWidget):
@@ -36,6 +32,7 @@ class DriftTrackerControl(QtWidgets.QDockWidget):
         except AttributeError:
             self.initial_values = []
         self.tabs = QtWidgets.QTabWidget()
+        self.tabs.setMaximumWidth(415)
         self.widget1 = QtWidgets.QWidget()
         self.widget2 = QtWidgets.QWidget()
         self.tabs.addTab(self.widget1, "阴")
@@ -216,3 +213,12 @@ class DriftTrackerControl(QtWidgets.QDockWidget):
         self.widget1.setLayout(layout1)
         self.widget2.setLayout(layout2)
     
+    def save_state(self):
+        pass
+        # return {"state": bytes(self.saveState()),
+        #         "geometry": bytes(self.saveGeometry())}
+
+    def restore_state(self, state):
+        pass
+        # self.restoreGeometry(QtCore.QByteArray(state["geometry"]))
+        # self.restoreState(QtCore.QByteArray(state["state"]))

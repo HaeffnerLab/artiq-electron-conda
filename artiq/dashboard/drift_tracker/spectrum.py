@@ -1,4 +1,3 @@
-import logging
 from PyQt5 import QtCore, QtWidgets, QtGui
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
@@ -7,9 +6,6 @@ import matplotlib.gridspec as gridspec
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import artiq.dashboard.drift_tracker.drift_tracker_config as c
-
-
-logger = logging.getLogger(__name__)
 
 
 class Spectrum(QtWidgets.QDockWidget):
