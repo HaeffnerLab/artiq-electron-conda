@@ -20,6 +20,8 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
             self.cxn = labrad.connect()
             self.p = self.cxn.parametervault
         except:
+            logger.error("Failed to initially connect to labrad.",
+                         exc_info=True)
             self.setDisabled(True)
         self.current_line = 0
         self.number_lines = 0

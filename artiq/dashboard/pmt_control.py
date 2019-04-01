@@ -69,7 +69,8 @@ class PMTControlDock(QtWidgets.QDockWidget):
             with labrad.connection() as cxn:
                 p = cxn.parametervault
                 p.set_parameter(["PmtReadout", "duration", U(100, "ms")])
-        except: 
+        except:
+            logger.error("Failed to initially connect to labrad.")
             self.duration.setDisabled(True)
         validator = QtGui.QDoubleValidator()
         self.duration.setValidator(validator)
@@ -209,7 +210,8 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 self.set_state(True)
         except ValueError:
             # Shouldn't happen
-            yield print("ValueError")
+            yield print("")
+            logger.warning("Problem trying to update duration", exc_info=True)
 
     def set_mode(self):
         txt = str(self.setMode.currentText())
@@ -241,11 +243,13 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 duration = float(self.duration.text())  
             except ValueError:
                 # picked up a backspace or something
+                logger.warning("Failed to update LCD", exc_info=True)
                 return
             val = raw_val / duration  # kcounts / second
             self.countDisplay.display(val)
         except KeyError:
             # dataset doesn't exist
+            logger.info("dataset doesn't exist yet", exc_info=True)
             self.countDisplay.display(0)
         except IndexError:
             # timer too fast

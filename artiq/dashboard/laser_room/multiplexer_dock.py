@@ -1,4 +1,5 @@
 import labrad
+import loging
 import os
 import artiq.dashboard.laser_room.RGBconverter as RGB
 from functools import partial
@@ -15,6 +16,7 @@ SIGNALID2 = 187568
 SIGNALID3 = 187569
 SIGNALID4 = 187570
 SIGNALID5 = 187571 # for the new locked state signals
+logger = logging.getLogger(__name__)
 
 
 class MultiplexerDock(QtWidgets.QDockWidget):
@@ -81,10 +83,10 @@ class MultiplexerDock(QtWidgets.QDockWidget):
             self.server = yield self.cxn.multiplexer_server
             yield self.setupListeners()
             self.channels = yield self.server.get_available_channels()
-            print("Channels: ", self.channels)
+            logger.info("Channels: " + str(self.channels))
             self.finished.emit()
-        except Exception as e:
-            print("\n\nFailed in connect with: ", e, "\n\n")
+        except:
+            logger.warning("Couldn't connect to labrad", exc_info=True)
             self.setEnabled(False)
     
     @inlineCallbacks
@@ -101,7 +103,7 @@ class MultiplexerDock(QtWidgets.QDockWidget):
         yield self.server.signal__updated_whether_cycling(SIGNALID4)
         yield self.server.addListener(listener=self.follow_new_cycling, 
                                       source=None, ID=SIGNALID4)
-        print("\n\nListeners Set\n\n")
+        logger.info("Listeners are set.")
 
     def follow_new_state(self, _, channel_state):
         channel, state = channel_state

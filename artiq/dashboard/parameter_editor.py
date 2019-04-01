@@ -43,6 +43,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         try:
             self.cxn = labrad.connect()
         except:
+            logger.error("Parmeter Editer failed to connect to labrad.", exc_info=True)
             self.setDisabled(True)
         self.setup_listeners()
         self.make_GUI()
@@ -95,11 +96,16 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
             item.setBackground(0, QtGui.QColor(248, 248, 248))
             item.setBackground(1, QtGui.QColor(248, 248, 248))
             item.setFlags(item.flags() ^ QtCore.Qt.ItemIsSelectable)
-            for param in registry[collection].keys():
+            params = sorted(registry[collection].keys())
+            i = 0
+            for param in params:
                 try:
                     value = registry[collection][param]
                     child = QtWidgets.QTreeWidgetItem([param, None])
-                    child.setBackground(0, QtGui.QColor(248, 248, 248))
+                    if i % 2 == 0:
+                        child.setBackground(0, QtGui.QColor(248, 248, 248))
+                    else:
+                        child.setBackground(0, QtGui.QColor(228, 228, 228))
                     assert type(value) == tuple
                     assert value[0] in self.types
                     _child = EditorFactory.get_editor(value, self.acxn, 
@@ -113,11 +119,12 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                     child.setSizeHint(0, size)
                     child.setBackground(1, QtGui.QColor(248, 248, 248))
                     self.table.setItemWidget(child, 1, _child)
+                    i += 1
                     self.table.addTopLevelItem(item)
                     self.widget_dict[collection, param] = _child
-                except (AssertionError, TypeError) as e:
-                    # print('\n\n', e)
-                    # Unrecognized registry key format, ignore
+                except (AssertionError, TypeError):
+                    logger.info("Unrecognized parameter vault registry key, value "
+                                "pair format for: {}, {}".format(collection, param))
                     continue
             self.top_level_widget_dict[collection] = item
 
@@ -143,9 +150,11 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         try:
             val = yield p.get_parameter(loc)
             self.widget_dict[loc].update_value(val)
-        except Exception as e:
+        except:
+            logger.warning("Failed to refresh parameter_editor"
+                           "values on parametervault change",
+                           exc_info=True)
             pass
-            # print("\n\nexcept: ", e)
 
     def open_menu(self, position):
         menu = QtWidgets.QMenu()
@@ -166,6 +175,8 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
             cxn = labrad.connect()
             r = cxn.registry
         except:
+            logger.error("In trying to edit registry, failed to "
+                         "connect to labrad.", exc_info=True)
             return
         sitem = self.table.selectedItems()[0]
         name = sitem.text(0)
@@ -180,6 +191,8 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         try:
             cxn = labrad.connect()
         except:
+            logger.error("In trying to add parameter to registry "
+                         "failed to connect to labrad.", exc_info=True)
             return
         self.new_param_menu = newParamMenu(cxn, self)
         self.new_param_menu.show()
@@ -413,9 +426,8 @@ class newParamMenu(QtWidgets.QDialog):
                 break
         try:
             value = literal_eval(value)
-        except Exception as e:
-            print("\n\nfailed to add new param: ", e)
-            print(value)
+        except:
+            logger.error("Failed to add new parameter {}".format(value))
             return
         if not type(value) == tuple:
             return
@@ -522,6 +534,7 @@ class BoolEditor(QtWidgets.QCheckBox, BaseEditor):
             return
         self.setChecked(val)
         self.state = 2 if val else 0
+
 
 class SelectionSimpleEditor(QtWidgets.QComboBox, BaseEditor):
     editor = "selection_simple"
@@ -676,7 +689,8 @@ class IntListEditor(BaseEditor):
             for i in self.state:
                 int(i)
         except (AssertionError, ValueError):
-            # Improper format
+            logger.info("Improper format for int_list "
+                        "registry entry: {}".format(self.state))
             return
         self.layout = QtWidgets.QHBoxLayout()
         self.widgets = []
@@ -735,7 +749,6 @@ class IntListEditor(BaseEditor):
             yield self.r.cd("", "Servers", "Parameter Vault", self.collection)
             yield self.r.set(self.name, (self.editor, val))
         
-
     def refresh_widgets(self, val):
         for widget in self.widgets:
             self.layout.removeWidget(widget)
@@ -752,8 +765,8 @@ class IntListEditor(BaseEditor):
                 widget.valueChanged.connect(self.on_param_changed_locally)
                 self.layout.addWidget(widget)
                 self.widgets.append(widget)
-            except Exception as e:
-                print("bout: ", e)
+            except:
+                logger.warning("Couldn't refresh int_list widget", exc_info=True)
 
 
 BoolEditor.register()

@@ -18,15 +18,6 @@ class ReadoutHistograms(QtWidgets.QMainWindow):
         qfm = QtGui.QFontMetrics(self.font())
         self.resize(140*qfm.averageCharWidth(), 38*qfm.lineSpacing())
         self.exit_request = asyncio.Event()
-        # try:
-        #     self.cxn = labrad.connect()
-        # except Exception as e:
-        #     print("Failed on readout_histogram connect: ", e)
-        #     self.setDisabled(True)
-        # if not "parametervault" in self.cxn.servers: 
-        #     # Right now it requires restart if labrad
-        #     # or just parametervault is initially unavailable.
-        #     return
         self.add_docks(self.acxn)
         self.setup_listeners()
 
