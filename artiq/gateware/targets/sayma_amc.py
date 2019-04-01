@@ -154,7 +154,7 @@ class MasterDAC(MiniSoC, AMPSoC, RTMCommon):
         self.config["SI5324_SAYMA_REF"] = None
         self.config["RTIO_FREQUENCY"] = str(rtio_clk_freq/1e6)
         # ensure pins are properly biased and terminated
-        si5324_clkout = platform.request("si5324_clkout", 0)
+        si5324_clkout = platform.request("cdr_clk_clean", 0)
         self.specials += Instance(
             "IBUFDS_GTE3", i_CEB=0, i_I=si5324_clkout.p, i_IB=si5324_clkout.n,
             attr={("DONT_TOUCH", "true")})
@@ -351,7 +351,7 @@ class Master(MiniSoC, AMPSoC):
             for i in range(2)
         ]
         self.submodules.drtio_transceiver = gth_ultrascale.GTH(
-            clock_pads=platform.request("si5324_clkout", 0),
+            clock_pads=platform.request("cdr_clk_clean", 0),
             data_pads=[platform.request("sfp", i) for i in range(2)] +
                       [platform.request("rtm_gth", i) for i in range(8)],
             sys_clk_freq=self.clk_freq,
@@ -522,10 +522,13 @@ class Satellite(BaseSoC, RTMCommon):
         self.submodules.rtio_moninj = rtio.MonInj(rtio_channels)
         self.csr_devices.append("rtio_moninj")
 
+        drtio_data_pads = [platform.request("sfp", 0)]
+        if self.hw_rev == "v2.0":
+            drtio_data_pads.append(platform.request("rtm_amc_link"))
         self.comb += platform.request("sfp_tx_disable", 0).eq(0)
         self.submodules.drtio_transceiver = gth_ultrascale.GTH(
-            clock_pads=platform.request("si5324_clkout"),
-            data_pads=[platform.request("sfp", 0)],
+            clock_pads=platform.request("cdr_clk_clean"),
+            data_pads=drtio_data_pads,
             sys_clk_freq=self.clk_freq,
             rtio_clk_freq=rtio_clk_freq)
         self.csr_devices.append("drtio_transceiver")
@@ -585,6 +588,17 @@ class Satellite(BaseSoC, RTMCommon):
             self.crg.cd_sys.clk,
             gth.txoutclk, gth.rxoutclk)
 
+        # placeholder code to test I/O routing and standards
+        if self.hw_rev == "v2.0":
+            self.clock_domains.cd_ddmtd_helper = ClockDomain(reset_less=True)
+            helper_clk = platform.request("ddmtd_helper_clk")
+            self.specials += Instance("IBUFGDS",
+                i_I=helper_clk.p, i_IB=helper_clk.n,
+                o_O=self.cd_ddmtd_helper.clk)
+            ddmtd = platform.request("ddmtd_results")
+            self.sync.ddmtd_helper += platform.request("tp16").eq(
+                ddmtd.rec_clk ^ ddmtd.main_xo)
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -592,7 +606,7 @@ def main():
     builder_args(parser)
     soc_sayma_amc_args(parser)
     parser.set_defaults(output_dir="artiq_sayma")
-    parser.add_argument("-V", "--variant", default="masterdac",
+    parser.add_argument("-V", "--variant", default="satellite",
         help="variant: masterdac/master/satellite "
              "(default: %(default)s)")
     parser.add_argument("--rtm-csr-csv",
