@@ -24,7 +24,8 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.scheduler = Client("::1", 3251, "master_schedule")
         self.rid = None
         self.pulsed = False
-        self.expid_continuous = {"arguments": {},
+        self.expid_continuous = {"annotations": "test_annotation",
+                                "arguments": {},
                                 "class_name": "pmt_collect_continuously",
                                 "file": "run_continuously/run_pmt_continuously.py",
                                 "log_level": 30,
@@ -249,7 +250,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
             self.countDisplay.display(val)
         except KeyError:
             # dataset doesn't exist
-            logger.info("dataset doesn't exist yet", exc_info=True)
+            logger.info("dataset doesn't exist yet")
             self.countDisplay.display(0)
         except IndexError:
             # timer too fast

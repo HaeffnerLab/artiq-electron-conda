@@ -1,5 +1,5 @@
 import labrad
-import loging
+import logging
 import os
 import artiq.dashboard.laser_room.RGBconverter as RGB
 from functools import partial

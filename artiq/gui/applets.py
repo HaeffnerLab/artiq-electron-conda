@@ -14,6 +14,7 @@ from artiq.protocols.pipe_ipc import AsyncioParentComm
 from artiq.protocols.logging import LogParser
 from artiq.protocols import pyon
 from artiq.gui.tools import QDockWidgetCloseDetect, LayoutWidget
+from artiq.applets.rcg.RealComplicatedGrapher import rcgDock
 
 
 logger = logging.getLogger(__name__)
@@ -320,6 +321,7 @@ class AppletsDock(QtWidgets.QDockWidget):
                          QtWidgets.QDockWidget.DockWidgetFloatable)
 
         self.main_window = main_window
+        self.rcg_dock = None
         self.datasets_sub = datasets_sub
         self.dock_to_item = dict()
         self.applet_uids = set()
@@ -373,6 +375,9 @@ class AppletsDock(QtWidgets.QDockWidget):
         new_group_action = QtWidgets.QAction("New group", self.table)
         new_group_action.triggered.connect(partial(self.new_with_parent, self.new_group))
         self.table.addAction(new_group_action)
+        rcg_action = QtWidgets.QAction("Start RealComplicatedGrapher", self.table)
+        rcg_action.triggered.connect(self.start_rcg)
+        self.table.addAction(rcg_action)
 
         self.table.itemChanged.connect(self.item_changed)
 
@@ -644,3 +649,9 @@ class AppletsDock(QtWidgets.QDockWidget):
 
     def restore_state(self, state):
         self.restore_state_item(state, None)
+
+    def start_rcg(self):
+        if self.rcg_dock is not None:
+            return
+        self.rcg_dock = rcgDock(self.main_window)
+

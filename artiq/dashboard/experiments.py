@@ -368,6 +368,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
 
     def submit_clicked(self):
         try:
+            print("\n\nexpurl: ", self.expurl)
             self.manager.submit(self.expurl)
         except:
             # May happen when experiment has been removed
