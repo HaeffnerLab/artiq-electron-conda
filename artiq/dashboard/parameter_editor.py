@@ -18,12 +18,12 @@ logger = logging.getLogger(__name__)
 
 parameterchangedID = 612512
 types = ["parameter",
-         "scan", # Not used here
+         "scan",  # Not used here
          "line_selection",
       #  "sideband_selection",
          "selection_simple",
          "bool",
-         "spectrum_sensitivity",# Not currently being used?
+         "spectrum_sensitivity",  # Not currently being used?
       #  "string", fails when using python3 client but python2 pylabrad
          "int_list"]
 
@@ -62,8 +62,9 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         self.setPalette(p)
         self.table.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self.open_menu)
+        self.table.setIndentation(10)
         grid.addWidget(self.table, 0, 0)
-        
+
         r = self.cxn["registry"]
         r.cd("", "Servers", "Parameter Vault")
         registry = dict()
@@ -78,12 +79,12 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                 registry[collection] = dict_
         else:
             for collection in self.show_params.keys():
-                r.cd("", "Servers", "Parameter Vault", collection) 
+                r.cd("", "Servers", "Parameter Vault", collection)
                 dict_ = dict()
                 for param in self.show_params[collection]:
                     dict_[param] = r.get(param)
                 registry[collection] = dict_
-                    
+
         self.table.setHeaderLabels(["Collection", "Value"])
         self.widget_dict = dict()
         self.top_level_widget_dict = dict()
@@ -108,7 +109,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                         child.setBackground(0, QtGui.QColor(228, 228, 228))
                     assert type(value) == tuple
                     assert value[0] in self.types
-                    _child = EditorFactory.get_editor(value, self.acxn, 
+                    _child = EditorFactory.get_editor(value, self.acxn,
                                                       (collection, param), child)
                     if _child is None:
                         # Unrecognized registry key format, ignore
@@ -123,8 +124,8 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                     self.table.addTopLevelItem(item)
                     self.widget_dict[collection, param] = _child
                 except (AssertionError, TypeError):
-                    logger.info("Unrecognized parameter vault registry key, value "
-                                "pair format for: {}, {}".format(collection, param))
+                    # logger.info("Unrecognized parameter vault registry key, value "
+                    #             "pair format for: {}, {}".format(collection, param))
                     continue
             self.top_level_widget_dict[collection] = item
 
@@ -140,7 +141,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         context = yield self.acxn.context()
         p = yield self.acxn.get_server("ParameterVault")
         yield p.signal__parameter_change(parameterchangedID, context=context)
-        yield p.addListener(listener=self.refresh_values, source=None, 
+        yield p.addListener(listener=self.refresh_values, source=None,
                             ID=parameterchangedID, context=context)
 
     @inlineCallbacks
@@ -150,7 +151,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         try:
             val = yield p.get_parameter(loc)
             self.widget_dict[loc].update_value(val)
-        except:
+        except KeyError:
             logger.warning("Failed to refresh parameter_editor"
                            "values on parametervault change",
                            exc_info=True)
@@ -167,7 +168,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         # loadparamsAction = menu.addAction(self.tr("Load Parameters from Registry"))
         # loadparamsAction.triggered.connect(self.on_loadparams_action)
         menu.exec_(self.table.viewport().mapToGlobal(position))
-        
+
     def on_edit_action(self, *params):
         if len(self.table.selectedItems()) == 0:
             return
@@ -183,7 +184,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         collection = sitem.parent().text(0)
         r.cd("", "Servers", "Parameter Vault", collection)
         item_info = r.get(name)
-        self.edit_menu = editInputMenu(collection, name, item_info, 
+        self.edit_menu = editInputMenu(collection, name, item_info,
                                        cxn, self)
         self.edit_menu.show()
 
@@ -207,7 +208,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         pass
         # p = yield self.acxn.parametervault
         # yield p.reload_parameters()
-                    
+
     def closeEvent(self, event):
         event.ignore()
         self.exit_request.set()
@@ -216,7 +217,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         d = dict((x, y.isExpanded()) for x, y in self.top_level_widget_dict.items())
         return {"scroll": self.table.verticalScrollBar().value(),
                "geometry": bytes(self.saveGeometry()),
-               "expanded": d} 
+               "expanded": d}
 
     def restore_state(self, state):
         self.restoreGeometry(QtCore.QByteArray(state["geometry"]))
@@ -238,7 +239,9 @@ class editInputMenu(QtWidgets.QDialog):
         self.collection = collection
         self.item = item
         self.parent = parent
-        self.setWindowTitle("Edit Parameter")
+        self.setWindowTitle("Edit: {}.{}".format(collection,
+                                                 name
+                                                 ))
         topLayout = QtWidgets.QVBoxLayout()
         layout = QtWidgets.QGridLayout()
         okLayout = QtWidgets.QVBoxLayout()
@@ -248,11 +251,11 @@ class editInputMenu(QtWidgets.QDialog):
         global types
         if type_ in ["bool", "selection_simple"]:
             layout.addWidget(QtWidgets.QLabel("Nothing to edit."), 0, 0)
-        
+
         elif type_ not in types:
-            layout.addWidget(QtWidgets.QLabel("Unrecognized parameter type"), 
+            layout.addWidget(QtWidgets.QLabel("Unrecognized parameter type"),
                              0, 0)
-        
+
         elif type_ == "parameter":
             min_, max_, current = item[1]
             try:
@@ -301,10 +304,10 @@ class editInputMenu(QtWidgets.QDialog):
             layout.addWidget(self.spin_box, 0, 1)
             self.spin_box.valueChanged.connect(self.no_thresholds_change)
             self.spin_box.setValue(len(self.item[1]))
-        
+
         topLayout.addLayout(layout)
         topLayout.addLayout(okLayout)
-        self.setLayout(topLayout)    
+        self.setLayout(topLayout)
         self.setMinimumWidth(300)
 
     def on_ok_pressed(self):
@@ -319,8 +322,8 @@ class editInputMenu(QtWidgets.QDialog):
         p = self.cxn.parametervault
         r.cd("", "Servers", "Parameter Vault", self.collection)
         widget = self.parent.widget_dict[self.collection, self.name]
-        widget.min_ = U(float(self.item[1][0]), self.units)
-        widget.max_ =  U(float(self.item[1][1]), self.units)
+        widget.min_ = self.item[1][0]#U(float(self.item[1][0]), self.units)
+        widget.max_ =  self.item[1][1]#U(float(self.item[1][1]), self.units)
         widget.state = self.item[1]
         r.set(self.name, self.item)
         p.set_parameter(self.collection, self.name, self.item, True)
@@ -372,7 +375,7 @@ class newParamMenu(QtWidgets.QDialog):
         self.r = cxn.registry
         self.cxn = cxn
         layout = QtWidgets.QVBoxLayout()
-        
+
         sublayout1 = QtWidgets.QHBoxLayout()
         sublayout1.addWidget(QtWidgets.QLabel("Collection: "))
         self.collection_combo = QtWidgets.QComboBox()
@@ -413,7 +416,7 @@ class newParamMenu(QtWidgets.QDialog):
         collection = self.collection_combo.currentText()
         key = self.key_edit.text()
         value = self.value_edit.text()
-        
+
         units = None
         for name in dir(u):
             s = " " + name
@@ -454,7 +457,7 @@ class EditorFactory():
     def __init__(self):
         self.p = None
         self.r = None
-    
+
     @classmethod
     def register(cls):
         EditorFactory.editor_versions[cls.editor] = cls
@@ -572,7 +575,7 @@ class SelectionSimpleEditor(QtWidgets.QComboBox, BaseEditor):
         idx = self.findText(val)
         self.setCurrentIndex(idx)
         self.state = val, self.state[1]
-            
+
 
 class LineSelectionEditor(QtWidgets.QComboBox, BaseEditor):
     editor = "line_selection"
@@ -594,7 +597,7 @@ class LineSelectionEditor(QtWidgets.QComboBox, BaseEditor):
 
         self.currentIndexChanged.connect(self.on_param_changed_locally)
 
-    @inlineCallbacks 
+    @inlineCallbacks
     def on_param_changed_locally(self, idx):
         if self.check_connection(self.acxn):
             _val = self.currentText()
@@ -679,13 +682,13 @@ class ParameterSelectionEditor(QtWidgets.QDoubleSpinBox, BaseEditor):
 
 
 class IntListEditor(BaseEditor):
-    editor = "int_list" 
+    editor = "int_list"
     refreshsignal = QtCore.pyqtSignal(list)
     def __init__(self, *params):
         BaseEditor.__init__(self, *params)
         QtWidgets.QWidget.__init__(self)
         try:
-            assert type(self.state) == np.ndarray 
+            assert type(self.state) == np.ndarray
             for i in self.state:
                 int(i)
         except (AssertionError, ValueError):
@@ -724,9 +727,9 @@ class IntListEditor(BaseEditor):
             yield self.p.set_parameter([self.collection, self.name, val])
             yield self.r.cd("", "Servers", "Parameter Vault", self.collection)
             yield self.r.set(self.name, (self.editor, val))
-            self.state[obj_idx] = newval 
+            self.state[obj_idx] = newval
         else:
-            sender.setValue(self.state[obj_idx])            
+            sender.setValue(self.state[obj_idx])
 
     @inlineCallbacks
     def update_value(self, val):
@@ -737,7 +740,7 @@ class IntListEditor(BaseEditor):
         diff = lval - lstate
         if diff == 0:
             for i, widget in enumerate(self.widgets):
-                widget.setValue(int(val[i])) 
+                widget.setValue(int(val[i]))
         else:
             self.refreshsignal.emit(list(val))
         self.state = val
@@ -748,7 +751,7 @@ class IntListEditor(BaseEditor):
             self.r = yield self.acxn.get_server("registry")
             yield self.r.cd("", "Servers", "Parameter Vault", self.collection)
             yield self.r.set(self.name, (self.editor, val))
-        
+
     def refresh_widgets(self, val):
         for widget in self.widgets:
             self.layout.removeWidget(widget)

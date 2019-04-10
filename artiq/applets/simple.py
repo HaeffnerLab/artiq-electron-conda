@@ -45,6 +45,7 @@ class AppletIPCClient(AsyncioChildComm):
         data = None
         while True:
             obj = await self.read_pyon()
+            # print("\n\n ", obj, "\n\n")
             try:
                 action = obj["action"]
                 if action == "terminate":
@@ -173,6 +174,8 @@ class SimpleApplet:
             return mod["path"][0] in self.datasets
         elif mod["action"] in {"setitem", "delitem"}:
             return mod["key"] in self.datasets
+        elif mod["action"] == "joe":
+            return True
         else:
             return False
 

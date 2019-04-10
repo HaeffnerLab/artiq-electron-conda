@@ -260,7 +260,7 @@ def main():
     # lay out docks
     right_docks = [
         d_explorer, d_pmt, d_parameter_editor, d_show_parameter_editor,
-        d_ttl_dds.ttl_dock, d_ttl_dds.dds_dock, #d_ttl_dds.dac_dock,
+        d_ttl_dds.ttl_dock, d_ttl_dds.dds_dock, d_ttl_dds.dac_dock,
         d_datasets, d_applets
     ]
     main_window.addDockWidget(QtCore.Qt.RightDockWidgetArea, right_docks[0])

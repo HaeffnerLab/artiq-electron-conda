@@ -295,6 +295,7 @@ def main():
                 exp_inst.prepare()
                 put_completed()
             elif action == "run":
+                current_time = datetime.datetime.now().strftime("%H%M_%S")
                 run_time = time.time()
                 try:
                     exp_inst.run()
@@ -314,11 +315,9 @@ def main():
                 else:
                     put_object({"action": "completed"})
             elif action == "write_results":
-                print("\n\nhere\n\n")
-                current_time = datetime.datetime.now().strftime("%H%M_%S")
                 if not os.path.exists(str(exp.__name__)):
                     os.mkdir(str(exp.__name__))
-                filename = "{}.h5".format(current_time)
+                filename = "raw-data_{}.h5".format(current_time)
                 with h5py.File(str(exp.__name__) + "/" + filename, "w") as f:
                     dataset_mgr.write_hdf5(f)
                     f["artiq_version"] = artiq_version
