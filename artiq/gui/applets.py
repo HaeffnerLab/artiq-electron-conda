@@ -664,7 +664,8 @@ class AppletsDock(QtWidgets.QDockWidget):
         walk(self.table.invisibleRootItem())
         
     def start_rcg(self):
-        if self.rcg_dock is not None:
+        if (self.rcg_dock is not None and 
+            not self.rcg_dock.is_closed):
             return
         self.rcg_dock = rcgDock(self.main_window)
 

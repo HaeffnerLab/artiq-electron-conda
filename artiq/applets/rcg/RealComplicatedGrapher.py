@@ -27,6 +27,7 @@ class rcgDock(QDockWidgetCloseDetect):
         QDockWidgetCloseDetect.__init__(self, "Real Complicated Grapher")
         self.setObjectName("RCG")
         self.main_window = main_window
+        self.is_closed = False
         self.main_window.addDockWidget(QtCore.Qt.TopDockWidgetArea, self)
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable)
         self.setFloating(True)
@@ -47,11 +48,11 @@ class rcgDock(QDockWidgetCloseDetect):
     def connect_server(self):
         self.loop = asyncio.get_event_loop()
         self.server = Server({"rcg": self.RemotePlotting(self.rcg)}, None, True)
-        self.loop.create_task(self.server.start(conf.host, conf.port))
+        self.task = self.loop.create_task(self.server.start(conf.host, conf.port))
 
     def closeEvent(self, event):
-        for task in asyncio.Task.all_tasks():
-            task.cancel() 
+        self.is_closed = True
+        self.task.cancel() 
         self.loop.create_task(self.server.stop())
         super(rcgDock, self).closeEvent(event)
 
@@ -70,7 +71,12 @@ class rcgDock(QDockWidgetCloseDetect):
             if plot_name is None:
                 plot_name = tab_name
             idx = self.rcg.tabs[tab_name]
-            self.rcg.widget(idx).gw_dict[plot_name].add_plot_item(plot_title, x, y, append=True)
+            try:
+                self.rcg.widget(idx).gw_dict[plot_name].add_plot_item(plot_title, 
+                                                                      x, y, append=True)
+            except AttributeError:
+                # curve not currently displayed on graph
+                return
     
         def plot_from_file(self, file_, tab_name="Current", plot_name=None):
             if plot_name is None:
@@ -261,7 +267,7 @@ class graphWindow(QtWidgets.QWidget):
         self.fitmenu = fitMenu(model, name, data, self)
         self.fitmenu.show()
     
-    def upload_curve(self, *args, file_=None, checked=True):
+    def upload_curve(self, file_=None, checked=True):
         if file_ is None:
             fname = QtWidgets.QFileDialog.getOpenFileName(self, 
                             self.tr("Upload Data"), conf.data_dir,
@@ -412,6 +418,9 @@ class graphWindow(QtWidgets.QWidget):
                 self.pg.setYRange(*limits)
         except UnboundLocalError:
             # Autoscroll option is toggled simultaneously
+            pass
+        except AttributeError:
+            # curve is not currently displayed on graph
             pass
         return item
 
