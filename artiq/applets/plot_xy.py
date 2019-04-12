@@ -37,7 +37,8 @@ class XYPlot(pyqtgraph.PlotWidget):
                 return
 
         self.clear()
-        self.plot(x, y)
+        self.plot(x, y, pen=pyqtgraph.mkPen((255, 0, 0), width=2))
+        self.showGrid(x=True, y=True, alpha=0.75)
         self.setTitle(title)
         if error is not None:
             # See https://github.com/pyqtgraph/pyqtgraph/issues/211

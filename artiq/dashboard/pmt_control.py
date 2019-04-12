@@ -202,7 +202,6 @@ class PMTControlDock(QtWidgets.QDockWidget):
             duration = raw_duration if raw_duration >= min else min
             yield self.pv.set_parameter(["PmtReadout", "duration", U(duration, "ms")])
             a = yield self.pv.get_parameter(["PmtReadout", "duration"])
-            print("p:::: ", a)
             if self.rid is None:
                 return
             else:
