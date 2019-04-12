@@ -385,31 +385,34 @@ class graphWindow(QtWidgets.QWidget):
 
         if not self.autoscroll_enabled:
             return item
-            
-        (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.pg.viewRange()
-        max_x, min_y, max_y = 0, 0, 0
-        for item in self.items.values():
-            localxmax = item.plot_item.dataBounds(0)[-1]
-            localymin, localymax = item.plot_item.dataBounds(1)
-            if localxmax > max_x:
-                max_x = localxmax
-            if localymax > max_y:
-                max_y = localymax
-            if localymin < min_y:
-                min_y = localymin
-        window_width = xmax_cur - xmin_cur
-        if max_x > xmin_cur + window_width:
-            shift = (xmax_cur - xmin_cur) / 2
-            xmin = xmin_cur + shift
-            xmax = xmax_cur + shift
-            limits = [xmin, xmax]
-            self.pg.setXRange(*limits)
-        if max_y > ymax_cur:
-            ymax = max_y
-        if min_y < ymin_cur:
-            ymin = min_y
-            limits = [ymin, ymax]
-            self.pg.setYRange(*limits)
+        try:
+            (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.pg.viewRange()
+            max_x, min_y, max_y = 0, 0, 0
+            for item in self.items.values():
+                localxmax = item.plot_item.dataBounds(0)[-1]
+                localymin, localymax = item.plot_item.dataBounds(1)
+                if localxmax > max_x:
+                    max_x = localxmax
+                if localymax > max_y:
+                    max_y = localymax
+                if localymin < min_y:
+                    min_y = localymin
+            window_width = xmax_cur - xmin_cur
+            if max_x > xmin_cur + window_width:
+                shift = (xmax_cur - xmin_cur) / 2
+                xmin = xmin_cur + shift
+                xmax = xmax_cur + shift
+                limits = [xmin, xmax]
+                self.pg.setXRange(*limits)
+            if max_y > ymax_cur:
+                ymax = max_y
+            if min_y < ymin_cur:
+                ymin = min_y
+                limits = [ymin, ymax]
+                self.pg.setYRange(*limits)
+        except UnboundLocalError:
+            # Autoscroll option is toggled simultaneously
+            pass
         return item
 
     def mouse_moved(self, pos):
