@@ -651,7 +651,8 @@ class AppletsDock(QtWidgets.QDockWidget):
         self.restore_state_item(state, None)
 
     def start_rcg(self):
-        if self.rcg_dock is not None:
+        if (self.rcg_dock is not None and 
+            not self.rcg_dock.is_closed):
             return
         self.rcg_dock = rcgDock(self.main_window)
 

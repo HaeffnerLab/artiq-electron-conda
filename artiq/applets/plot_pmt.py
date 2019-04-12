@@ -52,9 +52,6 @@ class PMTPlot(pyqtgraph.PlotWidget):
         self.setTitle(title)
 
     def mouse_clicked(self, ev):
-        print(ev)
-        # if (ev.button() == QtCore.Qt.LeftButton and
-        #     ev.double()):
         if ev.double():
             self.autoscroll = not self.autoscroll
 

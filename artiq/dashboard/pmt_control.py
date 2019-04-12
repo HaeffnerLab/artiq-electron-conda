@@ -24,18 +24,19 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.scheduler = Client("::1", 3251, "master_schedule")
         self.rid = None
         self.pulsed = False
-        self.expid_continuous = {"annotations": "test_annotation",
-                                "arguments": {},
-                                "class_name": "pmt_collect_continuously",
-                                "file": "run_continuously/run_pmt_continuously.py",
-                                "log_level": 30,
-                                "repo_rev": None}
+        self.expid_continuous = {"arguments": {},
+                                 "class_name": "pmt_collect_continuously",
+                                 "file": "run_continuously/run_pmt_continuously.py",
+                                 "log_level": 30,
+                                 "repo_rev": None,
+                                 "priority": 0}
 
         self.expid_pulsed = {"arguments": {},
                              "class_name": "pmt_collect_pulsed",
                              "file": "run_continuously/run_pmt_pulsed.py",
                              "log_level": 30,
-                             "repo_rev": None}
+                             "repo_rev": None,
+                             "priority": 0}
 
         frame = QtWidgets.QFrame()
         frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
