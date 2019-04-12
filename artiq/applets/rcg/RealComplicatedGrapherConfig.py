@@ -42,7 +42,7 @@ graphConfig = namedtuple("graphConfig",
 graphConfig.__new__.__defaults__ = ("", "Current", 0, 0, 1, 1, True, [0, 1])
         
 tab_configs = [
-    ("Current", [graphConfig(name="Current", ylims=[-1,10])]),
+    ("Current", [graphConfig(name="Current", ylims=[-2, 2])]),
     ("Spectrum", [graphConfig()]),
     ("CalibLines", [graphConfig(name="CalibLine1", title="Line1"), 
                     graphConfig(name="CalibLine2", title="Line2", col=1)]),
