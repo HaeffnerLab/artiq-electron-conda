@@ -46,8 +46,7 @@ class rcgDock(QDockWidgetCloseDetect):
 
     def connect_server(self):
         self.loop = asyncio.get_event_loop()
-        d = {"hello": Hello()}
-        self.server = Server(d, None, True)
+        self.server = Server({"rcg": self.RemotePlotting(self.rcg)}, None, True)
         self.loop.create_task(self.server.start(conf.host, conf.port))
 
     def closeEvent(self, event):
@@ -57,11 +56,36 @@ class rcgDock(QDockWidgetCloseDetect):
         super(rcgDock, self).closeEvent(event)
 
 
+    class RemotePlotting:
+        def __init__(self, rcg):
+            self.rcg = rcg
+
+        def echo(self, mssg):
+            return mssg
+        
+        def get_tab_index_from_name(self, name):
+            return self.rcg.tabs[name]
+        
+        def plot(self, x, y, tab_name="Current", plot_name=None, plot_title="new_plot"):
+            if plot_name is None:
+                plot_name = tab_name
+            idx = self.rcg.tabs[tab_name]
+            self.rcg.widget(idx).gw_dict[plot_name].add_plot_item(plot_title, x, y, append=True)
+    
+        def plot_from_file(self, file_, tab_name="Current", plot_name=None):
+            if plot_name is None:
+                plot_name = tab_name
+            idx = self.rcg.tabs[tab_name]
+            self.rcg.widget(idx).gw_dict[plot_name].upload_curve(file_=file_)
+
+    
 class RCG(PyQt5.QtWidgets.QTabWidget):
     def __init__(self):
         PyQt5.QtWidgets.QTabWidget.__init__(self)
+        self.tabs = dict()
         for name, graphconfigs in conf.tab_configs:
-            self.addTab(graphTab(graphconfigs), name)
+            idx = self.addTab(graphTab(graphconfigs), name)
+            self.tabs[name] = idx
 
 
 class graphTab(QtWidgets.QWidget):
@@ -69,16 +93,16 @@ class graphTab(QtWidgets.QWidget):
         QtWidgets.QWidget.__init__(self)
         layout = QtWidgets.QGridLayout()
         
-        gw_dict = {}
+        self.gw_dict = {}
         for gc in graphconfigs:
             gw = graphWindow(gc.name, gc.show_points, gc.ylims)
             layout.addWidget(gw, gc.row, gc.col, gc.rowspan, gc.colspan)
-            gw_dict[gc.name] = gw
+            self.gw_dict[gc.name] = gw
         layout.setHorizontalSpacing(3)
         layout.setVerticalSpacing(3)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        for gw in gw_dict.values():
+        for gw in self.gw_dict.values():
             s1 = gw.tw.sizeHint().width()
             s2 = gw.pg.sizeHint().width()
             gw.main_widget.setSizes([s1 * .4, s2 * 1.25])
@@ -98,7 +122,7 @@ class graphTab(QtWidgets.QWidget):
                         try:
                             with h5py.File(h5file, "r") as f:
                                 plot = f["data"].attrs["plot_show"]
-                            gw_dict[plot].upload_curve(h5file, autocheck)
+                            self.gw_dict[plot].upload_curve(h5file, autocheck)
                         except:
                             continue
 
@@ -109,6 +133,7 @@ class graphWindow(QtWidgets.QWidget):
         self.items = dict()
         self.show_points = show_points
         self.name = name
+        self.autoscroll_enabled = True
 
         self.color_chooser = cycle(conf.default_colors)
         self.custom_colors = conf.custom_colors
@@ -184,6 +209,12 @@ class graphWindow(QtWidgets.QWidget):
         use_custom_colors_action.triggered.connect(self.use_custom_colors)
         colors_menu.addAction(use_custom_colors_action)
 
+        toggle_autoscroll_action = QtWidgets.QAction("Toggle AutoScroll", self.tw)
+        toggle_autoscroll_action.setShortcut("SHIFT+TAB")
+        toggle_autoscroll_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
+        toggle_autoscroll_action.triggered.connect(self.toggle_autoscroll)
+        self.tw.addAction(toggle_autoscroll_action)
+
         self.pg = pyqtgraph.PlotWidget()
         self.pg.showGrid(x=True, y=True, alpha=0.7)
         self.pg.setYRange(*ylims)
@@ -212,7 +243,7 @@ class graphWindow(QtWidgets.QWidget):
         layout.addWidget(self.main_widget)
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
-
+        
     def uncheck(self):
         for item in self.tw.selectedItems():
             item.setCheckState(0, 0)
@@ -222,19 +253,27 @@ class graphWindow(QtWidgets.QWidget):
         if len(sI) != 1:
             return
         name = sI[0].name
+        if "::FIT::  " + name in self.items.keys():
+            return
+        if "::FIT::  " in name:
+            return
         data = sI[0].x, sI[0].y
         self.fitmenu = fitMenu(model, name, data, self)
         self.fitmenu.show()
-
-    def upload_curve(self, file_=None, checked=True):
+    
+    def upload_curve(self, *args, file_=None, checked=True):
         if file_ is None:
             fname = QtWidgets.QFileDialog.getOpenFileName(self, 
                             self.tr("Upload Data"), conf.data_dir,
                             self.tr("HDF5 Files (*.h5 *.hdf5)"))[0]
+            print("fname: ", fname)
         else:
             fname = file_
         try:
             f = h5py.File(fname, "r")
+        except ValueError:
+            # User exited dialog without selecting file
+            return
         except OSError:
             self.warning_message("Can't open {}".format(fname))
             return
@@ -284,10 +323,9 @@ class graphWindow(QtWidgets.QWidget):
             items = self.tw.selectedItems()
         for item in items:
             item.remove_plot()
-            if curve is None:
-                removed_item = self.items.pop(item.text(0))
-                del removed_item
             (item.parent() or root).removeChild(item)
+            removed_item = self.items.pop(item.text(0))
+            del removed_item
 
     def uncheck_all(self):
         for widget in self.items.values():
@@ -319,6 +357,9 @@ class graphWindow(QtWidgets.QWidget):
     def use_custom_colors(self):
         self.color_chooser = cycle(self.custom_colors)
 
+    def toggle_autoscroll(self):
+        self.autoscroll_enabled = not self.autoscroll_enabled
+
     def warning_message(self, txt):
         msg = QtWidgets.QMessageBox()
         msg.setIcon(QtWidgets.QMessageBox.Warning)
@@ -326,15 +367,49 @@ class graphWindow(QtWidgets.QWidget):
         msg.setText(txt)
         msg.exec_()
 
-    def add_plot_item(self, name, x, y, over_ride_show_points=None):
-        color = next(self.color_chooser)
+    def add_plot_item(self, name, x, y, over_ride_show_points=None, append=False):
+        if name in self.items.keys() and not append:
+            return
         if over_ride_show_points is not None:
             show_points = over_ride_show_points
         else:
             show_points = self.show_points
-        item = treeItem(self, name, x, y, self.pg, color, show_points)
-        self.items[name] = item
-        self.tw.addTopLevelItem(item)
+        if append and name in self.items.keys():
+            item = self.items[name]
+            item.plot_item.setData(x, y)
+        else:
+            color = next(self.color_chooser)
+            item = treeItem(self, name, x, y, self.pg, color, show_points)
+            self.items[name] = item
+            self.tw.addTopLevelItem(item)
+
+        if not self.autoscroll_enabled:
+            return item
+            
+        (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.pg.viewRange()
+        max_x, min_y, max_y = 0, 0, 0
+        for item in self.items.values():
+            localxmax = item.plot_item.dataBounds(0)[-1]
+            localymin, localymax = item.plot_item.dataBounds(1)
+            if localxmax > max_x:
+                max_x = localxmax
+            if localymax > max_y:
+                max_y = localymax
+            if localymin < min_y:
+                min_y = localymin
+        window_width = xmax_cur - xmin_cur
+        if max_x > xmin_cur + window_width:
+            shift = (xmax_cur - xmin_cur) / 2
+            xmin = xmin_cur + shift
+            xmax = xmax_cur + shift
+            limits = [xmin, xmax]
+            self.pg.setXRange(*limits)
+        if max_y > ymax_cur:
+            ymax = max_y
+        if min_y < ymin_cur:
+            ymin = min_y
+            limits = [ymin, ymax]
+            self.pg.setYRange(*limits)
         return item
 
     def mouse_moved(self, pos):
@@ -355,11 +430,6 @@ class graphWindow(QtWidgets.QWidget):
             # cb.setText(str(pnt.x()), mode=cb.Clipboard)
 
 
-class Hello:
-    def message(self, msg):
-        print("\n"*10, "message: " + msg, "\n"*10)
-
-
 def main():
     from quamash import QEventLoop, QtWidgets, QtCore
     from artiq import __artiq_dir__ as artiq_dir
@@ -377,7 +447,6 @@ def main():
             self.exit_request = asyncio.Event()
             self.setWindowTitle("Real Complicated Grapher")
         def closeEvent(self, event):
-            # print("\n\nevent: ", event, "\n\n")
             event.ignore()
             self.exit_request.set()
 

@@ -1,6 +1,8 @@
 import PyQt5
 from PyQt5 import QtWidgets, QtGui, QtCore
+from datetime import datetime
 import pyqtgraph
+import pyperclip
 
 class checkStateChanged(QtCore.QObject):
     checkStateChanged = QtCore.pyqtSignal(str, bool)
@@ -84,11 +86,11 @@ class treeItem(QtWidgets.QTreeWidgetItem):
         super(treeItem, self).setData(index, role, value)
         if role == 10:
             # 10 --> QtCore.Qt.CheckStateRole
-            self.signal.checkStateChanged.emit(self.name, value)
+            self.signal.checkStateChanged.emit(str(self), value)
 
     def item_check_state_changed(self, name, val):
-        if name != self.name:
-            return 
+        if name != str(self):
+            return
         if val:
             self.plot()
         else:
