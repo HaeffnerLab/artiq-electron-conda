@@ -40,15 +40,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
                              "repo_rev": None,
                              "priority": 0}
 
-        self.expid_dds_control = {"arguments": {},
-                                  "class_name": "pmt_collect_pulsed",
-                                  "file": "misc/manual_dds_control.py",
-                                  "log_level": 30,
-                                  "repo_rev": None,
-                                  "priority": 1}
-
         frame = QtWidgets.QFrame()
-        frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
         layout = QtWidgets.QVBoxLayout()
         pmt_frame = self.create_pmt_frame()
         linetrigger_frame = self.create_linetrigger_frame()
@@ -58,7 +50,8 @@ class PMTControlDock(QtWidgets.QDockWidget):
         layout.addWidget(dds_frame)
         layout.addWidget(linetrigger_frame)
         layout.addWidget(picomotor_frame)
-        layout.setSpacing(25)
+        layout.setSpacing(50)
+        layout.setContentsMargins(0, 50, 0, 50)
         frame.setLayout(layout)
 
         scroll = QtWidgets.QScrollArea()
@@ -195,9 +188,10 @@ class PMTControlDock(QtWidgets.QDockWidget):
         settings = run_path(dir_)
         dds_dict = settings["dds_config"]
         self.dds_widgets = dict()
-        for i, (name, specs) in enumerate(dds_dict.items()):
-            self.dds_widgets[name] = ddsControlWidget(name, *specs, False)
-            layout.addWidget(self.dds_widgets[name], i // 2 + 1 , i % 2)
+        for i, (name, specs) in enumerate(sorted(dds_dict.items())):
+            widget = ddsControlWidget(name, specs, self.scheduler)
+            layout.addWidget(widget, i // 2 + 1 , i % 2)
+            self.dds_widgets[name] = widget
         frame.setLayout(layout)
         return frame
     
@@ -393,27 +387,69 @@ class PMTControlDock(QtWidgets.QDockWidget):
 
 
 class ddsControlWidget(QtWidgets.QFrame):
-    def __init__(self, name, freq, amp, state):
+    def __init__(self, name, specs, scheduler):
         QtWidgets.QFrame.__init__(self)
         self.setFrameStyle(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.setLineWidth(2)
         self.setMidLineWidth(3)
+
+        self.freq = specs.default_freq
+        self.att = specs.default_att
+        self.state = specs.default_state
+        unum = str(int(specs.urukul))
+        min_att, max_att = specs.min_att, specs.max_att
+        min_freq, max_freq = specs.min_freq, specs.max_freq
+        self.scheduler = scheduler
+        self.expid = {"arguments": {"urukul_number": unum,
+                                    "dds_name": name},
+                      "class_name": "change_cw",
+                      "file": "misc/manual_dds_control.py",
+                      "log_level": 30,
+                      "repo_rev": None,
+                      "priority": 1}
+        self.parameters_changed()
 
         layout = QtWidgets.QGridLayout()
         layout.addWidget(boldLabel(name), 0, 0, 1, 3)
         layout.addWidget(QtWidgets.QLabel("Frequency"), 1, 0)
         layout.addWidget(QtWidgets.QLabel("Attenuation"), 1, 1)
 
-        self.freq_spin = QtWidgets.QDoubleSpinBox()
-        self.freq_spin.setSuffix(" MHz")
-        self.att_spin = QtWidgets.QDoubleSpinBox()
-        self.att_spin.setSuffix(" dB")
-        self.state_button = QtWidgets.QPushButton()
+        self.freq_spin = customSpinBox(self.freq, (min_freq, max_freq), " MHz")
+        self.freq_spin.editingFinished.connect(self.freq_spin_changed)
+        self.att_spin = customSpinBox(self.att, (min_att, max_att), " dB")
+        self.att_spin.editingFinished.connect(self.att_spin_changed)
+        self.state_button = QtWidgets.QPushButton("O")
+        self.state_button.setCheckable(True)
+        self.state_button.toggled.connect(self.button_clicked)
+        self.state_button.setChecked(self.state)
 
         layout.addWidget(self.freq_spin, 2, 0)
         layout.addWidget(self.att_spin, 2, 1)
         layout.addWidget(self.state_button, 2, 2)
         self.setLayout(layout)
+
+    def button_clicked(self, val):
+        bttn = self.sender()
+        if val:
+            bttn.setText("|")
+        else:
+            bttn.setText("O")
+        self.state = val
+        self.parameters_changed()
+
+    def freq_spin_changed(self):
+        self.freq = self.sender().value()
+        self.parameters_changed()
+
+    def att_spin_changed(self):
+        self.att = self.sender().value()
+        self.parameters_changed()
+
+    def parameters_changed(self):
+        self.expid["arguments"].update({"frequency": self.freq * 1e6,
+                                        "amplitude": self.att,
+                                        "state": self.state})
+        self.scheduler.submit("main", self.expid, 0)
 
 
 class boldLabel(QtWidgets.QLabel):
@@ -424,3 +460,26 @@ class boldLabel(QtWidgets.QLabel):
         self.setFont(boldFont)
         self.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
 
+
+class customSpinBox(QtWidgets.QDoubleSpinBox):
+    def __init__(self, value, range_, suffix):
+        QtWidgets.QDoubleSpinBox.__init__(self)
+        self.setValue(value)
+        self.setRange(*range_)
+        self.setSuffix(suffix)
+        self.setSingleStep(0.1)
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+
+    def focusInEvent(self, event):
+        self.setFocusPolicy(QtCore.Qt.WheelFocus)
+        super(customSpinBox, self).focusInEvent(event)
+
+    def focusOutEvent(self, event):
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+        super(customSpinBox, self).focusOutEvent(event)
+
+    def wheelEvent(self, event):
+        if self.hasFocus():
+            return super(customSpinBox, self).wheelEvent(event)
+        else:
+            event.ignore()
