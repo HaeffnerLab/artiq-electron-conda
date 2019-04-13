@@ -1,9 +1,11 @@
 import labrad
+import os
 from labrad.units import WithUnit as U
 import logging
 from PyQt5 import QtCore, QtWidgets, QtGui
 from artiq.protocols.pc_rpc import Client
 from twisted.internet.defer import inlineCallbacks
+from runpy import run_path
 
 
 logger = logging.getLogger(__name__)
@@ -11,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class PMTControlDock(QtWidgets.QDockWidget):
     def __init__(self, acxn):
-        QtWidgets.QDockWidget.__init__(self, "PMT / Linetrigger / Piezo Control")
+        QtWidgets.QDockWidget.__init__(self, "Manual Controls")
         self.setObjectName("pmt_control")
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
                          QtWidgets.QDockWidget.DockWidgetFloatable)
@@ -38,15 +40,41 @@ class PMTControlDock(QtWidgets.QDockWidget):
                              "repo_rev": None,
                              "priority": 0}
 
+        self.expid_dds_control = {"arguments": {},
+                                  "class_name": "pmt_collect_pulsed",
+                                  "file": "misc/manual_dds_control.py",
+                                  "log_level": 30,
+                                  "repo_rev": None,
+                                  "priority": 1}
+
         frame = QtWidgets.QFrame()
         frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
-        frame.setFrameShadow(QtWidgets.QFrame.Raised)
-        layout = QtWidgets.QGridLayout()
-        vLayout = QtWidgets.QVBoxLayout(frame)
-        vLayout.addLayout(layout)
-        vLayout.addStretch(1)
-        self.setWidget(frame)
+        layout = QtWidgets.QVBoxLayout()
+        pmt_frame = self.create_pmt_frame()
+        linetrigger_frame = self.create_linetrigger_frame()
+        dds_frame = self.create_dds_frame()
+        picomotor_frame = self.create_picomotor_frame()
+        layout.addWidget(pmt_frame)
+        layout.addWidget(dds_frame)
+        layout.addWidget(linetrigger_frame)
+        layout.addWidget(picomotor_frame)
+        layout.setSpacing(25)
+        frame.setLayout(layout)
 
+        scroll = QtWidgets.QScrollArea()
+        scroll.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        scroll.setWidgetResizable(False)
+        scroll.setWidget(frame)
+        scroll.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+        scroll.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding,
+                             QtWidgets.QSizePolicy.MinimumExpanding)
+        self.setWidget(scroll)
+
+        self.connect_servers()
+
+    def create_pmt_frame(self):
+        pmtLabel = boldLabel("PMT")
         self.onButton = QtWidgets.QPushButton("On")
         self.onButton.setCheckable(True)
         self.onButton.clicked[bool].connect(self.set_state)
@@ -54,7 +82,6 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.autoLoadButton.setCheckable(True)
         self.autoLoadButton.clicked[bool].connect(self.toggle_autoload)
         self.autoLoadSpin = QtWidgets.QSpinBox()
-
         self.countDisplay = QtWidgets.QLCDNumber()
         self.countDisplay.setSegmentStyle(2)
         self.countDisplay.display(0)
@@ -78,76 +105,71 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.duration.setValidator(validator)
         self.duration.returnPressed.connect(self.duration_changed)
         self.duration.setStyleSheet("QLineEdit { background-color:  #c4df9b}" )
-
         self.modeLabel = QtWidgets.QLabel("Mode: ")
         self.setMode = QtWidgets.QComboBox()
         self.setMode.addItem("continuous")
         self.setMode.addItem("pulsed")
         self.setMode.currentIndexChanged.connect(self.set_mode)
+        layout = QtWidgets.QGridLayout()
+        frame = QtWidgets.QFrame()
+        frame.setFrameStyle(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
+        frame.setLineWidth(2)
+        frame.setMidLineWidth(3)
+        layout.addWidget(pmtLabel, 0, 0, 1, 3)
+        layout.addWidget(self.onButton, 1, 0)
+        layout.addWidget(self.countDisplay, 1, 1)
+        layout.addWidget(self.unitsLabel, 1, 2)
+        layout.addWidget(self.durationLabel, 2, 0)
+        layout.addWidget(self.duration, 2, 1, 1, 2)
+        layout.addWidget(self.modeLabel, 3, 0)
+        layout.addWidget(self.setMode, 3, 1, 1, 2)
+        layout.addWidget(QtWidgets.QLabel("Autoload: "), 4, 0)
+        layout.addWidget(self.autoLoadButton, 4, 1)
+        layout.addWidget(self.autoLoadSpin, 4, 2)
+        frame.setLayout(layout)
+        return frame
 
+    def create_linetrigger_frame(self):
+        linetriggerLabel = boldLabel("LINETRIGGER")
         self.linetriggerButton = QtWidgets.QPushButton("Off")
         self.linetriggerButton.setCheckable(True)
         self.linetriggerButton.setChecked(True)
         self.linetriggerButton.clicked[bool].connect(self.toggle_linetrigger)
         self.linetriggerLineEdit = QtWidgets.QLineEdit("0")
         self.linetriggerLineEdit.returnPressed.connect(self.linetrigger_duration_changed)
+        layout = QtWidgets.QGridLayout()
+        frame = QtWidgets.QFrame()
+        frame.setFrameStyle(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
+        frame.setLineWidth(2)
+        frame.setMidLineWidth(3)
+        layout.addWidget(linetriggerLabel, 0, 0, 1, 3)
+        layout.addWidget(self.linetriggerButton, 1, 0, 1, 3)
+        layout.addWidget(QtWidgets.QLabel("Offset duration (us): "), 2, 0)
+        layout.addWidget(self.linetriggerLineEdit, 2, 1, 1, 2)
+        frame.setLayout(layout)
+        return frame
 
-        boldFont = QtGui.QFont()
-        boldFont.setBold(True)
-        self.pmtLabel = QtWidgets.QLabel("PMT")
-        self.pmtLabel.setFont(boldFont)
-        self.pmtLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-        self.linetriggerLabel = QtWidgets.QLabel("LINETRIGGER")
-        self.linetriggerLabel.setFont(boldFont)
-        self.linetriggerLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-        self.piezoLabel = QtWidgets.QLabel("PICOMOTOR")
-        self.piezoLabel.setFont(boldFont)
-        self.piezoLabel.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-
-        layout.addWidget(QtWidgets.QLabel(""), 0, 0)
-        layout.addWidget(self.pmtLabel, 1, 0, 1, 3)
-        layout.addWidget(self.onButton, 2, 0)
-        layout.addWidget(self.countDisplay, 2, 1)
-        layout.addWidget(self.unitsLabel, 2, 2)
-        layout.addWidget(self.durationLabel, 3, 0)
-        layout.addWidget(self.duration, 3, 1, 1, 2)
-        layout.addWidget(self.modeLabel, 4, 0)
-        layout.addWidget(self.setMode, 4, 1, 1, 2)
-        layout.addWidget(QtWidgets.QLabel("Autoload: "), 5, 0)
-        layout.addWidget(self.autoLoadButton, 5, 1)
-        layout.addWidget(self.autoLoadSpin, 5, 2)
-
-        layout.addWidget(QtWidgets.QLabel(""), 6, 0)
-        layout.addWidget(QtWidgets.QLabel(""), 7, 0)
-        layout.addWidget(QtWidgets.QLabel(""), 8, 0)
-        layout.addWidget(QtWidgets.QLabel(""), 9, 0)
-        layout.addWidget(self.linetriggerLabel, 10, 0, 1, 3)
-        layout.addWidget(self.linetriggerButton, 11, 0, 1, 3)
-        layout.addWidget(QtWidgets.QLabel("Offset duration (us): "), 12, 0)
-        layout.addWidget(self.linetriggerLineEdit, 12, 1, 1, 2)
-
-        layout.addWidget(QtWidgets.QLabel(""), 13, 0)
-        layout.addWidget(QtWidgets.QLabel(""), 14, 0)
-        layout.addWidget(QtWidgets.QLabel(""), 15, 0)
-        layout.addWidget(QtWidgets.QLabel(""), 16, 0)
-        layout.addWidget(self.piezoLabel, 17, 0, 1, 3)
-
+    def create_picomotor_frame(self):
+        layout = QtWidgets.QGridLayout()
+        frame = QtWidgets.QFrame()
+        frame.setFrameStyle(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
+        frame.setLineWidth(2)
+        frame.setMidLineWidth(3)
+        piezoLabel = boldLabel("PICOMOTOR")
         ctls = ["Local X", "Local Y", "Global X", "Global Y"]
-        starting_row = 18
         self.piezoStepSize = dict()
         self.piezoCurrentPos = dict()
         self.piezoLastPos = dict()
+        layout.addWidget(piezoLabel, 0, 0, 1, 3)
         for i, ctl in enumerate(ctls):
-            layout.addWidget(QtWidgets.QLabel(ctl + ": "),
-                             starting_row + i, 0)
+            layout.addWidget(QtWidgets.QLabel(ctl + ": "), i + 1, 0)
             self.piezoStepSize[ctl] = QtWidgets.QSpinBox()
             self.piezoStepSize[ctl].setToolTip("Set step size.")
             self.piezoStepSize[ctl].setObjectName(ctl)
             self.piezoStepSize[ctl].setKeyboardTracking(False)
             self.piezoStepSize[ctl].valueChanged.connect(self.piezo_step_size_changed)
             self.piezoStepSize[ctl].setRange(0, 300)
-            layout.addWidget(self.piezoStepSize[ctl],
-                             starting_row + i, 1)
+            layout.addWidget(self.piezoStepSize[ctl], i + 1, 1)
             self.piezoCurrentPos[ctl] = QtWidgets.QSpinBox()
             self.piezoCurrentPos[ctl].setSingleStep(0)
             self.piezoCurrentPos[ctl].setToolTip("Current position.")
@@ -156,10 +178,29 @@ class PMTControlDock(QtWidgets.QDockWidget):
             self.piezoLastPos[i + 1] = 0
             self.piezoCurrentPos[ctl].setKeyboardTracking(False)
             self.piezoCurrentPos[ctl].valueChanged.connect(self.piezo_changed)
-            layout.addWidget(self.piezoCurrentPos[ctl], starting_row + i, 2)
-        
-        self.connect_servers()
+            layout.addWidget(self.piezoCurrentPos[ctl], i + 1, 2)
+        frame.setLayout(layout)
+        return frame
 
+    def create_dds_frame(self):
+        layout = QtWidgets.QGridLayout()
+        frame = QtWidgets.QFrame()
+        frame.setFrameStyle(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
+        frame.setLineWidth(2)
+        frame.setMidLineWidth(3)
+        ddsLabel = boldLabel("DDS Control")
+        layout.addWidget(ddsLabel, 0, 0, 1, 2)
+        home_dir = os.path.expanduser("~")
+        dir_ = os.path.join(home_dir, "artiq-master/HardwareConfiguration.py")
+        settings = run_path(dir_)
+        dds_dict = settings["dds_config"]
+        self.dds_widgets = dict()
+        for i, (name, specs) in enumerate(dds_dict.items()):
+            self.dds_widgets[name] = ddsControlWidget(name, *specs, False)
+            layout.addWidget(self.dds_widgets[name], i // 2 + 1 , i % 2)
+        frame.setLayout(layout)
+        return frame
+    
     def set_state(self, override=False):
         if override:
             flag = True
@@ -349,4 +390,37 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 self.pm = yield self.acxn.get_server("picomotorserver")
             except:
                 self.picomotor_disconnect()
+
+
+class ddsControlWidget(QtWidgets.QFrame):
+    def __init__(self, name, freq, amp, state):
+        QtWidgets.QFrame.__init__(self)
+        self.setFrameStyle(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
+        self.setLineWidth(2)
+        self.setMidLineWidth(3)
+
+        layout = QtWidgets.QGridLayout()
+        layout.addWidget(boldLabel(name), 0, 0, 1, 3)
+        layout.addWidget(QtWidgets.QLabel("Frequency"), 1, 0)
+        layout.addWidget(QtWidgets.QLabel("Attenuation"), 1, 1)
+
+        self.freq_spin = QtWidgets.QDoubleSpinBox()
+        self.freq_spin.setSuffix(" MHz")
+        self.att_spin = QtWidgets.QDoubleSpinBox()
+        self.att_spin.setSuffix(" dB")
+        self.state_button = QtWidgets.QPushButton()
+
+        layout.addWidget(self.freq_spin, 2, 0)
+        layout.addWidget(self.att_spin, 2, 1)
+        layout.addWidget(self.state_button, 2, 2)
+        self.setLayout(layout)
+
+
+class boldLabel(QtWidgets.QLabel):
+    def __init__(self, txt):
+        QtWidgets.QLabel.__init__(self, txt)
+        boldFont = QtGui.QFont()
+        boldFont.setBold(True)
+        self.setFont(boldFont)
+        self.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
 
