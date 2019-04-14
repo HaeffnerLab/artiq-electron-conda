@@ -67,13 +67,27 @@ class rcgDock(QDockWidgetCloseDetect):
         def get_tab_index_from_name(self, name):
             return self.rcg.tabs[name]
         
-        def plot(self, x, y, tab_name="Current", plot_name=None, plot_title="new_plot"):
+        def plot(self, x, y, tab_name="Current", plot_name=None, plot_title="new_plot", append=False):
             if plot_name is None:
                 plot_name = tab_name
             idx = self.rcg.tabs[tab_name]
+            if type(x) is np.ndarray:
+                x = x[~np.isnan(x)]
+            if type(y) is np.ndarray:
+                y = y[~np.isnan(y)]
+            if (plot_title in self.rcg.widget(idx).gw_dict[plot_name].items.keys() and
+                not append):
+                i = 1
+                while True:
+                    try_plot_title = plot_title + str(i)
+                    if try_plot_title not in self.rcg.widget(idx).gw_dict[plot_name].items.keys():
+                        plot_title = try_plot_title
+                        break
+                    else:
+                        i += 1
             try:
                 self.rcg.widget(idx).gw_dict[plot_name].add_plot_item(plot_title, 
-                                                                      x, y, append=True)
+                                                                      x, y, append=append)
             except AttributeError:
                 # curve not currently displayed on graph
                 return
@@ -263,8 +277,7 @@ class graphWindow(QtWidgets.QWidget):
             return
         if "::FIT::  " in name:
             return
-        data = sI[0].x, sI[0].y
-        self.fitmenu = fitMenu(model, name, data, self)
+        self.fitmenu = fitMenu(model, name, sI[0].plot_item, self)
         self.fitmenu.show()
     
     def upload_curve(self, file_=None, checked=True):
