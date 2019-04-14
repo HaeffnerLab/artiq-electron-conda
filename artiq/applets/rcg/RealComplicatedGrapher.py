@@ -141,7 +141,7 @@ class graphTab(QtWidgets.QWidget):
                         h5file = os.path.join(root, file_)
                         try:
                             with h5py.File(h5file, "r") as f:
-                                plot = f["data"].attrs["plot_show"]
+                                plot = f["scan_data"].attrs["plot_show"]
                             self.gw_dict[plot].upload_curve(file_=h5file, checked=autocheck, startup=True)
                         except:
                             continue
@@ -297,10 +297,10 @@ class graphWindow(QtWidgets.QWidget):
                 self.warning_message("Can't open {}".format(fname))
             return
         try:
-            data = f["data"]
+            data = f["scan_data"]
         except KeyError:
             if not startup:
-                self.warning_message("HDF5 file does not contain a 'data' group.")
+                self.warning_message("HDF5 file does not contain a 'scan_data' group.")
             return
         try: 
             plot_name = data.attrs["plot_show"]
@@ -321,7 +321,7 @@ class graphWindow(QtWidgets.QWidget):
             except KeyError:
                 ylist.append(key)
         try:
-            X = f["data"][x].value
+            X = f["scan_data"][x].value
         except:
             if not startup:
                 self.warning_message("Can't determine which is x-axis.")
@@ -331,7 +331,7 @@ class graphWindow(QtWidgets.QWidget):
         txtlist = []
         for y in ylist:
             try:
-                Y = f["data"][y].value
+                Y = f["scan_data"][y].value
                 assert len(X) == len(Y)
                 Ylist.append(Y)
                 txt = fname.split(".")[0].split("/")[-1]  + " - " + y
@@ -474,7 +474,7 @@ def main():
     from quamash import QEventLoop, QtWidgets, QtCore
     from artiq import __artiq_dir__ as artiq_dir
     from concurrent.futures._base import CancelledError
-    app = QtWidgets.QApplication([])
+    app = QtWidgets.QApplication(["Real Complicated Grapher"])
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
     
