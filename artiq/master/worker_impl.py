@@ -302,9 +302,12 @@ def main():
                 path = os.path.join(dirname, exp.__name__)
                 if not os.path.exists(path):
                     os.mkdir(path)
-                filename = "raw-data_{}.h5".format(current_time)
+                if hasattr(exp_inst, "filename"):
+                    filename = exp_inst.filename
+                else:
+                    filename = "raw-data_{}.h5".format(current_time)
                 file_ = os.path.join(path, filename)
-                with h5py.File(file_, "w") as f:
+                with h5py.File(file_, "a") as f:
                     dataset_mgr.write_hdf5(f)
                     f["artiq_version"] = artiq_version
                     f["rid"] = rid
