@@ -299,6 +299,10 @@ def main():
                 else:
                     put_object({"action": "completed"})
             elif action == "write_results":
+                if hasattr(exp_inst, "archive"):
+                    if not exp_inst.archive:
+                        put_object({"action": "completed"})
+                        continue
                 path = os.path.join(dirname, exp.__name__)
                 if not os.path.exists(path):
                     os.mkdir(path)
