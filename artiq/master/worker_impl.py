@@ -299,10 +299,12 @@ def main():
                 else:
                     put_object({"action": "completed"})
             elif action == "write_results":
-                if not os.path.exists(str(exp.__name__)):
-                    os.mkdir(str(exp.__name__))
+                path = os.path.join(dirname, exp.__name__)
+                if not os.path.exists(path):
+                    os.mkdir(path)
                 filename = "raw-data_{}.h5".format(current_time)
-                with h5py.File(str(exp.__name__) + "/" + filename, "w") as f:
+                file_ = os.path.join(path, filename)
+                with h5py.File(file_, "w") as f:
                     dataset_mgr.write_hdf5(f)
                     f["artiq_version"] = artiq_version
                     f["rid"] = rid

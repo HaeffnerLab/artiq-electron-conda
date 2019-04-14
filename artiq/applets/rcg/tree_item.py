@@ -85,7 +85,6 @@ class treeItem(QtWidgets.QTreeWidgetItem):
         self.plot_item = None
     
     def setData(self, index, role, value):
-        print("value: ", value)
         super(treeItem, self).setData(index, role, value)
         if role == 10:
             # 10 --> QtCore.Qt.CheckStateRole

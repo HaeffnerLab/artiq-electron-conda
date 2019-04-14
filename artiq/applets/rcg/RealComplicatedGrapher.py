@@ -136,13 +136,13 @@ class graphTab(QtWidgets.QWidget):
             if not os.path.isdir(conf.data_dir + dir_):
                 return
             for root, _, files in os.walk(conf.data_dir + dir_):
-                for file_ in files:
+                for file_ in sorted(files):
                     if file_.endswith(".h5") or file_.endswith(".hdf5"):
                         h5file = os.path.join(root, file_)
                         try:
                             with h5py.File(h5file, "r") as f:
                                 plot = f["data"].attrs["plot_show"]
-                            self.gw_dict[plot].upload_curve(h5file, autocheck)
+                            self.gw_dict[plot].upload_curve(file_=h5file, checked=autocheck, startup=True)
                         except:
                             continue
 
@@ -280,12 +280,11 @@ class graphWindow(QtWidgets.QWidget):
         self.fitmenu = fitMenu(model, name, sI[0].plot_item, self)
         self.fitmenu.show()
     
-    def upload_curve(self, file_=None, checked=True):
+    def upload_curve(self, *args, file_=None, checked=True, startup=False):
         if file_ is None:
             fname = QtWidgets.QFileDialog.getOpenFileName(self, 
                             self.tr("Upload Data"), conf.data_dir,
                             self.tr("HDF5 Files (*.h5 *.hdf5)"))[0]
-            print("fname: ", fname)
         else:
             fname = file_
         try:
@@ -294,21 +293,24 @@ class graphWindow(QtWidgets.QWidget):
             # User exited dialog without selecting file
             return
         except OSError:
-            self.warning_message("Can't open {}".format(fname))
+            if not startup:
+                self.warning_message("Can't open {}".format(fname))
             return
         try:
             data = f["data"]
         except KeyError:
-            self.warning_message("HDF5 file does not contain a 'data' group.")
+            if not startup:
+                self.warning_message("HDF5 file does not contain a 'data' group.")
             return
-
         try: 
             plot_name = data.attrs["plot_show"]
             if plot_name != self.name:
-                self.warning_message("Can't embed in this plot.")
+                if not startup:
+                    self.warning_message("Can't embed in this plot. {}, {}".format(plot_name, self.name))
                 return
         except KeyError:
-            self.warning_message("Can't determine which plot to embed in.")
+            if not startup:
+                self.warning_message("Can't determine which plot to embed in.")
             return
 
         ylist = []
@@ -318,16 +320,29 @@ class graphWindow(QtWidgets.QWidget):
                 x = key
             except KeyError:
                 ylist.append(key)
-        X = f["data"][x].value
+        try:
+            X = f["data"][x].value
+        except:
+            if not startup:
+                self.warning_message("Can't determine which is x-axis.")
+            return
+
         Ylist = []
         txtlist = []
         for y in ylist:
-            Ylist.append(f["data"][y].value)
-            txt = y + " - " + fname.split(".")[0].split("/")[-1]
-            if txt in self.items.keys():
-                f.close()
-                return
-            txtlist.append(txt)
+            try:
+                Y = f["data"][y].value
+                assert len(X) == len(Y)
+                Ylist.append(Y)
+                txt = fname.split(".")[0].split("/")[-1]  + " - " + y
+                if txt in self.items.keys():
+                    f.close()
+                    return
+                txtlist.append(txt)
+            except AssertionError:
+                continue
+        if len(Ylist) == 0:
+            return 
         for i in range(len(Ylist)):
             item = self.add_plot_item(txtlist[i], X, Ylist[i])
             if not checked:
