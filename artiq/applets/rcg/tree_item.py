@@ -33,10 +33,12 @@ class treeItem(QtWidgets.QTreeWidgetItem):
                                         symbolBrush=self.color if self.show_points else None,
                                         symbol="o" if self.show_points else None)
         self.plot_item.sigClicked.connect(self.curve_clicked)
+        self.plot_item.sigPlotChanged.connect(self.plot_changed)
 
     def curve_clicked(self, curve, *args):
-        for c in self.parent_.items.values():
+        for c in list(self.parent_.items.values()):
             if c.plot_item is curve:
+
                 if not self.is_selected:
                     lighter_color = c.color[0]//3, c.color[1]//2, c.color[2]//2
                     c.plot_item.setShadowPen(color=lighter_color, width=12)
@@ -54,7 +56,7 @@ class treeItem(QtWidgets.QTreeWidgetItem):
                     copy_to_clipboard_action = QtWidgets.QAction("Copy to Clipboard", menu)
                     copy_to_clipboard_action.triggered.connect(self.copy_to_clipboard)
                     menu.addAction(copy_to_clipboard_action)
-                    # definitely the wrong way to do this
+                    # probably the wrong way to do this
                     p = QtCore.QPoint()
                     p.setX(self.parent_.pos.x() + 100)  # Values determined empirically
                     p.setY(self.parent_.pos.y() - 10)   #
@@ -83,6 +85,7 @@ class treeItem(QtWidgets.QTreeWidgetItem):
         self.plot_item = None
     
     def setData(self, index, role, value):
+        print("value: ", value)
         super(treeItem, self).setData(index, role, value)
         if role == 10:
             # 10 --> QtCore.Qt.CheckStateRole
@@ -95,3 +98,6 @@ class treeItem(QtWidgets.QTreeWidgetItem):
             self.plot()
         else:
             self.remove_plot()
+
+    def plot_changed(self, curve):
+        self.x, self.y = curve.getData()

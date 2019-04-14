@@ -12,9 +12,12 @@ from collections import OrderedDict as dict
 
 
 class fitMenu(QtWidgets.QWidget):
-    def __init__(self, name, title, data, graph):
+    def __init__(self, name, title, data_item, graph):
         QtWidgets.QWidget.__init__(self)
-        self.x, self.y = data; self.graph = graph
+        self.data_item = data_item
+        # idx = min([len(x), len(y)])
+        # self.x, self.y = x[:idx], y[:idx] 
+        self.graph = graph
         for f in fit_functions:
             fit_function = globals()[f]
             try:
@@ -35,7 +38,6 @@ class fitMenu(QtWidgets.QWidget):
         self.plot_item = None
         self.plot_active = False
         self.color = next(self.graph.color_chooser)
-        self.xrange = np.linspace(self.x[0], self.x[-1], 10000)
         self.p0 = []
         self.title = "::FIT::  {}".format(title)
         self.setWindowTitle(self.title)
@@ -109,8 +111,11 @@ class fitMenu(QtWidgets.QWidget):
         self.plot_active = True
         self.p0 = [self.tw.itemWidget(self.tw.topLevelItem(i), 2).value() 
                                     for i in range(self.tw.topLevelItemCount())]
+        
+        x = self.data_item.getData()[0]
+        xrange_ = np.linspace(x[0], x[-1], 10000)
         try:
-            y = self.fit_function(self.xrange, *self.p0)
+            y = self.fit_function(xrange_, *self.p0)
         except:
             return
 
@@ -118,12 +123,11 @@ class fitMenu(QtWidgets.QWidget):
             self.graph.remove_curve(curve=self.plot_item)
             del self.plot_item
 
-        self.plot_item = treeItem(self.graph, self.title, self.xrange, y, self.graph.pg, self.color, False)
+        self.plot_item = treeItem(self.graph, self.title, xrange_, y, self.graph.pg, self.color, False)
         self.graph.items[self.title] = self.plot_item
         self.graph.tw.addTopLevelItem(self.plot_item)
 
     def on_fit_button_released(self):
-        self.plot_active = True
         p0 = dict()
         truth_list = []
         self.fit_function.__defaults__ = ()
@@ -137,11 +141,11 @@ class fitMenu(QtWidgets.QWidget):
             if not flag:
                 params[self.args[i]].vary = False
         try:
-            result = fitmodel.fit(self.y, params, x=self.x)
+            x, y = self.data_item.getData()
+            result = fitmodel.fit(y, params, x=x)
         except:
-            # Couldn't fit
-            self.fit_function.__defaults__ = self.defaults
             return
+        self.plot_active = True
         for i, (_, value) in enumerate(result.params.valuesdict().items()):
             self.tw.topLevelItem(i).setText(3, str(value))
             top_widget = self.tw.topLevelItem(i)
