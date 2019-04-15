@@ -13,6 +13,7 @@ import pyperclip
 from artiq.applets.rcg.fitting.fit_menu import fitMenu
 import artiq.applets.rcg.RealComplicatedGrapherConfig as conf
 from artiq.applets.rcg.tree_item import treeItem
+from artiq.applets.rcg.parameter_view import parameterView
 from artiq.gui.tools import QDockWidgetCloseDetect
 from artiq.protocols.pc_rpc import Server
 from functools import partial
@@ -67,7 +68,8 @@ class rcgDock(QDockWidgetCloseDetect):
         def get_tab_index_from_name(self, name):
             return self.rcg.tabs[name]
         
-        def plot(self, x, y, tab_name="Current", plot_name=None, plot_title="new_plot", append=False):
+        def plot(self, x, y, tab_name="Current", plot_name=None, 
+                 plot_title="new_plot", append=False, file_=None):
             if plot_name is None:
                 plot_name = tab_name
             idx = self.rcg.tabs[tab_name]
@@ -87,7 +89,7 @@ class rcgDock(QDockWidgetCloseDetect):
                         i += 1
             try:
                 self.rcg.widget(idx).gw_dict[plot_name].add_plot_item(plot_title, 
-                                                                      x, y, append=append)
+                                                                x, y, append=append, file_=file_)
             except AttributeError:
                 # curve not currently displayed on graph
                 return
@@ -235,6 +237,12 @@ class graphWindow(QtWidgets.QWidget):
         toggle_autoscroll_action.triggered.connect(self.toggle_autoscroll)
         self.tw.addAction(toggle_autoscroll_action)
 
+        load_params_action = QtWidgets.QAction("Load Parameters", self.tw)
+        load_params_action.setShortcut("SHIFT+P")
+        load_params_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
+        load_params_action.triggered.connect(self.load_params)
+        self.tw.addAction(load_params_action)
+
         self.pg = pyqtgraph.PlotWidget()
         self.pg.showGrid(x=True, y=True, alpha=0.7)
         self.pg.setYRange(*ylims)
@@ -344,7 +352,7 @@ class graphWindow(QtWidgets.QWidget):
         if len(Ylist) == 0:
             return 
         for i in range(len(Ylist)):
-            item = self.add_plot_item(txtlist[i], X, Ylist[i])
+            item = self.add_plot_item(txtlist[i], X, Ylist[i], file_=fname)
             if not checked:
                 item.setCheckState(0, 0)
         f.close()
@@ -371,8 +379,7 @@ class graphWindow(QtWidgets.QWidget):
             item.plot()
 
     def change_color(self):
-        if (len(self.tw.selectedItems()) > 1 or
-            len(self.tw.selectedItems()) == 0):
+        if len(self.tw.selectedItems()) != 1:
             return
         color = self.color_dialog.getColor(options=QtGui.QColorDialog.DontUseNativeDialog)
         for item in self.tw.selectedItems():
@@ -394,6 +401,26 @@ class graphWindow(QtWidgets.QWidget):
     def toggle_autoscroll(self):
         self.autoscroll_enabled = not self.autoscroll_enabled
 
+    def load_params(self):
+        if len(self.tw.selectedItems()) != 1:
+            return
+        item = self.tw.selectedItems()[0]
+        try:
+            f = h5py.File(item.file, "r")
+        except:
+            self.warning_message("Couldn't open data file.")
+            return
+        try:
+            f["parameters"]
+        except:
+            self.warning_message("Couldn't find parameters.")
+            f.close()
+            return
+        self.paramaterview = parameterView(f, item.file)
+        self.paramaterview.show()
+        f.close()
+
+
     def warning_message(self, txt):
         msg = QtWidgets.QMessageBox()
         msg.setIcon(QtWidgets.QMessageBox.Warning)
@@ -401,7 +428,8 @@ class graphWindow(QtWidgets.QWidget):
         msg.setText(txt)
         msg.exec_()
 
-    def add_plot_item(self, name, x, y, over_ride_show_points=None, append=False):
+    def add_plot_item(self, name, x, y, over_ride_show_points=None, 
+                      append=False, file_=None):
         if name in self.items.keys() and not append:
             return
         if over_ride_show_points is not None:
@@ -413,7 +441,7 @@ class graphWindow(QtWidgets.QWidget):
             item.plot_item.setData(x, y)
         else:
             color = next(self.color_chooser)
-            item = treeItem(self, name, x, y, self.pg, color, show_points)
+            item = treeItem(self, name, x, y, self.pg, color, show_points, file_=file_)
             self.items[name] = item
             self.tw.addTopLevelItem(item)
 

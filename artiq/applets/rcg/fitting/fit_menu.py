@@ -15,8 +15,6 @@ class fitMenu(QtWidgets.QWidget):
     def __init__(self, name, title, data_item, graph):
         QtWidgets.QWidget.__init__(self)
         self.data_item = data_item
-        # idx = min([len(x), len(y)])
-        # self.x, self.y = x[:idx], y[:idx] 
         self.graph = graph
         for f in fit_functions:
             fit_function = globals()[f]

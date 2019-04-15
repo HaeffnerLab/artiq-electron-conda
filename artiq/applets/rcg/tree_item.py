@@ -9,10 +9,11 @@ class checkStateChanged(QtCore.QObject):
 
 class treeItem(QtWidgets.QTreeWidgetItem):
     signal = checkStateChanged()
-    def __init__(self, parent_, txt, x, y, axes, color, show_points):
+    def __init__(self, parent_, txt, x, y, axes, color, show_points, file_=None):
         QtWidgets.QTreeWidgetItem.__init__(self)
         self.axes = axes; self.x = x; self.y = y; self.name = txt
         self.color = color; self.show_points = show_points
+        self.file = file_
         self.parent_ = parent_
         self.plot_item = None
         self.is_selected = False
