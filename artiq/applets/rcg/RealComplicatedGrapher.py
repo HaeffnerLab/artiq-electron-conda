@@ -420,7 +420,6 @@ class graphWindow(QtWidgets.QWidget):
         self.paramaterview.show()
         f.close()
 
-
     def warning_message(self, txt):
         msg = QtWidgets.QMessageBox()
         msg.setIcon(QtWidgets.QMessageBox.Warning)
@@ -471,7 +470,7 @@ class graphWindow(QtWidgets.QWidget):
             if min_y < ymin_cur:
                 ymin = min_y
                 limits = [ymin, ymax]
-                self.pg.setYRange(*limits)
+                # self.pg.setYRange(*limits)
         except UnboundLocalError:
             # Autoscroll option is toggled simultaneously
             pass
