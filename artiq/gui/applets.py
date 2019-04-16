@@ -227,8 +227,8 @@ _templates = [
     ("Image", "${artiq_applet}image IMG_DATASET"),
     ("PMT", "${artiq_applt}plot_pmt --with_866_on pmt_counts "
              "--with_866_off pmt_counts_866_off"
-             "--diff_counts diff_counts",
-             "--pulsed pulsed",
+             "--diff_counts diff_counts"
+             "--pulsed pulsed"
              "--title 'PMT'")
 ]
 

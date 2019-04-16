@@ -449,7 +449,7 @@ class ddsControlWidget(QtWidgets.QFrame):
         self.expid["arguments"].update({"frequency": self.freq * 1e6,
                                         "amplitude": self.att,
                                         "state": self.state})
-        self.scheduler.submit("main", self.expid, 0)
+        self.scheduler.submit("main", self.expid, priority=1)
 
 
 class boldLabel(QtWidgets.QLabel):
