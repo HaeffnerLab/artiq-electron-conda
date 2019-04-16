@@ -24,6 +24,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
 
         self.dset_ctl = Client("::1", 3251, "master_dataset_db")
         self.scheduler = Client("::1", 3251, "master_schedule")
+        self.dataset_db = Client("::1", 3251, "master_dataset_db")
         self.rid = None
         self.pulsed = False
         self.expid_continuous = {"arguments": {},
@@ -39,6 +40,12 @@ class PMTControlDock(QtWidgets.QDockWidget):
                              "log_level": 30,
                              "repo_rev": None,
                              "priority": 0}
+        
+        self.expid_ttl = {"class_name": "change_ttl",
+                          "file": "misc/manual_ttl_control.py",
+                          "log_level": 30,
+                          "repo_rev": None, 
+                          "priority": 1}
 
         frame = QtWidgets.QFrame()
         layout = QtWidgets.QVBoxLayout()
@@ -321,12 +328,40 @@ class PMTControlDock(QtWidgets.QDockWidget):
         yield self.pm.relative_move(piezo, move)
 
     def toggle_autoload(self):
-        sender = self.sender()
+        sender = self.autoLoadButton
         flag = sender.isChecked()
         if flag:
+            try:
+                self.check_pmt_data_length = len(self.dataset_db.get("pmt_counts"))
+            except KeyError:
+                sender.setChecked(False)
+                return
             sender.setText("Off")
+            self.expid_ttl.update({"arguments": {"device": "blue_PIs",
+                                             "state": True}})
+            if not hasattr(self, "check_pmt_timer"):
+                self.check_pmt_timer = QtCore.QTimer()
+                self.check_pmt_timer.timeout.connect(self.check_pmt_counts)
+            self.check_pmt_timer.start(100)
         else:
             sender.setText("On")
+            if not hasattr(self, "check_pmt_timer"):
+                return
+            self.check_pmt_timer.stop()
+            self.expid_ttl.update({"arguments": {"device": "blue_PIs",
+                                             "state": False}})
+        self.scheduler.submit("main", self.expid_ttl, priority=1)
+    
+    def check_pmt_counts(self):
+        try:
+            counts = self.dataset_db.get("pmt_counts")[self.check_pmt_data_length:]
+        except KeyError:
+            return
+        if len(counts) == 0:
+            return
+        if max(counts) > int(self.autoLoadSpin.value()):
+            self.autoLoadButton.setChecked(False)
+            self.autoLoadButton.clicked.emit()
 
     def save_state(self):
         return {"ctl": {ctl: self.piezoStepSize[ctl].value()

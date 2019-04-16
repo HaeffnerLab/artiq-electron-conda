@@ -43,13 +43,13 @@ class PMTPlot(pyqtgraph.PlotWidget):
         if pulsed:
             self.curves.append(self.plot(x1, with_866_on, 
                   pen=pyqtgraph.mkPen((255, 0, 0), width=2), 
-                  brush=pyqtgraph.mkBrush((255,0,0,100)), fillLevel=0))
-            self.curves.append(self.plot(x2, with_866_off, 
-                  pen=pyqtgraph.mkPen((0, 0, 255), width=2),
-                  brush=pyqtgraph.mkBrush((0,0,255,100)), fillLevel=0))
+                  brush=pyqtgraph.mkBrush((255,0,0,75)), fillLevel=0))
             self.curves.append(self.plot(x3, diff_counts, 
                   pen=pyqtgraph.mkPen((0, 255, 0), width=2),
-                  brush=pyqtgraph.mkBrush((0,255,0,100)), fillLevel=0))
+                  brush=pyqtgraph.mkBrush((0,255,0,75)), fillLevel=0))
+            self.curves.append(self.plot(x2, with_866_off, 
+                  pen=pyqtgraph.mkPen((0, 0, 255), width=2),
+                  brush=pyqtgraph.mkBrush((0,0,255,75)), fillLevel=0))
         else:
             self.curves.append(self.plot(x1, with_866_on, 
                   pen=pyqtgraph.mkPen((255, 0, 0), width=2), fillLevel=0, brush=pyqtgraph.mkBrush((255,0,0,100))))
