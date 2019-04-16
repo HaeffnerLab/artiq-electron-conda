@@ -2,8 +2,8 @@
 
 import numpy as np
 import PyQt5  # make sure pyqtgraph imports Qt5
-from PyQt5 import QtCore
 import pyqtgraph
+from PyQt5 import QtCore
 
 from artiq.applets.simple import TitleApplet
 
@@ -37,42 +37,44 @@ class PMTPlot(pyqtgraph.PlotWidget):
         x1 = np.arange(len(with_866_on))
         x2 = np.arange(len(with_866_off))
         x3 = np.arange(len(diff_counts))
+        self.clear()
         if pulsed:
-            self.clear()
             self.curves.append(self.plot(x1, with_866_on, 
-                  pen=pyqtgraph.mkPen((255, 0, 0), width=2), autoDownsample=True, 
+                  pen=pyqtgraph.mkPen((255, 0, 0), width=2), 
                   brush=pyqtgraph.mkBrush((255,0,0,100)), fillLevel=0))
             self.curves.append(self.plot(x2, with_866_off, 
-                  pen=pyqtgraph.mkPen((0, 0, 255), width=2), autoDownsample=True,
+                  pen=pyqtgraph.mkPen((0, 0, 255), width=2),
                   brush=pyqtgraph.mkBrush((0,0,255,100)), fillLevel=0))
             self.curves.append(self.plot(x3, diff_counts, 
-                  pen=pyqtgraph.mkPen((0, 255, 0), width=2), autoDownsample=True,
+                  pen=pyqtgraph.mkPen((0, 255, 0), width=2),
                   brush=pyqtgraph.mkBrush((0,255,0,100)), fillLevel=0))
         else:
-            self.clear()
             self.curves.append(self.plot(x1, with_866_on, 
-                  pen=pyqtgraph.mkPen((255, 0, 0), width=2), fillLevel=0, brush=pyqtgraph.mkBrush((255,0,0,100)),
-                  autoDownsample=True))
+                  pen=pyqtgraph.mkPen((255, 0, 0), width=2), fillLevel=0, brush=pyqtgraph.mkBrush((255,0,0,100))))
         if self.autoscroll:
-            self.setTitle(title)
-            (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.viewRange()
-            max_x, min_y, max_y = 0, 0, 0
-            for curve in self.curves:
-                localxmax = curve.dataBounds(0)[-1]
-                localymin, localymax = curve.dataBounds(1)
-                if localxmax > max_x:
-                    max_x = localxmax
-                if localymax > max_y:
-                    max_y = localymax
-                if localymin < min_y:
-                    min_y = localymin
-            window_width = xmax_cur - xmin_cur
-            if max_x > xmin_cur + window_width:
-                shift = (xmax_cur - xmin_cur) / 2
-                xmin = xmin_cur + shift
-                xmax = xmax_cur + shift
-                limits = [xmin, xmax]
-                self.setXRange(*limits)
+            try:
+                (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.viewRange()
+                max_x, min_y, max_y = 0, 0, 0
+                for curve in self.curves:
+                    localxmax = curve.dataBounds(0)[-1]
+                    localymin, localymax = curve.dataBounds(1)
+                    if localxmax > max_x:
+                        max_x = localxmax
+                    if localymax > max_y:
+                        max_y = localymax
+                    if localymin < min_y:
+                        min_y = localymin
+                window_width = xmax_cur - xmin_cur
+                if max_x > xmin_cur + window_width:
+                    shift = (xmax_cur - xmin_cur) / 2
+                    xmin = xmin_cur + shift
+                    xmax = xmax_cur + shift
+                    limits = [xmin, xmax]
+                    self.setXRange(*limits)
+            except TypeError:
+                pass
+            finally:
+                self.setTitle(title)
             # if max_y > ymax_cur:
             #     ymax = max_y + (max_y * .2)
             #     self.setYRange(ymin_cur, ymax)
