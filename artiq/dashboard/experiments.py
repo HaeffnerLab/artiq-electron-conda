@@ -694,6 +694,8 @@ class ExperimentManager:
     def save_state(self):
         for expurl, dock in self.open_experiments.items():
             self.dock_states[expurl] = dock.save_state()
+        for val in self.submission_scheduling.values():
+            val.update({"priority": 2})
         return {
             "scheduling": self.submission_scheduling,
             "options": self.submission_options,
