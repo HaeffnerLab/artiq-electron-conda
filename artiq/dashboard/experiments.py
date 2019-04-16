@@ -291,7 +291,11 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         self.layout.addWidget(QtWidgets.QLabel("Priority:"), 2, 0)
         self.layout.addWidget(priority, 2, 1)
 
-        priority.setValue(scheduling["priority"])
+        # HACK: We want experiments submitted manually through the
+        # GUI to default to a priority value of 2. It seems like
+        # artiq.language.environment.HasEnvironment.set_default_scheduling
+        # should be able to do this, but it is not currently working.
+        priority.setValue(2)#scheduling["priority"])
 
         def update_priority(value):
             scheduling["priority"] = value
@@ -370,7 +374,6 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
 
     def submit_clicked(self):
         try:
-            print("\n\nexpurl: ", self.expurl)
             self.manager.submit(self.expurl)
         except:
             # May happen when experiment has been removed
