@@ -24,14 +24,11 @@ class PMTPlot(pyqtgraph.PlotWidget):
         self.autoscroll = True
         self.setLimits(yMin=0, xMin=0)
         self.disableAutoRange()
-        self.curves = []
         self.scene().sigMouseClicked.connect(self.mouse_clicked)
 
     def data_changed(self, data, mods, title):
-        try:
-             self.scene().sigMouseClicked.connect(self.mouse_clicked)
-        except:
-            pass
+        self.disableAutoRange()
+        self.curves = []
         try:
             with_866_on = data[self.args.with_866_on][1][1:]
             with_866_off = data[self.args.with_866_off][1][1:]
@@ -57,24 +54,23 @@ class PMTPlot(pyqtgraph.PlotWidget):
             self.curves.append(self.plot(x1, with_866_on, 
                   pen=pyqtgraph.mkPen((255, 0, 0), width=2), fillLevel=0, brush=pyqtgraph.mkBrush((255,0,0,100))))
         if self.autoscroll:
-            try:
-                (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.viewRange()
-                max_x = 0
-                for curve in self.curves:
-                    localxmax = curve.dataBounds(0)[-1]
+            (xmin_cur, xmax_cur), _ = self.viewRange()
+            max_x = 0
+            for curve in self.curves:
+                localxmax = curve.dataBounds(0)[-1]
+                try:
                     if localxmax > max_x:
                         max_x = localxmax
-                window_width = xmax_cur - xmin_cur
-                if max_x > xmin_cur + window_width:
-                    shift = (xmax_cur - xmin_cur) / 2
-                    xmin = xmin_cur + shift
-                    xmax = xmax_cur + shift
-                    limits = [xmin, xmax]
-                    self.setXRange(*limits)
-            except TypeError:
-                pass
-            finally:
-                self.setTitle(title)
+                except TypeError:
+                    continue
+            window_width = xmax_cur - xmin_cur
+            if max_x > xmin_cur + window_width:
+                shift = (xmax_cur - xmin_cur) / 2
+                xmin = xmin_cur + shift
+                xmax = xmax_cur + shift
+                limits = [xmin, xmax]
+                self.setXRange(*limits)
+            self.setTitle(title)
         
     def mouse_clicked(self, ev):
         if ev.double():

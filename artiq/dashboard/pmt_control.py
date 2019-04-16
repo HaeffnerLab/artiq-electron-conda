@@ -213,7 +213,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
             if self.rid is None:
                 return  # Shouldn't happen
             else:
-                self.scheduler.delete(self.rid)
+                self.scheduler.request_termination(self.rid)
                 self.rid = None
             self.onButton.setText("On")
 
@@ -241,7 +241,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
             if self.rid is None:
                 return
             else:
-                self.scheduler.delete(self.rid)
+                self.scheduler.request_termination(self.rid)
                 self.rid = None
                 self.set_state(True)
         except ValueError:
@@ -258,14 +258,14 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 return
             else:
                 self.pulsed = False
-                self.scheduler.delete(self.rid)
+                self.scheduler.request_termination(self.rid)
                 self.rid = self.scheduler.submit("main", self.expid_continuous, 0)
         else:
             if self.pulsed:
                 return
             else:
                 self.pulsed = True
-                self.scheduler.delete(self.rid)
+                self.scheduler.request_termination(self.rid)
                 self.rid = self.scheduler.submit("main", self.expid_pulsed, 0)
 
     def updateLCD(self):
