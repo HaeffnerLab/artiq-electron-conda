@@ -25,9 +25,12 @@ class PMTPlot(pyqtgraph.PlotWidget):
         self.setLimits(yMin=0, xMin=0)
         self.disableAutoRange()
         self.curves = []
-        self.scene().sigMouseClicked.connect(self.mouse_clicked)
 
     def data_changed(self, data, mods, title):
+        try:
+             self.scene().sigMouseClicked.connect(self.mouse_clicked)
+        except:
+            pass
         try:
             with_866_on = data[self.args.with_866_on][1][1:]
             with_866_off = data[self.args.with_866_off][1][1:]
