@@ -25,6 +25,7 @@ class PMTPlot(pyqtgraph.PlotWidget):
         self.setLimits(yMin=0, xMin=0)
         self.disableAutoRange()
         self.curves = []
+        self.scene().sigMouseClicked.connect(self.mouse_clicked)
 
     def data_changed(self, data, mods, title):
         try:
