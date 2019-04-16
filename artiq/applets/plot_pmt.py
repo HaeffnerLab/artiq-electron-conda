@@ -23,6 +23,7 @@ class PMTPlot(pyqtgraph.PlotWidget):
                        " Diff")
         self.autoscroll = True
         self.setLimits(yMin=0, xMin=0)
+        self.disableAutoRange()
         self.curves = []
         self.scene().sigMouseClicked.connect(self.mouse_clicked)
 
@@ -54,16 +55,11 @@ class PMTPlot(pyqtgraph.PlotWidget):
         if self.autoscroll:
             try:
                 (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.viewRange()
-                max_x, min_y, max_y = 0, 0, 0
+                max_x = 0
                 for curve in self.curves:
                     localxmax = curve.dataBounds(0)[-1]
-                    localymin, localymax = curve.dataBounds(1)
                     if localxmax > max_x:
                         max_x = localxmax
-                    if localymax > max_y:
-                        max_y = localymax
-                    if localymin < min_y:
-                        min_y = localymin
                 window_width = xmax_cur - xmin_cur
                 if max_x > xmin_cur + window_width:
                     shift = (xmax_cur - xmin_cur) / 2
@@ -75,14 +71,6 @@ class PMTPlot(pyqtgraph.PlotWidget):
                 pass
             finally:
                 self.setTitle(title)
-            # if max_y > ymax_cur:
-            #     ymax = max_y + (max_y * .2)
-            #     self.setYRange(ymin_cur, ymax)
-            # else:
-            #     ymax = ymax_cur
-            # if min_y < ymin_cur:
-            #     ymin = min_y - (min_y * .2)
-            #     self.setYRange(ymin, ymax)
         
     def mouse_clicked(self, ev):
         if ev.double():
