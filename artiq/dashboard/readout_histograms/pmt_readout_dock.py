@@ -1,10 +1,12 @@
 import logging
+import asyncio
 import numpy as np
 from PyQt5 import QtCore, QtWidgets
 from matplotlib.backends.backend_qt5agg import (NavigationToolbar2QT,
                                                 FigureCanvasQTAgg)
 from matplotlib.figure import Figure
 from twisted.internet.defer import inlineCallbacks
+from artiq.protocols.pc_rpc import Server
 import labrad
 
 
@@ -25,6 +27,7 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
             self.setDisabled(True)
         self.current_line = 0
         self.number_lines = 0
+        self.hist = None
         self.setObjectName("PMTReadoutHistogram")
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
                          QtWidgets.QDockWidget.DockWidgetFloatable)
@@ -32,6 +35,7 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
         self.setWidget(self.main_widget)
         self.make_GUI()
         self.connect_GUI()
+        self.connect_asyncio_server()
 
     def save_state(self):
         pass
@@ -39,15 +43,44 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
     def restore_state(self):
         pass
 
+    def connect_asyncio_server(self):
+        self.loop = asyncio.get_event_loop()
+        self.asyncio_server = Server({"pmt_histogram": self.RemotePlotting(self)}, None, True)
+        self.task = self.loop.create_task(self.asyncio_server.start("::1", 3287))
+
+    
+    class RemotePlotting:
+        def __init__(self, hist):
+            self.hist = hist
+
+        def plot(self, data):
+            if self.hist.hist is not None:
+                for bar in self.hist.hist:
+                    bar.remove()
+            _, _, self.hist.hist = self.hist.ax.hist(data, bins= 20, histtype="bar", rwidth=0.9,
+                                                     edgecolor="k", linewidth=1.2)
+            self.hist.canvas.draw()
+            self.hist.ax.relim()
+            self.hist.ax.autoscale(enable=True, axis="both")
+
+
+    def closeEvent(self, event):
+        self.task.cancel()
+        self.loop.create_task(self.asyncio_server.stop())
+        super(PMTReadoutDock, self).closeEvent(event)
+    
     def make_GUI(self):
         layout = QtWidgets.QGridLayout()
 
         self.fig  = Figure()
-        self.fig.patch.set_facecolor((.96, .96, .96))
+        self.fig.patch.set_facecolor((.97, .96, .96))
         self.canvas = FigureCanvasQTAgg(self.fig)
         self.canvas.setParent(self)
         self.ax = self.fig.add_subplot(111)
         self.ax.set_ylim((0, 50))
+        self.ax.set_facecolor((.97,.96,.96))
+        self.ax.tick_params(top="off", bottom="off", left="off", right="off", 
+                            labeltop="on", labelbottom="on", labelleft="on", labelright="on")
         self.mpl_toolbar = NavigationToolbar2QT(self.canvas, self)
         self.fig.tight_layout()
         self.canvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
