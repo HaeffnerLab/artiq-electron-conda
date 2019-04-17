@@ -18,10 +18,10 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.setObjectName("pmt_control")
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
                          QtWidgets.QDockWidget.DockWidgetFloatable)
-        self.acxn = acxn
-        self.setup_listeners()
         self.pv = None
         self.pm = None
+        self.acxn = acxn
+        self.setup_listeners()
 
         self.dset_ctl = Client("::1", 3251, "master_dataset_db")
         self.scheduler = Client("::1", 3251, "master_schedule")
@@ -205,17 +205,30 @@ class PMTControlDock(QtWidgets.QDockWidget):
         dds_dict = settings["dds_config"]
         self.all_dds_specs = dict()
         self.dds_widgets = dict()
+        cxn = labrad.connect()
+        p = cxn.parametervault
         for (name, specs) in dds_dict.items():
+            try:
+                params = p.get_parameter(["dds_cw_parameters", name])
+                freq, amp, state, att = params[1]
+            except:
+                freq = str(specs.default_freq)
+                att = str(specs.default_att)
+                amp = str(1.)
+                state = str(0)
+                p.new_parameter("dds_cw_parameters", name, 
+                                ("cw_settings", [freq, amp, state, att]))
             self.all_dds_specs[name] = {"cpld": int(specs.urukul),
-                                        "frequency": float(specs.default_freq) * 1e6,
-                                        "att": float(specs.default_att),
-                                        "state": False,
-                                        "amplitude": 1.}
+                                        "frequency": float(freq) * 1e6,
+                                        "att": float(att),
+                                        "state": bool(int(state)),
+                                        "amplitude": float(amp)}
         for i, (name, specs) in enumerate(sorted(dds_dict.items())):
             widget = ddsControlWidget(name, specs, self.scheduler, self)
             layout.addWidget(widget, i // 2 + 1 , i % 2)
             self.dds_widgets[name] = widget
         frame.setLayout(layout)
+        cxn.disconnect()
         return frame
     
     def set_state(self, override=False):
@@ -519,6 +532,11 @@ class ddsControlWidget(QtWidgets.QFrame):
         self.parent.expid_dds["arguments"].update(
                 {"specs": pyon.encode(self.parent.all_dds_specs)})
         self.scheduler.submit("main", self.parent.expid_dds, priority=1)
+        cxn = labrad.connect()
+        p = cxn.parametervault
+        p.set_parameter(["dds_cw_parameters", self.name, 
+                [str(self.freq), str(self.amplitude), str(int(self.state)), str(self.att)]])
+        cxn.disconnect()
 
 
 class boldLabel(QtWidgets.QLabel):
