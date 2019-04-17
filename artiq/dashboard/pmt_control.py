@@ -4,6 +4,7 @@ from labrad.units import WithUnit as U
 import logging
 from PyQt5 import QtCore, QtWidgets, QtGui
 from artiq.protocols.pc_rpc import Client
+from artiq.protocols import pyon
 from twisted.internet.defer import inlineCallbacks
 from runpy import run_path
 
@@ -46,6 +47,13 @@ class PMTControlDock(QtWidgets.QDockWidget):
                           "log_level": 30,
                           "repo_rev": None, 
                           "priority": 1}
+        
+        self.expid_dds = {"arguments": {},  
+                          "class_name": "change_cw",
+                          "file": "misc/manual_dds_control.py",
+                          "log_level": 30,
+                          "repo_rev": None,
+                          "priority": 1}
 
         frame = QtWidgets.QFrame()
         layout = QtWidgets.QVBoxLayout()
@@ -82,6 +90,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.autoLoadButton.setCheckable(True)
         self.autoLoadButton.clicked[bool].connect(self.toggle_autoload)
         self.autoLoadSpin = QtWidgets.QSpinBox()
+        self.autoLoadSpin.setMaximum(1e6)
         self.countDisplay = QtWidgets.QLCDNumber()
         self.countDisplay.setSegmentStyle(2)
         self.countDisplay.display(0)
@@ -194,9 +203,16 @@ class PMTControlDock(QtWidgets.QDockWidget):
         dir_ = os.path.join(home_dir, "artiq-master/HardwareConfiguration.py")
         settings = run_path(dir_)
         dds_dict = settings["dds_config"]
+        self.all_dds_specs = dict()
         self.dds_widgets = dict()
+        for (name, specs) in dds_dict.items():
+            self.all_dds_specs[name] = {"cpld": int(specs.urukul),
+                                        "frequency": float(specs.default_freq) * 1e6,
+                                        "att": float(specs.default_att),
+                                        "state": False,
+                                        "amplitude": 1.}
         for i, (name, specs) in enumerate(sorted(dds_dict.items())):
-            widget = ddsControlWidget(name, specs, self.scheduler)
+            widget = ddsControlWidget(name, specs, self.scheduler, self)
             layout.addWidget(widget, i // 2 + 1 , i % 2)
             self.dds_widgets[name] = widget
         frame.setLayout(layout)
@@ -338,7 +354,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 return
             sender.setText("Off")
             self.expid_ttl.update({"arguments": {"device": "blue_PIs",
-                                             "state": True}})
+                                                 "state": True}})
             if not hasattr(self, "check_pmt_timer"):
                 self.check_pmt_timer = QtCore.QTimer()
                 self.check_pmt_timer.timeout.connect(self.check_pmt_counts)
@@ -349,7 +365,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 return
             self.check_pmt_timer.stop()
             self.expid_ttl.update({"arguments": {"device": "blue_PIs",
-                                             "state": False}})
+                                                 "state": False}})
         self.scheduler.submit("main", self.expid_ttl, priority=1)
     
     def check_pmt_counts(self):
@@ -422,20 +438,25 @@ class PMTControlDock(QtWidgets.QDockWidget):
 
 
 class ddsControlWidget(QtWidgets.QFrame):
-    def __init__(self, name, specs, scheduler):
+    def __init__(self, name, specs, scheduler, parent):
         QtWidgets.QFrame.__init__(self)
         self.setFrameStyle(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
         self.setLineWidth(2)
         self.setMidLineWidth(3)
 
+        self.parent = parent
+        self.name = name
         self.freq = specs.default_freq
         self.att = specs.default_att
         self.state = specs.default_state
+        self.cpld = specs.urukul
+        self.amplitude = 1.
         unum = str(int(specs.urukul))
         min_att, max_att = specs.min_att, specs.max_att
         min_freq, max_freq = specs.min_freq, specs.max_freq
         self.scheduler = scheduler
-        self.expid = {"arguments": {"urukul_number": unum,
+        self.expid = {"arguments": {"specs": pyon.encode(self.parent.all_dds_specs),
+                                    "urukul_number": unum,
                                     "dds_name": name},
                       "class_name": "change_cw",
                       "file": "misc/manual_dds_control.py",
@@ -447,10 +468,13 @@ class ddsControlWidget(QtWidgets.QFrame):
         layout = QtWidgets.QGridLayout()
         layout.addWidget(boldLabel(name), 0, 0, 1, 3)
         layout.addWidget(QtWidgets.QLabel("Frequency"), 1, 0)
-        layout.addWidget(QtWidgets.QLabel("Attenuation"), 1, 1)
+        layout.addWidget(QtWidgets.QLabel("Amplitude"), 3, 0)
+        layout.addWidget(QtWidgets.QLabel("Attenuation"), 3, 1)
 
         self.freq_spin = customSpinBox(self.freq, (min_freq, max_freq), " MHz")
         self.freq_spin.editingFinished.connect(self.freq_spin_changed)
+        self.amp_spin = customSpinBox(1, (0, 1), None)
+        self.amp_spin.editingFinished.connect(self.amp_spin_changed)
         self.att_spin = customSpinBox(self.att, (min_att, max_att), " dB")
         self.att_spin.editingFinished.connect(self.att_spin_changed)
         self.state_button = QtWidgets.QPushButton("O")
@@ -459,8 +483,9 @@ class ddsControlWidget(QtWidgets.QFrame):
         self.state_button.setChecked(self.state)
 
         layout.addWidget(self.freq_spin, 2, 0)
-        layout.addWidget(self.att_spin, 2, 1)
-        layout.addWidget(self.state_button, 2, 2)
+        layout.addWidget(self.amp_spin, 4, 0)
+        layout.addWidget(self.att_spin, 4, 1)
+        layout.addWidget(self.state_button, 2, 1)
         self.setLayout(layout)
 
     def button_clicked(self, val):
@@ -480,11 +505,20 @@ class ddsControlWidget(QtWidgets.QFrame):
         self.att = self.sender().value()
         self.parameters_changed()
 
+    def amp_spin_changed(self):
+        self.amplitude = self.sender().value()
+        self.parameters_changed()
+
     def parameters_changed(self):
-        self.expid["arguments"].update({"frequency": self.freq * 1e6,
-                                        "amplitude": self.att,
-                                        "state": self.state})
-        self.scheduler.submit("main", self.expid, priority=1)
+        new_values = {"frequency": float(self.freq) * 1e6,
+                      "att": float(self.att),
+                      "state": self.state, 
+                      "cpld": int(self.cpld),
+                      "amplitude": float(self.amplitude)}
+        self.parent.all_dds_specs.update({self.name: new_values})
+        self.parent.expid_dds["arguments"].update(
+                {"specs": pyon.encode(self.parent.all_dds_specs)})
+        self.scheduler.submit("main", self.parent.expid_dds, priority=1)
 
 
 class boldLabel(QtWidgets.QLabel):
@@ -501,7 +535,8 @@ class customSpinBox(QtWidgets.QDoubleSpinBox):
         QtWidgets.QDoubleSpinBox.__init__(self)
         self.setValue(value)
         self.setRange(*range_)
-        self.setSuffix(suffix)
+        if suffix is not None:
+            self.setSuffix(suffix)
         self.setSingleStep(0.1)
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
 
