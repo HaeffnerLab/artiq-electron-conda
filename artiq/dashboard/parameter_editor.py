@@ -152,9 +152,9 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
             val = yield p.get_parameter(loc)
             self.widget_dict[loc].update_value(val)
         except KeyError:
-            logger.warning("Failed to refresh parameter_editor"
-                           "values on parametervault change",
-                           exc_info=True)
+            logger.info("Failed to refresh parameter_editor"
+                        "values on parametervault change",
+                        exc_info=True)
             pass
 
     def open_menu(self, position):
