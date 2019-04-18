@@ -372,7 +372,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 return
             sender.setText("Off")
             self.expid_ttl.update({"arguments": {"device": "blue_PIs",
-                                                 "state": True}})
+                                                 "state": False}})
             if not hasattr(self, "check_pmt_timer"):
                 self.check_pmt_timer = QtCore.QTimer()
                 self.check_pmt_timer.timeout.connect(self.check_pmt_counts)
@@ -383,7 +383,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 return
             self.check_pmt_timer.stop()
             self.expid_ttl.update({"arguments": {"device": "blue_PIs",
-                                                 "state": False}})
+                                                 "state": True}})
         self.scheduler.submit("main", self.expid_ttl, priority=1)
     
     def check_pmt_counts(self):
