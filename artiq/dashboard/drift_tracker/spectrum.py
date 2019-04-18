@@ -12,8 +12,7 @@ class Spectrum(QtWidgets.QDockWidget):
     def __init__(self):
         QtWidgets.QDockWidget.__init__(self, "Electronic Spectrum")
         self.setObjectName("ElectronicSpectrum")
-        self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
-                         QtWidgets.QDockWidget.DockWidgetFloatable)
+        self.setFeatures(QtWidgets.QDockWidget.DockWidgetFloatable)
         self.main_widget = QtWidgets.QWidget()
         self.setWidget(self.main_widget)
         self.make_gui()

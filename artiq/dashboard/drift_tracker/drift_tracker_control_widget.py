@@ -16,8 +16,7 @@ class DriftTrackerControl(QtWidgets.QDockWidget):
     def __init__(self):
         QtWidgets.QDockWidget.__init__(self, "Drift Tracker Control")
         self.setObjectName("DriftTrackerControl")
-        self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
-                         QtWidgets.QDockWidget.DockWidgetFloatable)
+        self.setFeatures( QtWidgets.QDockWidget.DockWidgetFloatable)
         self.client_list = cl.client_list
         try:
             self.favorites = c.favorites
