@@ -327,16 +327,21 @@ class PMTControlDock(QtWidgets.QDockWidget):
             # timer too fast
             pass
 
-    def toggle_linetrigger(self):
+    @inlineCallbacks
+    def toggle_linetrigger(self, *args):
         sender = self.sender()
         flag = sender.isChecked()
         if flag:
             sender.setText("Off")
+            yield self.pv.set_parameter(["line_trigger_settings", "enabled", True])
         else:
             sender.setText("On")
+            yield self.pv.set_parameter(["line_trigger_settings", "enabled", False])
 
-    def linetrigger_duration_changed(self):
-        pass
+    @inlineCallbacks
+    def linetrigger_duration_changed(self, *args):
+        value = float(self.sender().text())
+        yield self.pv.set_parameter(["line_trigger_settings", "offset_duration", value])
 
     def piezo_step_size_changed(self):
         sender = self.sender()
