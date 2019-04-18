@@ -459,11 +459,11 @@ class ddsControlWidget(QtWidgets.QFrame):
 
         self.parent = parent
         self.name = name
-        self.freq = specs.default_freq
-        self.att = specs.default_att
-        self.state = specs.default_state
+        self.freq = parent.all_dds_specs[name]["frequency"] * 1e-6
+        self.att = parent.all_dds_specs[name]["att"]
+        self.state = parent.all_dds_specs[name]["state"]
         self.cpld = specs.urukul
-        self.amplitude = 1.
+        self.amplitude = parent.all_dds_specs[name]["amplitude"]
         unum = str(int(specs.urukul))
         min_att, max_att = specs.min_att, specs.max_att
         min_freq, max_freq = specs.min_freq, specs.max_freq
