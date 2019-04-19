@@ -416,7 +416,6 @@ class PMTControlDock(QtWidgets.QDockWidget):
         d = {False: "On", True: "Off"}
         self.linetriggerButton.setText(d[state["ltrigger"]])
 
-
     def setup_listeners(self):
         self.acxn.add_on_connect("ParameterVault", self.parameter_vault_connect)
         self.acxn.add_on_disconnect("ParameterVault", self.parameter_vault_disconnect)
@@ -458,9 +457,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
 class ddsControlWidget(QtWidgets.QFrame):
     def __init__(self, name, specs, scheduler, parent):
         QtWidgets.QFrame.__init__(self)
-        self.setFrameStyle(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Sunken)
-        self.setLineWidth(2)
-        self.setMidLineWidth(3)
+        self.setFrameStyle(QtWidgets.QFrame.Panel | QtWidgets.QFrame.Raised)
 
         self.parent = parent
         self.name = name
