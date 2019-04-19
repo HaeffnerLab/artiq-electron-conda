@@ -1,0 +1,2 @@
+class subsequence:
+    pass
