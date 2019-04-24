@@ -56,8 +56,11 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
         def plot(self, data):
             if self.hist.hist is not None:
                 for bar in self.hist.hist:
-                    bar.remove()
-            _, _, self.hist.hist = self.hist.ax.hist(data, bins= 20, histtype="bar", rwidth=0.9,
+                    try:
+                        bar.remove()
+                    except ValueError as e:
+                        continue
+            _, _, self.hist.hist = self.hist.ax.hist(data, bins="auto", histtype="bar", rwidth=0.9,
                                                      edgecolor="k", linewidth=1.2)
             self.hist.canvas.draw()
             self.hist.ax.relim()
