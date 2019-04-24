@@ -8,23 +8,30 @@ import h5py as h5
 import os
 import csv
 from artiq.protocols.pc_rpc import Client
-from artiq import subsequence
+from artiq.subsequence import subsequence
 from inspect import isclass
+from bisect import bisect
 
 class PulseSequence(EnvExperiment):
+    fixed_params = list()
+    x_label = "x"
+    rcg_tab = "Current"
+    scannable_params = list()
+    show_params = list()
 
     def build(self):
         self.setattr_device("core")
         self.setattr_device("scheduler")
+        self.setattr_device("pmt")
         self.setattr_device("LTriggerIN")
         self.setattr_argument("scan", scan.Scannable(default=scan.RangeScan(0, 1, 100)))
 
-        for obj in list(locals().values()):
+        for obj in list(globals().values()):
             if not isclass(obj):
                 continue
             if issubclass(obj, subsequence):
-                if hasattr(obj, "build"):
-                    obj().build()
+                if hasattr(obj, "setup"):
+                    obj().setup()
 
         self.setup()
 
@@ -37,13 +44,13 @@ class PulseSequence(EnvExperiment):
 
     def prepare(self):
         # Grab parametervault params:
+        G = globals()
         cxn = labrad.connect()
         p = cxn.parametervault
         collections = p.get_collections()
         # Takes over 1 second to do this. We should move away from using labrad units
         # in registry. Would be nice if parametervault was not a labrad server.
         D = dict()
-        L = locals()
         for collection in collections:
             d = dict()
             names = p.get_parameter_names(collection)
@@ -55,9 +62,10 @@ class PulseSequence(EnvExperiment):
                         if units == "":
                             param = param[units]
                         else:
-                            param = param[units] * L[units]
+                            param = param[units] * G[units]
                     except AttributeError:
                         pass
+                        #print("\n\n", param, units, "\n\n")
                     except KeyError:
                         if (units == "dBm" or
                             units == "deg" or
@@ -68,6 +76,8 @@ class PulseSequence(EnvExperiment):
                     #broken parameter
                     continue
             D[collection] = d
+        for item in self.fixed_params:
+            D[item[0]].update({item[1]: item[2]})
         self.p = edict(D)
         cxn.disconnect()
 
@@ -104,28 +114,15 @@ class PulseSequence(EnvExperiment):
         # Create datasets
         M = len(self.scan)
 
-        self.set_dataset("x", np.full(M, np.nan), broadcast=True)
-        self.set_dataset("y1", np.full((M, N), np.nan), broadcast=True)
-        self.set_dataset("y2", np.full((M, N), np.nan), broadcast=True)
-        A = np.full((M, N), np.nan)
-        for x in np.nditer(A, op_flags=["readwrite"]):
-            x[...] = np.random.normal(0, .1)
-        self.rand = A
-        self.setattr_dataset("x")
-        self.setattr_dataset("y1")
-        self.setattr_dataset("y2")
-        self.yfull1 = np.full(M, np.nan)
-        self.yfull2 = np.full(M, np.nan)
-        self.hist_counts = np.full((M, N), np.nan)
-        for row in range(M):
-            for col in range(N):
-                self.hist_counts[row][col] = np.random.normal(10, 5)
-
-        # Tab For Plotting
-        if self.rcg_tab is None:
-            self.RCG_TAB = "Current"
-        else:
-            self.RCG_TAB = self.rcg_tab
+        # Setup readout
+        self.rm = self.p.StateReadout.readout_mode
+        
+        if self.rm == "pmt":
+            self.n_ions = len(self.p.StateReadout.threshold_list)
+            for i in range(self.n_ions):
+                setattr(self, "pmt_ion{}".format(i), np.full(M, np.nan))
+            self.set_dataset("raw_data", np.full((M, N), np.nan))
+            setattr(self, self.x_label, np.array(list(self.scan)))
 
         # Setup for saving data
         self.timestamp = None
@@ -137,6 +134,71 @@ class PulseSequence(EnvExperiment):
         self.run_initially()
 
     def run(self):
+        for i, scan_value in enumerate(self.scan):
+            for j in range(self.N):
+                raw_run_data = []
+                print("\nRun nos: ", i, j, "\n")
+                if self.scheduler.check_pause():
+                    try:
+                        self.scheduler.pause()
+                    except TerminationRequested:
+                        break
+                self.single_run()
+        
+                # readout
+                if "pmt" in self.rm:
+                    duration = self.p.StateReadout.pmt_readout_duration
+                    print("Duration: ", duration)
+                    pmt_count = self.pmt_readout(duration)
+                    raw_run_data.append(pmt_count)
+            
+            self.record_result("raw_data", i, raw_run_data)
+
+            if self.rm == "pmt":
+                name = "pmt_ion{}"
+                data = sorted(self.get_dataset("raw_data")[i])
+                idxs = [0]
+                for threshold in self.p.StateReadout.threshold_list:
+                    idxs.append(bisect(data, threshold))
+                idxs.append(self.N)
+                for k in range(self.n_ions):
+                    dataset = getattr(self, name.format(k))
+                    if idxs[k + 1] == idxs[k]:
+                        dataset[i] = 0
+                    else:
+                        dataset[i] = idxs[k + 1] - idxs[k]
+                    self.save_and_send_to_rcg(getattr(self, self.x_label)[:i + 1], dataset[:i + 1], name.format(k))
+        
+                rem = (i + 1) % 5
+                if rem == 0:
+                    self.save_result(self.x_label, getattr(self, self.x_label)[i - 4:i + 1], xdata=True)
+                    for k in range(self.n_ions):
+                        self.save_result(name.format(k), getattr(self, name.format(k))[i - 4:i + 1])
+                    hist_data = self.get_dataset("raw_data")
+                    try:
+                        hist_data = hist_data[i - 4:i + 1]
+                    except IndexError:
+                        hist_data = hist_data[i - 4:]
+                    self.send_to_hist(hist_data.flatten())
+
+        else:
+            rem = (i + 1) % 5
+            if self.rm == "pmt":
+                self.save_result(self.x_label, getattr(self, self.x_label)[-rem:], xdata=True)
+                for i in range(self.n_ions):
+                    self.save_result(name.format(i), getattr(self, name.format(i))[-rem:])
+                    self.send_to_hist(self.get_dataset("raw_data")[-rem:].flatten())             
+
+        self.reset_cw_settings(self.dds_list, self.freq_list,
+                                self.amp_list, self.state_list, self.att_list)
+
+    @kernel
+    def pmt_readout(self, duration) -> TInt32:
+        self.core.break_realtime()
+        t_count = self.pmt.gate_rising(duration)
+        return self.pmt.count(t_count)
+    
+    def single_run(self):
         if self.p.line_trigger_settings.enabled:
             offset = float(self.p.line_trigger_settings.offset_duration)
             offset = self.core.seconds_to_mu((16 + offset)*ms)
@@ -144,11 +206,7 @@ class PulseSequence(EnvExperiment):
         else:
             self.core.reset()
 
-        # rm = self.p.StateReadout.readout_mode
         self.sequence()
-
-        self.reset_cw_settings(self.dds_list, self.freq_list,
-                                self.amp_list, self.state_list, self.att_list)
     
     def analyze(self):
         # Is this necessary?
@@ -165,9 +223,9 @@ class PulseSequence(EnvExperiment):
         if self.timestamp is None:
             self.timestamp = datetime.now().strftime("%H%M_%S")
             self.filename = self.timestamp + ".h5"
-            with h5.File(self.filename, "a") as f:
+            with h5.File(self.filename, "w") as f:
                 datagrp = f.create_group("scan_data")
-                datagrp.attrs["plot_show"] = self.RCG_TAB
+                datagrp.attrs["plot_show"] = self.rcg_tab
                 f.create_dataset("time", data=[], maxshape=(None,))
                 params = f.create_group("parameters")
                 for collection in self.p.keys():
@@ -178,13 +236,14 @@ class PulseSequence(EnvExperiment):
                 csvwriter = csv.writer(csvfile, delimiter=",")
                 csvwriter.writerow([self.timestamp, type(self).__name__,
                                                   os.path.join(self.dir, self.filename)])
+            self.save_result(self.x_label, list(self.scan), xdata=True)
         if self.rcg is None:
             try:
                 self.rcg = Client("::1", 3286, "rcg")
             except:
                 return
         try:
-            self.rcg.plot(x, y, tab_name=self.RCG_TAB,
+            self.rcg.plot(x, y, tab_name=self.rcg_tab,
                           plot_title=self.timestamp + " - " + name, append=True,
                           file_=os.path.join(os.getcwd(), self.filename))
         except:
@@ -239,13 +298,14 @@ class PulseSequence(EnvExperiment):
         self.pmt_hist.plot(data)
 
     def setup(self):
-        raise NotImplementedError
+        pass
     
     def run_initially(self):
-        raise NotImplementedError
-    
+        pass
+
+    @kernel 
     def sequence(self):
         raise NotImplementedError
 
     def run_finally(self):
-        raise NotImplementedError
+        pass
