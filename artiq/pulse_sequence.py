@@ -8,8 +8,8 @@ import h5py as h5
 import os
 import csv
 from artiq.protocols.pc_rpc import Client
-from artiq.subsequence import subsequence
-from inspect import isclass
+# from artiq.subsequence import subsequence
+# from inspect import isclass
 from bisect import bisect
 
 class PulseSequence(EnvExperiment):
@@ -26,12 +26,12 @@ class PulseSequence(EnvExperiment):
         self.setattr_device("LTriggerIN")
         self.setattr_argument("scan", scan.Scannable(default=scan.RangeScan(0, 1, 100)))
 
-        for obj in list(globals().values()):
-            if not isclass(obj):
-                continue
-            if issubclass(obj, subsequence):
-                if hasattr(obj, "setup"):
-                    obj().setup()
+        # for obj in list(globals().values()):
+        #     if not isclass(obj):
+        #         continue
+        #     if issubclass(obj, subsequence):
+        #         if hasattr(obj, "setup"):
+        #             obj().setup()
 
         self.setup()
 
@@ -296,6 +296,14 @@ class PulseSequence(EnvExperiment):
     @rpc(flags={"async"})
     def send_to_hist(self, data):
         self.pmt_hist.plot(data)
+
+    def add_sequence(self, subsequence, replacement_parameters={}):
+        new_parameters = self.p.copy()
+        for key, val in replacement_parameters.items():
+            collection, parameter = key.split(".")
+            new_parameters[collection].update({parameter: val})
+        subsequence.p = edict(new_parameters)
+        subsequence(self).run()
 
     def setup(self):
         pass
