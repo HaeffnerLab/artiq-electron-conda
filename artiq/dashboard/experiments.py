@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import os
+import re
 from functools import partial
 from collections import OrderedDict
 
@@ -74,7 +75,7 @@ class _ArgumentEditor(QtWidgets.QTreeWidget):
             self._arg_to_widgets[name] = widgets
 
             entry = procdesc_to_entry(argument["desc"])(argument)
-            widget_item = QtWidgets.QTreeWidgetItem([name])
+            widget_item = QtWidgets.QTreeWidgetItem(["\n".join(re.split(":|\.", name))])
             if argument["tooltip"]:
                 widget_item.setToolTip(0, argument["tooltip"])
             widgets["entry"] = entry
