@@ -18,6 +18,7 @@ dependencies:
   - chardet=3.0.4=py35_3
   - curl=7.64.0=h4496350_2
   - cycler=0.10.0=py_1
+  - easydict=1.9=py_0
   - freetype=2.10.0=h5db478b_0
   - h5py=2.8.0=py35hb24199d_2
   - hdf5=1.10.2=he51fdeb_2
