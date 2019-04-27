@@ -26,16 +26,19 @@ class MultiplexerDock(QtWidgets.QDockWidget):
         self.setObjectName("MULTIPLEXER")
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetFloatable)
         global laser_room_ip
-        self.normal_cxn = labrad.connect(laser_room_ip,
+        try:
+            self.normal_cxn = labrad.connect(laser_room_ip,
                                          password="lab",
                                          tls_mode="off")
-        self.finished.connect(self.finish_make_gui)
-        self.topLevelWidget = QtWidgets.QWidget(self)
-        self.setWidget(self.topLevelWidget)
-        self.channelWidgets = dict()
-        self.channels = list()
-        self.start_make_gui()
-        self.connect()
+            self.finished.connect(self.finish_make_gui)
+            self.topLevelWidget = QtWidgets.QWidget(self)
+            self.setWidget(self.topLevelWidget)
+            self.channelWidgets = dict()
+            self.channels = list()
+            self.start_make_gui()
+            self.connect()
+        except:
+            self.normal_cxn = None
 
     def start_make_gui(self):
         self.verticalLayout = QtWidgets.QVBoxLayout()
