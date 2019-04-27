@@ -17,7 +17,8 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
     def __init__(self, acxn):
         QtWidgets.QDockWidget.__init__(self, "PMT Readout")
         self.acxn = acxn
-        # self.p = cxn.parametervault
+        self.cxn = None
+        self.p = None
         try:
             self.cxn = labrad.connect()
             self.p = self.cxn.parametervault
@@ -89,35 +90,44 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
         self.canvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
                                   QtWidgets.QSizePolicy.Expanding)
         self.ax.tick_params(axis="both", direction="in")
-        lines = self.p.get_parameter(["StateReadout", "threshold_list"])
-        slines = sorted(lines)
-        if not list(slines) == list(lines):
-            self.p.set_parameter(["StateReadout", "threshold_list", slines])
-            lines = slines
-        self.number_lines = len(lines)
-        self.lines = [self.ax.axvline(line, lw=3, color="r") for line in lines]
-        self.n_thresholds = QtWidgets.QSpinBox()
-        self.n_thresholds.setValue(len(lines))
-        self.n_thresholds.setMinimum(1)
-        self.n_thresholds.setMaximum(10)
-        self.curr_threshold = QtWidgets.QSpinBox()
-        self.curr_threshold.setValue(1)
-        self.curr_threshold.setMinimum(1)
-        self.curr_threshold.setMaximum(len(lines))
 
-        layout.addWidget(self.mpl_toolbar, 0, 0)
-        layout.addWidget(QtWidgets.QLabel("no. thresholds: "), 0, 1)
-        layout.addWidget(self.n_thresholds, 0, 2)
-        layout.addWidget(QtWidgets.QLabel("select threshold: "), 0, 3)
-        layout.addWidget(self.curr_threshold, 0, 4)
+        self.n_thresholds = None
+        self.curr_threshold = None
+        if self.p:
+            lines = self.p.get_parameter(["StateReadout", "threshold_list"])[1]
+            slines = sorted(lines)
+            if not list(slines) == list(lines):
+                self.p.set_parameter(["StateReadout", "threshold_list", slines])
+                lines = slines
+            self.number_lines = len(lines)
+            self.lines = [self.ax.axvline(line, lw=3, color="r") for line in lines]
+            self.n_thresholds = QtWidgets.QSpinBox()
+            self.n_thresholds.setValue(len(lines))
+            self.n_thresholds.setMinimum(1)
+            self.n_thresholds.setMaximum(10)
+            self.curr_threshold = QtWidgets.QSpinBox()
+            self.curr_threshold.setValue(1)
+            self.curr_threshold.setMinimum(1)
+            self.curr_threshold.setMaximum(len(lines))
+
+            layout.addWidget(self.mpl_toolbar, 0, 0)
+            layout.addWidget(QtWidgets.QLabel("no. thresholds: "), 0, 1)
+            layout.addWidget(self.n_thresholds, 0, 2)
+            layout.addWidget(QtWidgets.QLabel("select threshold: "), 0, 3)
+            layout.addWidget(self.curr_threshold, 0, 4)
+
         layout.addWidget(self.canvas, 1, 0, 1, 5)
         self.main_widget.setLayout(layout)
-        self.cxn.disconnect()
+
+        if self.cxn:
+            self.cxn.disconnect()
 
     def connect_GUI(self):
         self.canvas.mpl_connect("button_press_event", self.on_click)
-        self.n_thresholds.valueChanged.connect(self.n_thresholds_changed)
-        self.curr_threshold.valueChanged.connect(self.curr_threshold_changed)
+        if self.n_thresholds:
+            self.n_thresholds.valueChanged.connect(self.n_thresholds_changed)
+        if self.curr_threshold:
+            self.curr_threshold.valueChanged.connect(self.curr_threshold_changed)
 
     @inlineCallbacks
     def n_thresholds_changed(self, val):

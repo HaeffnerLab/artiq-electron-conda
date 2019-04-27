@@ -205,30 +205,35 @@ class PMTControlDock(QtWidgets.QDockWidget):
         dds_dict = settings["dds_config"]
         self.all_dds_specs = dict()
         self.dds_widgets = dict()
-        cxn = labrad.connect()
-        p = cxn.parametervault
-        for (name, specs) in dds_dict.items():
-            try:
-                params = p.get_parameter(["dds_cw_parameters", name])
-                freq, amp, state, att = params[1]
-            except:
-                freq = str(specs.default_freq)
-                att = str(specs.default_att)
-                amp = str(1.)
-                state = str(0)
-                p.new_parameter("dds_cw_parameters", name, 
-                                ("cw_settings", [freq, amp, state, att]))
-            self.all_dds_specs[name] = {"cpld": int(specs.urukul),
-                                        "frequency": float(freq) * 1e6,
-                                        "att": float(att),
-                                        "state": bool(int(state)),
-                                        "amplitude": float(amp)}
-        for i, (name, specs) in enumerate(sorted(dds_dict.items())):
-            widget = ddsControlWidget(name, specs, self.scheduler, self)
-            layout.addWidget(widget, i // 2 + 1 , i % 2)
-            self.dds_widgets[name] = widget
-        frame.setLayout(layout)
-        cxn.disconnect()
+
+        try:
+            cxn = labrad.connect()
+            p = cxn.parametervault
+            for (name, specs) in dds_dict.items():
+                try:
+                    params = p.get_parameter(["dds_cw_parameters", name])
+                    freq, amp, state, att = params[1]
+                except:
+                    freq = str(specs.default_freq)
+                    att = str(specs.default_att)
+                    amp = str(1.)
+                    state = str(0)
+                    p.new_parameter("dds_cw_parameters", name,
+                                    ("cw_settings", [freq, amp, state, att]))
+                self.all_dds_specs[name] = {"cpld": int(specs.urukul),
+                                            "frequency": float(freq) * 1e6,
+                                            "att": float(att),
+                                            "state": bool(int(state)),
+                                            "amplitude": float(amp)}
+            for i, (name, specs) in enumerate(sorted(dds_dict.items())):
+                widget = ddsControlWidget(name, specs, self.scheduler, self)
+                layout.addWidget(widget, i // 2 + 1 , i % 2)
+                self.dds_widgets[name] = widget
+            frame.setLayout(layout)
+            cxn.disconnect()
+        except:
+            logger.error("Failed to initially connect to labrad.")
+
         return frame
     
     def set_state(self, override=False):
