@@ -4,6 +4,7 @@ import os
 import re
 from functools import partial
 from collections import OrderedDict
+import imp
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 import h5py
@@ -12,6 +13,10 @@ from artiq.gui.tools import LayoutWidget, log_level_to_name, get_open_file_name
 from artiq.gui.entries import procdesc_to_entry, ScanEntry
 from artiq.protocols import pyon
 
+import labrad
+from lattice.clients.connection import connection
+from twisted.internet.defer import inlineCallbacks
+from artiq.dashboard import parameter_editor
 
 logger = logging.getLogger(__name__)
 
@@ -370,6 +375,40 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         reqterm.clicked.connect(self.reqterm_clicked)
 
         self.hdf5_load_directory = os.path.expanduser("~")
+
+        needs_parameter_vault = []
+
+        @inlineCallbacks
+        def parameter_vault_connect(*args):
+            for widget in needs_parameter_vault:
+                yield widget.setup_listeners()
+                widget.setDisabled(False)
+
+        def parameter_vault_disconnect(*args):
+            for widget in needs_parameter_vault:
+                widget.setDisabled(True)
+
+        # connect to labrad
+        acxn = connection()
+        acxn.connect(host='localhost', password='lab')
+        acxn.add_on_connect("ParameterVault", parameter_vault_connect)
+        acxn.add_on_disconnect("ParameterVault", parameter_vault_disconnect)
+
+        show_params = {}
+        try:
+            file, class_, _ = manager.resolve_expurl(expurl)
+            with open(file) as f:
+                expsource = imp.load_source(file, '', f)
+                show_params = getattr(expsource, class_).show_params
+        except:
+            show_params = {}
+
+        d_show_parameter_editor = parameter_editor.ParameterEditorDock(acxn=acxn,
+                                                                       name="Show Parameters",
+                                                                       show_params=show_params)
+        d_show_parameter_editor.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
+        needs_parameter_vault.append(d_show_parameter_editor)
+        self.layout.addWidget(d_show_parameter_editor, 4, 0, 1, -1)
 
     def submit_clicked(self):
         try:

@@ -218,11 +218,6 @@ def main():
     d_parameter_editor = parameter_editor.ParameterEditorDock(acxn=acxn)
     smgr.register(d_parameter_editor)
     needs_parameter_vault.append(d_parameter_editor)
-    d_show_parameter_editor = parameter_editor.ParameterEditorDock(acxn=acxn, 
-                                                                   name="Show Parameters", 
-                                                                   show_params={"StateReadout": ["threshold_list"]})
-    smgr.register(d_show_parameter_editor, "sortoflikeparametereditorbutnotquite")
-    needs_parameter_vault.append(d_show_parameter_editor)
     d_explorer = explorer.ExplorerDock(expmgr, None,
                                        sub_clients["explist"],
                                        sub_clients["explist_status"],
@@ -254,8 +249,8 @@ def main():
 
     # lay out docks
     right_docks = [
-        d_explorer, d_pmt, d_parameter_editor, d_show_parameter_editor,
-        d_ttl_dds.ttl_dock, #d_ttl_dds.dds_dock, 
+        d_explorer, d_pmt, d_parameter_editor,
+        d_ttl_dds.ttl_dock, #d_ttl_dds.dds_dock,
         d_ttl_dds.dac_dock,
         d_datasets, d_applets
     ]
