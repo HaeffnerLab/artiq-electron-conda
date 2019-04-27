@@ -6,6 +6,8 @@ from artiq.dashboard.laser_room.laser_room_DAC_configuration import hardwareConf
 from artiq.dashboard.laser_room.QCustomSpinBox import QCustomSpinBox
 from twisted.internet.defer import inlineCallbacks
 
+import logging
+logger = logging.getLogger(__name__)
 
 # TODO: Consolidate laser room labrad connections
 laser_room_ip = "192.168.169.49"
