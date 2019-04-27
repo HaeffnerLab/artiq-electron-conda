@@ -40,10 +40,12 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         self.exit_request = asyncio.Event()
         global types
         self.types = types
+
+        self.cxn = None
         try:
             self.cxn = labrad.connect()
         except:
-            logger.error("Parmeter Editer failed to connect to labrad.", exc_info=True)
+            logger.warning("Parameter Editor failed to connect to labrad.", exc_info=True)
             self.setDisabled(True)
         self.setup_listeners()
         self.make_GUI()
@@ -64,6 +66,12 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         self.table.customContextMenuRequested.connect(self.open_menu)
         self.table.setIndentation(10)
         grid.addWidget(self.table, 0, 0)
+
+        self.widget_dict = dict()
+        self.top_level_widget_dict = dict()
+
+        if not self.cxn:
+            return
 
         r = self.cxn["registry"]
         r.cd("", "Servers", "Parameter Vault")
@@ -86,8 +94,6 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                 registry[collection] = dict_
 
         self.table.setHeaderLabels(["Collection", "Value"])
-        self.widget_dict = dict()
-        self.top_level_widget_dict = dict()
         for collection in registry.keys():
             item = QtWidgets.QTreeWidgetItem()
             item.setText(0, collection)
@@ -138,11 +144,14 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
 
     @inlineCallbacks
     def setup_listeners(self):
-        context = yield self.acxn.context()
-        p = yield self.acxn.get_server("ParameterVault")
-        yield p.signal__parameter_change(parameterchangedID, context=context)
-        yield p.addListener(listener=self.refresh_values, source=None,
-                            ID=parameterchangedID, context=context)
+        try:
+            context = yield self.acxn.context()
+            p = yield self.acxn.get_server("ParameterVault")
+            yield p.signal__parameter_change(parameterchangedID, context=context)
+            yield p.addListener(listener=self.refresh_values, source=None,
+                                ID=parameterchangedID, context=context)
+        except:
+            logger.warning("failed to add parameter changed listener")
 
     @inlineCallbacks
     def refresh_values(self, *args):
