@@ -76,7 +76,8 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         r = self.cxn["registry"]
         r.cd("", "Servers", "Parameter Vault")
         registry = dict()
-        if self.show_params is None or type(self.show_params) != dict:
+        is_show_params = self.show_params and (type(self.show_params) == dict)
+        if not is_show_params:
             collections = r.dir()[0]
             for collection in collections:
                 dict_ = dict()
@@ -133,6 +134,8 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                     # logger.info("Unrecognized parameter vault registry key, value "
                     #             "pair format for: {}, {}".format(collection, param))
                     continue
+            if is_show_params:
+                item.setExpanded(True)
             self.top_level_widget_dict[collection] = item
 
         self.table.setColumnWidth(0, 350)

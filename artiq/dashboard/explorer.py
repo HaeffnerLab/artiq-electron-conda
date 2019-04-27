@@ -185,7 +185,7 @@ class ExplorerDock(QtWidgets.QDockWidget):
         self.el_buttons.layout.setContentsMargins(0, 0, 0, 0)
         self.stack.addWidget(self.el_buttons)
 
-        self.el = treeView(self.exp_manager)
+        self.el = QtWidgets.QTreeView()
         self.el.setHeaderHidden(True)
         self.el.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectItems)
         self.el.doubleClicked.connect(
@@ -307,34 +307,3 @@ class ExplorerDock(QtWidgets.QDockWidget):
 
     def restore_state(self, state):
         self.current_directory = state["current_directory"]
-
-
-class treeView(QtWidgets.QTreeView):
-    def __init__(self, exp_manager):
-        QtWidgets.QTreeView.__init__(self)
-        self.exp_manager = exp_manager
-        self.work_dir = "/home/lattice/artiq-work/"
-
-    def selectionChanged(self, selected_item, deselected_item):
-        try:
-            item = selected_item.indexes()[0]
-        except IndexError:
-            return
-        try:
-            name = "repo:" + item.model().index_to_key(item)
-        except TypeError:
-            return
-        file_, class_, _ = self.exp_manager.resolve_expurl(name)
-        try:
-            spec = importlib.util.spec_from_file_location(class_, self.work_dir + file_)
-            mymodule = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mymodule)
-        except ImportError:
-            return
-        try:
-            show_params = getattr(mymodule, class_).show_params
-        except:
-            show_params = []
-        print("show_params: ", show_params)
-        super(treeView, self).selectionChanged(selected_item, deselected_item)
-
