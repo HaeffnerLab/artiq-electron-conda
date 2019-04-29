@@ -40,10 +40,12 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         self.exit_request = asyncio.Event()
         global types
         self.types = types
+
+        self.cxn = None
         try:
             self.cxn = labrad.connect()
         except:
-            logger.error("Parmeter Editer failed to connect to labrad.", exc_info=True)
+            logger.warning("Parameter Editor failed to connect to labrad.", exc_info=True)
             self.setDisabled(True)
         self.setup_listeners()
         self.make_GUI()
@@ -65,10 +67,17 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         self.table.setIndentation(10)
         grid.addWidget(self.table, 0, 0)
 
+        self.widget_dict = dict()
+        self.top_level_widget_dict = dict()
+
+        if not self.cxn:
+            return
+
         r = self.cxn["registry"]
         r.cd("", "Servers", "Parameter Vault")
         registry = dict()
-        if self.show_params is None or type(self.show_params) != dict:
+        is_show_params = self.show_params and (type(self.show_params) == dict)
+        if not is_show_params:
             collections = r.dir()[0]
             for collection in collections:
                 dict_ = dict()
@@ -86,8 +95,6 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                 registry[collection] = dict_
 
         self.table.setHeaderLabels(["Collection", "Value"])
-        self.widget_dict = dict()
-        self.top_level_widget_dict = dict()
         for collection in registry.keys():
             item = QtWidgets.QTreeWidgetItem()
             item.setText(0, collection)
@@ -127,6 +134,8 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                     # logger.info("Unrecognized parameter vault registry key, value "
                     #             "pair format for: {}, {}".format(collection, param))
                     continue
+            if is_show_params:
+                item.setExpanded(True)
             self.top_level_widget_dict[collection] = item
 
         self.table.setColumnWidth(0, 350)
@@ -138,11 +147,14 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
 
     @inlineCallbacks
     def setup_listeners(self):
-        context = yield self.acxn.context()
-        p = yield self.acxn.get_server("ParameterVault")
-        yield p.signal__parameter_change(parameterchangedID, context=context)
-        yield p.addListener(listener=self.refresh_values, source=None,
-                            ID=parameterchangedID, context=context)
+        try:
+            context = yield self.acxn.context()
+            p = yield self.acxn.get_server("ParameterVault")
+            yield p.signal__parameter_change(parameterchangedID, context=context)
+            yield p.addListener(listener=self.refresh_values, source=None,
+                                ID=parameterchangedID, context=context)
+        except:
+            logger.warning("failed to add parameter changed listener")
 
     @inlineCallbacks
     def refresh_values(self, *args):

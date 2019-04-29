@@ -18,8 +18,8 @@ from artiq.dashboard.drift_tracker.drift_tracker_control_widget import DriftTrac
 from twisted.internet.defer import inlineCallbacks
 
 
-global_address = "192.168.169.49"
-password = "lab"
+global_address = cl.global_address
+password = cl.global_password
 colors = c.default_color_cycle[0 : len(cl.client_list)]
 logger = logging.getLogger(__name__)
 

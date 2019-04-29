@@ -33,5 +33,10 @@ __pycache__/
 /device_db*.py
 /test*
 
+# when testing from frontend folder:
+/artiq/frontend/tmp*
+/artiq/frontend/dataset_db.pyon
+/artiq/frontend/last_rid.pyon
+
 lettice
 logo_ver.svg

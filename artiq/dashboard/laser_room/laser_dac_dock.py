@@ -6,6 +6,8 @@ from artiq.dashboard.laser_room.laser_room_DAC_configuration import hardwareConf
 from artiq.dashboard.laser_room.QCustomSpinBox import QCustomSpinBox
 from twisted.internet.defer import inlineCallbacks
 
+import logging
+logger = logging.getLogger(__name__)
 
 # TODO: Consolidate laser room labrad connections
 laser_room_ip = "192.168.169.49"
@@ -57,7 +59,12 @@ class LaserDACDock(QtWidgets.QDockWidget):
     @inlineCallbacks
     def connect(self):
         global laser_room_ip
-        self.cxn = yield connectAsync(laser_room_ip, password="lab", tls_mode="off")
+        try:
+            self.cxn = yield connectAsync(laser_room_ip, password="lab", tls_mode="off")
+        except:
+            self.cxn = None
+            logger.warning("Failed to connect to laser room computer")
+
         yield self.setupListeners()
         if self.initialized:
             yield self.followSignal(0, 0)
@@ -69,6 +76,14 @@ class LaserDACDock(QtWidgets.QDockWidget):
             yield self.dacserver.signal__ports_updated(SIGNALID)
             yield self.dacserver.addListener(listener = self.followSignal, 
                                              source = None, ID = SIGNALID)
+
+            # signal when server connects or disconnects
+            yield self.cxn.manager.subscribe_to_named_message("Server Connect", 9898989, True)
+            yield self.cxn.manager.subscribe_to_named_message("Server Disconnect", 9898989+1, True)
+            yield self.cxn.manager.addListener(listener = self.followServerConnect,
+                                                 source = None, ID = 9898989)
+            yield self.cxn.manager.addListener(listener = self.followServerDisconnect,
+                                                 source = None, ID = 9898989+1)
             self.initialized = True
             self.setEnabled(True)
         except:
@@ -76,13 +91,6 @@ class LaserDACDock(QtWidgets.QDockWidget):
             self.setEnabled(False)
 
         # signal when server connects or disconnects
-        yield self.cxn.manager.subscribe_to_named_message("Server Connect", 9898989, True)
-        yield self.cxn.manager.subscribe_to_named_message("Server Disconnect", 9898989+1, True)
-        yield self.cxn.manager.addListener(listener = self.followServerConnect, 
-                                            source = None, ID = 9898989)
-        yield self.cxn.manager.addListener(listener = self.followServerDisconnect, 
-                                            source = None, ID = 9898989+1)
-
     def inputHasUpdated(self, name):
         def iu():
             self.inputUpdated = True
