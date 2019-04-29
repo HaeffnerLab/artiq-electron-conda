@@ -94,7 +94,7 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
         self.n_thresholds = None
         self.curr_threshold = None
         if self.p:
-            lines = self.p.get_parameter(["StateReadout", "threshold_list"])[1]
+            lines = self.p.get_parameter(["StateReadout", "threshold_list"])
             slines = sorted(lines)
             if not list(slines) == list(lines):
                 self.p.set_parameter(["StateReadout", "threshold_list", slines])
