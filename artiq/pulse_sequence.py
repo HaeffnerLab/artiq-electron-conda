@@ -13,9 +13,10 @@ from bisect import bisect
 
 class PulseSequence(EnvExperiment):
     fixed_params = list()
-    rcg_tab = "Current"
+    accessed_params = set()
+    kernel_invariants = set()
     scan_params = dict()
-    show_params = list()
+    rcg_tab = "Current"
 
     def build(self):
         self.setattr_device("core")
@@ -23,15 +24,10 @@ class PulseSequence(EnvExperiment):
         self.setattr_device("pmt")
         self.setattr_device("LTriggerIN")
 
-        if self.scan_params:
-            self.multi_scannables = dict()
-            for seq_name, scan_list in self.scan_params.items():
-                self.multi_scannables[seq_name] = [self.get_argument(seq_name + ":" + scan_param[0],
-                    scan.Scannable(default=scan.RangeScan(*scan_param[1:])), group=seq_name) for scan_param in scan_list]
-        else:
-            pass
-            # print("\n"*10, self.scan_params)
-            # raise Exception("No scan window specified.")
+        self.multi_scannables = dict()
+        for seq_name, scan_list in self.scan_params.items():
+            self.multi_scannables[seq_name] = [self.get_argument(seq_name + ":" + scan_param[0],
+                scan.Scannable(default=scan.RangeScan(*scan_param[1:])), group=seq_name) for scan_param in scan_list]
 
         self.setup()
 
@@ -44,7 +40,7 @@ class PulseSequence(EnvExperiment):
 
     def prepare(self):
         # Grab parametervault params:
-        G = globals()
+        G = globals().copy()
         cxn = labrad.connect()
         p = cxn.parametervault
         collections = p.get_collections()
@@ -72,7 +68,7 @@ class PulseSequence(EnvExperiment):
                             param = param[units]
                     d[name] = param
                 except:
-                    #broken parameter
+                    # broken parameter
                     continue
             D[collection] = d
         for item in self.fixed_params:
@@ -119,6 +115,7 @@ class PulseSequence(EnvExperiment):
 
         self.rm = self.p.StateReadout.readout_mode
         
+        self.set_dataset("raw_run_data", np.full(N, np.nan))
         if self.rm == "pmt":
             self.n_ions = len(self.p.StateReadout.threshold_list)
             for seq_name, dims in scan_specs.items():
@@ -131,7 +128,6 @@ class PulseSequence(EnvExperiment):
                     self.x_label[seq_name] = self.scan_params[seq_name][0][0]
                     f = seq_name + "-" if len(self.scan_params) > 1 else ""
                     f += self.x_label[seq_name]
-                    # print("FFFF: ", f)
                     setattr(self, f, x_array)
                     dims.append(N)
                 self.set_dataset("{}-raw_data".format(seq_name), np.full(dims, np.nan))
@@ -146,86 +142,84 @@ class PulseSequence(EnvExperiment):
         self.run_initially()
 
     def run(self):
-        line_trigger = self.p.line_trigger_settings.enabled
-        line_offset = float(self.p.line_trigger_settings.offset_duration)
-        line_offset = self.core.seconds_to_mu((16 + line_offset)*ms)
+        self.core.reset()
+        linetrigger = self.p.line_trigger_settings.enabled
+        linetrigger_offset = float(self.p.line_trigger_settings.offset_duration)
+        linetrigger_offset = self.core.seconds_to_mu((16 + linetrigger_offset)*ms)
 
+        for param in self.accessed_params:
+                    key = param.split(".")
+                    param = param.replace(".", "_")
+                    value = self.p[key[0]][key[1]]
+                    self.kernel_invariants.update({param})
+                    setattr(self, param, value)
+        
         for seq_name, scan_list in self.multi_scannables.items():
-            self.sequence = getattr(self, seq_name)
+            current_sequence = getattr(self, seq_name)
             if len(self.multi_scannables) > 1:
                 dir_ = seq_name
             else:
                 dir_ = ""
 
-            collection, param = self.scan_params[seq_name][0][0].split(".")
-            for i, scan_value in enumerate(scan_list[0]):
-                self.p[collection].update({param: scan_value})
-                
-                print("point: ", i)
-                
-                for j in range(self.N):
-                    raw_run_data = []
-                    # print("\nRun nos: ", i, j, "\n")
-                    if self.scheduler.check_pause():
-                        try:
-                            self.scheduler.pause()
-                        except TerminationRequested:
-                            break
-                    self.single_run(line_trigger, line_offset)
+            scan_list = list(scan_list[0])
+            setter = lambda val: setattr(self, self.scan_params[seq_name][0][0].replace(".", "_"), val)
+            setter(0.)
+            self.looper(current_sequence, self.N, linetrigger, linetrigger_offset, scan_list, setter,
+                        self.rm, self.p.StateReadout.pmt_readout_duration, seq_name)
             
-                    # readout
-                    if "pmt" in self.rm:
-                        duration = self.p.StateReadout.pmt_readout_duration
-                        # print("Duration: ", duration)
-                        pmt_count = self.pmt_readout(duration)
-                        raw_run_data.append(pmt_count)
+                    # self.rm = self.p.StateReadout.readout_mode
+                    # if "pmt" in self.rm:
+                    #     duration = self.p.StateReadout.pmt_readout_duration
+                    #     # print("Duration: ", duration)
+                    #     pmt_count = self.pmt_readout(duration)
+                    #     raw_run_data.append(pmt_count)
                 
-                self.record_result("{}-raw_data".format(seq_name), i, raw_run_data)
+        #         self.record_result("{}-raw_data".format(seq_name), i, raw_run_data)
 
-                if self.rm == "pmt":
-                    name = "{}-pmt_ion{}"
-                    data = sorted(self.get_dataset("{}-raw_data".format(seq_name))[i])
-                    idxs = [0]
-                    for threshold in self.p.StateReadout.threshold_list:
-                        idxs.append(bisect(data, threshold))
-                    idxs.append(self.N)
-                    for k in range(self.n_ions):
-                        dataset = getattr(self, name.format(seq_name, k))
-                        if idxs[k + 1] == idxs[k]:
-                            dataset[i] = 0
-                        else:
-                            dataset[i] = idxs[k + 1] - idxs[k]
-                        self.save_and_send_to_rcg(
-                            getattr(self, seq_name + "-" + self.x_label[seq_name] if dir_ else self.x_label[seq_name])[:i+1],
-                            dataset[:i + 1], name.format(seq_name, k), dir_=dir_)
+        #         if self.rm == "pmt":
+        #             name = "{}-pmt_ion{}"
+        #             data = sorted(self.get_dataset("{}-raw_data".format(seq_name))[i])
+        #             idxs = [0]
+        #             for threshold in self.p.StateReadout.threshold_list:
+        #                 idxs.append(bisect(data, threshold))
+        #             idxs.append(self.N)
+        #             for k in range(self.n_ions):
+        #                 dataset = getattr(self, name.format(seq_name, k))
+        #                 if idxs[k + 1] == idxs[k]:
+        #                     dataset[i] = 0
+        #                 else:
+        #                     dataset[i] = idxs[k + 1] - idxs[k]
+        #                 self.save_and_send_to_rcg(
+        #                     getattr(self, seq_name + "-" + self.x_label[seq_name] if dir_ else self.x_label[seq_name])[:i+1],
+        #                     dataset[:i + 1], name.format(seq_name, k), dir_=dir_)
             
-                    rem = (i + 1) % 5
-                    if rem == 0:
-                        self.save_result(self.x_label[seq_name], 
-                            getattr(self, seq_name + "-" + self.x_label[seq_name] if dir_ else self.x_label[seq_name])[i - 4:i + 1], 
-                            dir_=dir_, xdata=True)
-                        for k in range(self.n_ions):
-                            self.save_result(name.format(seq_name, k), 
-                                getattr(self, name.format(seq_name, k))[i - 4:i + 1], dir_=dir_)
-                        hist_data = self.get_dataset(seq_name + "-raw_data")
-                        try:
-                            hist_data = hist_data[i - 4:i + 1]
-                        except IndexError:
-                            hist_data = hist_data[i - 4:]
-                        self.send_to_hist(hist_data.flatten())
+        #             rem = (i + 1) % 5
+        #             if rem == 0:
+        #                 self.save_result(self.x_label[seq_name], 
+        #                     getattr(self, seq_name + "-" + self.x_label[seq_name] if dir_ else self.x_label[seq_name])[i - 4:i + 1], 
+        #                     dir_=dir_, xdata=True)
+        #                 for k in range(self.n_ions):
+        #                     self.save_result(name.format(seq_name, k), 
+        #                         getattr(self, name.format(seq_name, k))[i - 4:i + 1], dir_=dir_)
+        #                 hist_data = self.get_dataset(seq_name + "-raw_data")
+        #                 try:
+        #                     hist_data = hist_data[i - 4:i + 1]
+        #                 except IndexError:
+        #                     hist_data = hist_data[i - 4:]
+        #                 self.send_to_hist(hist_data.flatten())
 
-            else:
-                rem = (i + 1) % 5
-                if self.rm == "pmt":
-                    self.save_result(self.x_label[seq_name], 
-                        getattr(self, seq_name + "-" + self.x_label[seq_name] if dir_ else self.x_label[seq_name])[-rem:], 
-                        xdata=True, dir_=dir_)
-                    for i in range(self.n_ions):
-                        self.save_result(name.format(seq_name, i), getattr(self, name.format(seq_name, i))[-rem:], dir_=dir_)
-                        self.send_to_hist(self.get_dataset(seq_name + "-raw_data")[-rem:].flatten())             
+        #     else:
+        #         rem = (i + 1) % 5
+        #         if self.rm == "pmt":
+        #             self.save_result(self.x_label[seq_name], 
+        #                 getattr(self, seq_name + "-" + self.x_label[seq_name] if dir_ else self.x_label[seq_name])[-rem:], 
+        #                 xdata=True, dir_=dir_)
+        #             for i in range(self.n_ions):
+        #                 self.save_result(name.format(seq_name, i), getattr(self, name.format(seq_name, i))[-rem:], dir_=dir_)
+        #                 self.send_to_hist(self.get_dataset(seq_name + "-raw_data")[-rem:].flatten())             
 
-        self.reset_cw_settings(self.dds_list, self.freq_list,
-                                self.amp_list, self.state_list, self.att_list)
+        # self.reset_cw_settings(self.dds_list, self.freq_list,
+        #                         self.amp_list, self.state_list, self.att_list)
 
     @kernel
     def pmt_readout(self, duration) -> TInt32:
@@ -234,24 +228,34 @@ class PulseSequence(EnvExperiment):
         return self.pmt.count(t_count)
     
     @kernel
-    def single_run(self, line_trigger, line_offset):
-        if line_trigger:
-            self.line_trigger(line_offset)
-        else:
-            self.core.reset()
-        self.pmt_readout(1*us)
-
-    @kernel
-    def rep_run(self):
-        pass
-
-    @kernel
     def line_trigger(self, offset):
         # Phase lock to mains
-        self.core.reset()
+        self.core.break_realtime()
         t_gate = self.LTriggerIN.gate_rising(16*ms)
         trigger_time = self.LTriggerIN.timestamp_mu(t_gate)
         at_mu(trigger_time + offset)
+    
+    @kernel
+    def looper(self, sequence, reps, linetrigger, linetrigger_offset, 
+               scan_list, setter, readout_mode, readout_duration, seq_name):
+        for i in range(len(scan_list)):
+            setter(scan_list[i])
+            for j in range(reps):
+                if not self.scheduler.check_pause():
+                    if linetrigger:
+                        self.line_trigger(linetrigger_offset)
+                    sequence()
+
+                    if readout_mode == "pmt":
+                        pmt_count = self.pmt_readout(readout_duration)
+                        self.record_result("raw_run_data", j, pmt_count)
+                
+                else:
+                    break
+            
+            self.get_dataset("raw_run_data")
+            # self.record_result(seq_name + "-raw_data", i, 
+            #                    self.get_dataset("raw_run_data"))
     
     def analyze(self):
         # Is this necessary?
@@ -297,7 +301,6 @@ class PulseSequence(EnvExperiment):
                 try:
                     x_label = self.x_label[dir_] 
                 except Exception as e:
-                    # print("\n3\n", e, "\nseq_name: ", seq_name)
                     x_label = "x"
             
             x_file = dir_ + "-" if dir_ else dir_
@@ -373,7 +376,6 @@ class PulseSequence(EnvExperiment):
     def run_initially(self):
         pass
 
-    @kernel 
     def sequence(self):
         raise NotImplementedError
 
