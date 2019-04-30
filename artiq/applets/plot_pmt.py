@@ -43,7 +43,15 @@ class PMTPlot(pyqtgraph.PlotWidget):
         try:
             raw_data["with_866_on"] = data[self.args.with_866_on][1][1:]
             raw_data["with_866_off"] = data[self.args.with_866_off][1][1:]
-            raw_data["diff_counts"] = data[self.args.diff_counts][1][1:]
+
+            raw_data["diff_counts"] = []
+            max_with_866_off = max(raw_data["with_866_off"], default=0)
+            for i in range(min(len(raw_data["with_866_on"]), len(raw_data["with_866_off"]))):
+                if max_with_866_off > 0:
+                    raw_data["diff_counts"].append(raw_data["with_866_on"][i] - raw_data["with_866_off"][i])
+                else:
+                    raw_data["diff_counts"].append(-1)
+
             pulsed = data[self.args.pulsed][1][0]
         except KeyError:
             return
@@ -84,12 +92,12 @@ class PMTPlot(pyqtgraph.PlotWidget):
 
             self.current_curve_point_count[curve_name] = num_points
 
-            # for curves with negative values, don't use any pen to plot them.
+            # for curves with all negative values, don't use any pen to plot them.
             # this will happen, e.g., if we are running the PMT in continuous mode
             # rather than in pulsed mode -- the 866_off and diff curves will not
             # contain valid data.
             pen = self.pens[curve_name]
-            if num_points > 0 and data_to_plot[0] < 0:
+            if num_points > 0 and max(data_to_plot, default=0) < 0:
                 pen = pyqtgraph.mkPen(None)
 
             x_start = self.current_curve_x_start[curve_name]
