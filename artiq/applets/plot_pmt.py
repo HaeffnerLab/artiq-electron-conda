@@ -22,6 +22,10 @@ class PMTPlot(pyqtgraph.PlotWidget):
                      "with_866_off": pyqtgraph.mkPen((0, 0, 255), width=2),
                      "diff_counts":  pyqtgraph.mkPen((0, 255, 0), width=2)}
 
+        self.z_values = {"with_866_on":  30,
+                         "with_866_off": 20,
+                         "diff_counts":  10}
+
         legend = self.addLegend()
         legend.addItem(pyqtgraph.PlotDataItem(pen=self.pens["with_866_on"]),  "   866 ON")
         legend.addItem(pyqtgraph.PlotDataItem(pen=self.pens["with_866_off"]), "   866 OFF")
@@ -80,12 +84,20 @@ class PMTPlot(pyqtgraph.PlotWidget):
 
             self.current_curve_point_count[curve_name] = num_points
 
+            # for curves with negative values, don't use any pen to plot them.
+            # this will happen, e.g., if we are running the PMT in continuous mode
+            # rather than in pulsed mode -- the 866_off and diff curves will not
+            # contain valid data.
+            pen = self.pens[curve_name]
+            if num_points > 0 and data_to_plot[0] < 0:
+                pen = pyqtgraph.mkPen(None)
+
             x_start = self.current_curve_x_start[curve_name]
             x_end = x_start + num_points
             x = np.arange(x_start, x_end)
-            self.curves[curve_name].append(self.plot(
-                x, data_to_plot,
-                pen=self.pens[curve_name], fillLevel=0))
+            curve = self.plot(x, data_to_plot, pen=pen, fillLevel=0)
+            curve.setZValue(self.z_values[curve_name])
+            self.curves[curve_name].append(curve)
 
         if self.autoscroll:
             (xmin_cur, xmax_cur), _ = self.viewRange()
