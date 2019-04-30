@@ -44,13 +44,6 @@ class PMTPlot(pyqtgraph.PlotWidget):
         except KeyError:
             return
 
-        pens = self.pens
-        brushes = {"with_866_on":  pyqtgraph.mkBrush((255,0,0,75)) if pulsed else pyqtgraph.mkBrush((255,0,0,100)),
-                   "with_866_off": pyqtgraph.mkBrush((0,0,255,75)),
-                   "diff_counts":  pyqtgraph.mkBrush((0,255,0,75))}
-
-        # we want to plot specifically in this order: with_866_on, diff_counts, with_866_off
-        # so that the brushes look nice visually
         for curve_name in ["with_866_on", "diff_counts", "with_866_off"]:
             if not curve_name in raw_data.keys():
                 continue
@@ -67,6 +60,9 @@ class PMTPlot(pyqtgraph.PlotWidget):
             if not curve_name in self.current_curve_x_start.keys():
                 self.current_curve_x_start[curve_name] = 0
 
+            if num_points == self.current_curve_point_count[curve_name]:
+                # nothing new to plot for this curve
+                continue
             if num_points < self.current_curve_point_count[curve_name]:
                 # if this dataset has fewer points than the current curve, the dataset
                 # must have been restarted, so we will simply begin a new curve.
@@ -89,7 +85,7 @@ class PMTPlot(pyqtgraph.PlotWidget):
             x = np.arange(x_start, x_end)
             self.curves[curve_name].append(self.plot(
                 x, data_to_plot,
-                pen=pens[curve_name], brush=brushes[curve_name], fillLevel=0))
+                pen=self.pens[curve_name], fillLevel=0))
 
         if self.autoscroll:
             (xmin_cur, xmax_cur), _ = self.viewRange()
