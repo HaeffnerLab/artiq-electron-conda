@@ -323,7 +323,7 @@ def main():
                 if not os.path.exists(path):
                     os.mkdir(path)
                 if hasattr(exp_inst, "filename"):
-                    filename = exp_inst.filename
+                    filename = list(exp_inst.filename.values())[0]
                 else:
                     filename = "raw-data_{}.h5".format(current_time)
                 file_ = os.path.join(path, filename)
