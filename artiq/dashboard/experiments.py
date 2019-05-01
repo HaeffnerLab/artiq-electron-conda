@@ -384,7 +384,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
                 expsource = imp.load_source(file, '', f)
                 accessed_params = getattr(expsource, class_).accessed_params
         except:
-            pass
+            logger.info("No accessed params found for " + expurl, exc_info=True)
 
         # only add parameter editor if the experiment has specified accessed params
         if accessed_params:
