@@ -9,14 +9,14 @@ import os
 import csv
 from artiq.protocols.pc_rpc import Client
 from bisect import bisect
+from collections import OrderedDict as odict
 
 
 class PulseSequence(EnvExperiment):
     fixed_params = list()
     accessed_params = set()
     kernel_invariants = set()
-    scan_params = dict()
-    rcg_tab = "Current"
+    scan_params = odict()
 
     def build(self):
         self.setattr_device("core")
@@ -24,9 +24,11 @@ class PulseSequence(EnvExperiment):
         self.setattr_device("pmt")
         self.setattr_device("LTriggerIN")
         self.multi_scannables = dict()
-        for seq_name, scan_list in self.scan_params.items():
+        self.rcg_tabs = dict()
+        for seq_name, (scan_list, rcg_tab) in self.scan_params.items():
             self.multi_scannables[seq_name] = [self.get_argument(seq_name + ":" + scan_param[0],
                 scan.Scannable(default=scan.RangeScan(*scan_param[1:])), group=seq_name) for scan_param in scan_list]
+            self.rcg_tabs[seq_name] = rcg_tab
         self.setup()
 
         # Load all AD9910 and AD9912 DDS channels specified in device_db:
@@ -109,6 +111,7 @@ class PulseSequence(EnvExperiment):
         self.x_label = dict()
         self.timestamp = dict()
         scan_specs = dict()
+        self.set_dataset("time", [])
         for seq_name, scan_list in self.multi_scannables.items():
             scan_specs[seq_name] = [len(scan) for scan in scan_list]
         self.rm = self.p.StateReadout.readout_mode
@@ -123,16 +126,18 @@ class PulseSequence(EnvExperiment):
                     if self.rm == "pmt_parity":
                         setattr(self, seq_name + "-parity", np.full(dims, np.nan))
                     x_array = np.array(list(self.multi_scannables[seq_name][0]))
-                    self.x_label[seq_name] = self.scan_params[seq_name][0][0]
+                    self.x_label[seq_name] = self.scan_params[seq_name][0][0][0]
                     f = seq_name + "-" if len(self.scan_params) > 1 else ""
                     f += self.x_label[seq_name]
                     setattr(self, f, x_array)
                     dims.append(N)
+                else:
+                    self.x_label[seq_name] = [element[0] for element in self.scan_params[seq_name][0]]
                 self.set_dataset("{}-raw_data".format(seq_name), np.full(dims, np.nan))
                 self.timestamp[seq_name] = None
         elif self.rm in ["camera", "camera_parity"]:
             self.n_ions = int(self.p.IonsOnCamera.ion_number)
-
+        
         # Setup for saving data
         self.filename = dict()
         self.dir = os.path.join(os.path.expanduser("~"), "data",
@@ -147,21 +152,33 @@ class PulseSequence(EnvExperiment):
         linetrigger_offset = float(self.p.line_trigger_settings.offset_duration)
         linetrigger_offset = self.core.seconds_to_mu((16 + linetrigger_offset)*ms)
         for param in self.accessed_params:
-                    key = param.split(".")
-                    param = param.replace(".", "_")
-                    value = self.p[key[0]][key[1]]
-                    self.kernel_invariants.update({param})
-                    setattr(self, param, value)
+            key = param.split(".")
+            param = param.replace(".", "_")
+            value = self.p[key[0]][key[1]]
+            self.kernel_invariants.update({param})
+            setattr(self, param, value)
         is_multi = True if len(self.multi_scannables) > 1 else False
         for seq_name, scan_list in self.multi_scannables.items():
             current_sequence = getattr(self, seq_name)
-            scan_list = list(scan_list[0])
-            setter = lambda val: setattr(self, self.scan_params[seq_name][0][0].replace(".", "_"), val)
+            if len(scan_list) == 1:
+                is_ndim = False
+                scan_iterable = list(scan_list[0])
+            else:
+                is_ndim = True
+                x_label = self.x_label[seq_name]
+                # multi_scannable = self.multi_scannables[seq_name]
+                # ms_list = [(x_label[i], multi_scannable[i]) for i in range(len(x_label))]
+                ms_list = [multi_scannable[i] for i in range(len(x_label))]
+                scan_iterable = list(MultiScanManager(*ms_list))
+                from itertools import product
+                
+                # self.set_dataset("x_data", scan_iterable, broadcast=False, archive=True)
+            setter = lambda val: setattr(self, self.scan_params[seq_name][0][0][0].replace(".", "_"), val)
             setter(0.)
-            self.looper(current_sequence, self.N, linetrigger, linetrigger_offset, scan_list, setter,
-                        self.rm, self.p.StateReadout.pmt_readout_duration, seq_name, is_multi, self.n_ions)
-        self.reset_cw_settings(self.dds_list, self.freq_list,
-                                self.amp_list, self.state_list, self.att_list)
+            self.looper(current_sequence, self.N, linetrigger, linetrigger_offset, scan_iterable, setter,
+                self.rm, self.p.StateReadout.pmt_readout_duration, seq_name, is_multi, self.n_ions, is_ndim)
+        self.set_dataset("raw_run_data", None, archive=False)
+        self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list, self.state_list, self.att_list)
 
     @kernel
     def pmt_readout(self, duration) -> TInt32:
@@ -178,13 +195,18 @@ class PulseSequence(EnvExperiment):
         at_mu(trigger_time + offset)
     
     @kernel
-    def looper(self, sequence, reps, linetrigger, linetrigger_offset, scan_list, 
-               setter, readout_mode, readout_duration, seq_name, is_multi, number_of_ions):
-        i = 0
-        for i in range(len(scan_list)):
+    def looper(self, sequence, reps, linetrigger, linetrigger_offset, scan_iterable, 
+               setter, readout_mode, readout_duration, seq_name, is_multi, number_of_ions, is_ndim):
+        if is_ndim:
+            for point in scan_iterable:
+                print("point: ", point, "\n")
+            return
+
+        i = 0  # For compiler, always needs a defined value (even when iterable empty)
+        for i in range(len(scan_iterable)):
             if self.scheduler.check_pause():
                 break
-            setter(scan_list[i])
+            setter(scan_iterable[i])
             for j in range(reps):
                 if not self.scheduler.check_pause():
                     if linetrigger:
@@ -256,17 +278,12 @@ class PulseSequence(EnvExperiment):
     @rpc(flags={"async"})
     def save_and_send_to_rcg(self, x, y, name, seq_name, is_multi):
         if self.timestamp[seq_name] is None:
-            self.timestamp[seq_name] = datetime.now().strftime("%H%M_%S")
+            self.start_time = datetime.now()
+            self.timestamp[seq_name] = self.start_time.strftime("%H%M_%S")
             self.filename[seq_name] = self.timestamp[seq_name] + ".h5"
-            # if dir_:
-            #     os.makedirs(dir_, exist_ok=True)
-            #     file_ = os.path.join(dir_, self.filename)
-            # else:
-            #     file_ = self.filename
             with h5.File(self.filename[seq_name], "w") as f:
                 datagrp = f.create_group("scan_data")
-                datagrp.attrs["plot_show"] = self.rcg_tab
-                f.create_dataset("time", data=[], maxshape=(None,))
+                datagrp.attrs["plot_show"] = self.rcg_tabs[seq_name]
                 params = f.create_group("parameters")
                 for collection in self.p.keys():
                     collectiongrp = params.create_group(collection)
@@ -280,13 +297,15 @@ class PulseSequence(EnvExperiment):
                 csvwriter.writerow([self.timestamp[seq_name], cls_name,
                                     os.path.join(self.dir, self.filename[seq_name])])
             self.save_result(seq_name, is_multi, xdata=True)
+        delta = datetime.now() - self.start_time
+        self.append_to_dataset("time", delta.total_seconds())
         if self.rcg is None:
             try:
                 self.rcg = Client("::1", 3286, "rcg")
             except:
                 return
         try:
-            self.rcg.plot(x, y, tab_name=self.rcg_tab,
+            self.rcg.plot(x, y, tab_name=self.rcg_tabs[seq_name],
                           plot_title=self.timestamp[seq_name] + " - " + name, append=True,
                           file_=os.path.join(os.getcwd(), self.filename[seq_name]))
         except:
@@ -341,9 +360,6 @@ class PulseSequence(EnvExperiment):
             else:
                 data = data[-i:]
             dataset = name
-        # if dir_:
-        #     dir_ += "/"
-        # print("final file: ", dir_ + self.filename[seq_name])
         with h5.File(self.filename[seq_name], "a") as f:
             datagrp = f["scan_data"]
             try:
