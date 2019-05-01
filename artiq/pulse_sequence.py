@@ -10,6 +10,8 @@ import csv
 from artiq.protocols.pc_rpc import Client
 from bisect import bisect
 from collections import OrderedDict as odict
+from itertools import product
+from operator import mul
 
 
 class PulseSequence(EnvExperiment):
@@ -130,10 +132,11 @@ class PulseSequence(EnvExperiment):
                     f = seq_name + "-" if len(self.scan_params) > 1 else ""
                     f += self.x_label[seq_name]
                     setattr(self, f, x_array)
-                    dims.append(N)
                 else:
                     self.x_label[seq_name] = [element[0] for element in self.scan_params[seq_name][0]]
-                self.set_dataset("{}-raw_data".format(seq_name), np.full(dims, np.nan))
+                    dims = [mul(*dims), len(dims)]
+                dims.append(N)
+                self.set_dataset("{}-raw_data".format(seq_name), np.full(dims, np.nan), broadcast=True)
                 self.timestamp[seq_name] = None
         elif self.rm in ["camera", "camera_parity"]:
             self.n_ions = int(self.p.IonsOnCamera.ion_number)
@@ -165,18 +168,18 @@ class PulseSequence(EnvExperiment):
                 scan_iterable = list(scan_list[0])
                 setter = lambda val: setattr(self, self.scan_params[seq_name][0][0][0].replace(".", "_"), val)
                 setter(0.)
+                ndim_iterable = [[0]]
             else:
                 is_ndim = True
-                x_label = self.x_label[seq_name]
-                # multi_scannable = self.multi_scannables[seq_name]
-                # ms_list = [(x_label[i], multi_scannable[i]) for i in range(len(x_label))]
-                ms_list = [multi_scannable[i] for i in range(len(x_label))]
-                #scan_iterable = list(MultiScanManager(*ms_list))
-                from itertools import product
-                scan_iterable = np.array(list(product(*ms_list))) 
-                self.set_dataset("x_data", scan_iterable)
+                ms_list = [list(x) for x in self.multi_scannables[seq_name]]
+                ndim_iterable = list(map(list, list(product(*ms_list))))  # list city
+                scan_iterable = [0] 
+                self.set_dataset("x_data", ndim_iterable)
+                setter = lambda x, val: setattr(self, x.replace(".", "_"), val)
+            scan_names = list(map(lambda x: x.replace(".", "_"), list(self.x_label[seq_name])))
             self.looper(current_sequence, self.N, linetrigger, linetrigger_offset, scan_iterable, setter,
-                self.rm, self.p.StateReadout.pmt_readout_duration, seq_name, is_multi, self.n_ions, is_ndim)
+                        self.rm, self.p.StateReadout.pmt_readout_duration, seq_name, is_multi, self.n_ions, 
+                        is_ndim, scan_names, ndim_iterable)
         self.set_dataset("raw_run_data", None, archive=False)
         self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list, self.state_list, self.att_list)
 
@@ -196,10 +199,18 @@ class PulseSequence(EnvExperiment):
     
     @kernel
     def looper(self, sequence, reps, linetrigger, linetrigger_offset, scan_iterable, 
-               setter, readout_mode, readout_duration, seq_name, is_multi, number_of_ions, is_ndim):
+               setter, readout_mode, readout_duration, seq_name, is_multi, number_of_ions, 
+               is_ndim, scan_names, ndim_iterable):
         if is_ndim:
-            for point in scan_iterable:
-                continue
+            for i in range(len(ndim_iterable)):
+                for j in range(len(ndim_iterable[i])):
+                    setter(scan_names[j], ndim_iterable[i][j])
+                    for k in range(reps):
+                        sequence()
+                        if readout_mode == "pmt" or readout_mode == "pmt_parity":
+                            pmt_count = self.pmt_readout(readout_duration)
+                            self.record_result(seq_name + "-raw_data", 
+                                ((i, i + 1), (j, j + 1), (k, k + 1)), pmt_count)
             return
 
         i = 0  # For compiler, always needs a defined value (even when iterable empty)
@@ -269,7 +280,8 @@ class PulseSequence(EnvExperiment):
                 parity += dataset[i]
             else:
                 parity -= dataset[i]
-            self.save_and_send_to_rcg(x, dataset[:i + 1], name.split("-")[-1].format(k), seq_name, is_multi)
+            self.save_and_send_to_rcg(x, dataset[:i + 1], 
+                                      name.split("-")[-1].format(k), seq_name, is_multi)
         if with_parity:
             dataset = getattr(self, seq_name + "-parity")
             dataset[i] = parity
