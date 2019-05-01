@@ -392,7 +392,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
 
         # connect to labrad
         acxn = connection()
-        acxn.connect(host='localhost', password='lab')
+        acxn.connect()
         acxn.add_on_connect("ParameterVault", parameter_vault_connect)
         acxn.add_on_disconnect("ParameterVault", parameter_vault_disconnect)
 
