@@ -3,6 +3,7 @@ import labrad
 import labrad.units as u
 from labrad.units import WithUnit as U
 from labrad.types import types as labradTypes
+from lattice.clients.connection import connection
 from ast import literal_eval
 from decimal import Decimal
 import numpy as np
@@ -32,7 +33,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
 
     def __init__(self, acxn=None, name="Parameter Editor", accessed_params=None):
         QtWidgets.QDockWidget.__init__(self, name)
-        self.acxn = acxn
+        self.acxn = acxn if acxn else connection()
         self.accessed_params = accessed_params
         self.setObjectName(name.replace(" ", "_"))
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
@@ -150,6 +151,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
     @inlineCallbacks
     def setup_listeners(self):
         try:
+            yield self.acxn.connect()
             context = yield self.acxn.context()
             p = yield self.acxn.get_server("ParameterVault")
             yield p.signal__parameter_change(parameterchangedID, context=context)
@@ -158,7 +160,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         except:
             import traceback
             logger.warning(traceback.format_exc())
-            logger.warning("failed to add parameter changed listener")
+            logger.warning("failed to add parameter changed listener for dock: " + self.objectName())
 
     @inlineCallbacks
     def refresh_values(self, *args):
@@ -168,9 +170,6 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
             val = yield p.get_parameter(loc)
             self.widget_dict[loc].update_value(val)
         except KeyError:
-            logger.info("Failed to refresh parameter_editor"
-                        "values on parametervault change "
-                        "{}: {}".format(loc, val))
             pass
 
     def open_menu(self, position):
