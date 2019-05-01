@@ -1,13 +1,15 @@
-from artiq.language import scan
-from artiq.experiment import *
-from easydict import EasyDict as edict
-from datetime import datetime
 import labrad
 import numpy as np
 import h5py as h5
 import os
 import csv
+from artiq.language import scan
+from artiq.language.core import TerminationRequested
+from artiq.experiment import *
 from artiq.protocols.pc_rpc import Client
+from artiq.dashboard.drift_tracker import client_config as dt_config
+from easydict import EasyDict as edict
+from datetime import datetime
 from bisect import bisect
 from collections import OrderedDict as odict
 from itertools import product
@@ -19,6 +21,18 @@ class PulseSequence(EnvExperiment):
     accessed_params = set()
     kernel_invariants = set()
     scan_params = odict()
+    carrier_translation = {
+            "S+1/2D-3/2": "c0",
+            "S-1/2D-5/2": "c1",
+            "S+1/2D-1/2": "c2",
+            "S-1/2D-3/2": "c3",
+            "S+1/2D+1/2": "c4",
+            "S-1/2D-1/2": "c5",
+            "S+1/2D+3/2": "c6",
+            "S-1/2D+1/2": "c7",
+            "S+1/2D+5/2": "c8",
+            "S-1/2D+3/2": "c9",
+        }
 
     def build(self):
         self.setattr_device("core")
@@ -43,7 +57,12 @@ class PulseSequence(EnvExperiment):
     def prepare(self):
         # Grab parametervault params:
         G = globals().copy()
+        self.G = G
         cxn = labrad.connect()
+        self.global_cxn = labrad.connect(dt_config.global_address, 
+                                         password=dt_config.global_password,
+                                         tls_mode="off")
+        self.sd_tracker = self.global_cxn.sd_tracker_global
         p = cxn.parametervault
         collections = p.get_collections()
         # Takes over 1 second to do this. We should move away from using labrad units
@@ -77,7 +96,7 @@ class PulseSequence(EnvExperiment):
             collection, param = item[0].split(".")
             D[collection].update({param: item[1]})
         self.p = edict(D)
-        cxn.disconnect()
+        self.cxn = cxn
 
         # Grab cw parameters:
         # NOTE: Because parameters are grabbed in prepare stage, 
@@ -177,9 +196,20 @@ class PulseSequence(EnvExperiment):
                 self.set_dataset("x_data", ndim_iterable)
                 setter = lambda x, val: setattr(self, x.replace(".", "_"), val)
             scan_names = list(map(lambda x: x.replace(".", "_"), list(self.x_label[seq_name])))
-            self.looper(current_sequence, self.N, linetrigger, linetrigger_offset, scan_iterable, setter,
-                        self.rm, self.p.StateReadout.pmt_readout_duration, seq_name, is_multi, self.n_ions, 
-                        is_ndim, scan_names, ndim_iterable)
+            self.start_point1, self.start_point2 = 0, 0
+            self.run_looper = True
+            while self.run_looper:
+                self.looper(current_sequence, self.N, linetrigger, linetrigger_offset, scan_iterable, setter,
+                            self.rm, self.p.StateReadout.pmt_readout_duration, seq_name, is_multi, self.n_ions, 
+                            is_ndim, scan_names, ndim_iterable, self.start_point1, self.start_point2)
+                if self.scheduler.check_pause():
+                    try:
+                        self.core.comm.close()
+                        self.scheduler.pause()
+                    except TerminationRequested:
+                        self.set_dataset("raw_run_data", None, archive=False)
+                        self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list, self.state_list, self.att_list)
+                        return
         self.set_dataset("raw_run_data", None, archive=False)
         self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list, self.state_list, self.att_list)
 
@@ -200,12 +230,24 @@ class PulseSequence(EnvExperiment):
     @kernel
     def looper(self, sequence, reps, linetrigger, linetrigger_offset, scan_iterable, 
                setter, readout_mode, readout_duration, seq_name, is_multi, number_of_ions, 
-               is_ndim, scan_names, ndim_iterable):
+               is_ndim, scan_names, ndim_iterable, start1, start2):
         if is_ndim:
-            for i in range(len(ndim_iterable)):
-                for j in range(len(ndim_iterable[i])):
+            for i in list(range(len(ndim_iterable)))[start1:]:
+                if self.scheduler.check_pause():
+                    break
+                if i == start1:
+                    Start2 = start2
+                else:
+                    Start2 = 0
+                for j in list(range(len(ndim_iterable[i])))[Start2:]:
+                    if self.scheduler.check_pause():
+                        self.set_start_point(1, i)
+                        self.set_start_point(2, j)
+                        break
                     setter(scan_names[j], ndim_iterable[i][j])
                     for k in range(reps):
+                        if linetrigger:
+                            self.line_trigger(linetrigger_offset)
                         sequence()
                         if readout_mode == "pmt" or readout_mode == "pmt_parity":
                             pmt_count = self.pmt_readout(readout_duration)
@@ -215,27 +257,30 @@ class PulseSequence(EnvExperiment):
                               readout_mode == "camera_states" or
                               readout_mode == "camera_parity"):
                             pass
+                if (i + 1) % 5 == 0:
+                    self.update_carriers()
+                    pass
+            else:
+                self.set_run_looper_off()
             return
 
         i = 0  # For compiler, always needs a defined value (even when iterable empty)
-        for i in range(len(scan_iterable)):
+        for i in list(range(len(scan_iterable)))[start1:]:
             if self.scheduler.check_pause():
-                break
+                self.set_start_point(1, i)
+                return
             setter(scan_iterable[i])
             for j in range(reps):
-                if not self.scheduler.check_pause():
-                    if linetrigger:
-                        self.line_trigger(linetrigger_offset)
-                    sequence()
-                    if readout_mode == "pmt" or readout_mode == "pmt_parity":
-                        pmt_count = self.pmt_readout(readout_duration)
-                        self.record_result("raw_run_data", j, pmt_count)
-                    elif (readout_mode == "camera" or
-                          readout_mode == "camera_states" or 
-                          readout_mode == "camera_parity"):
-                        pass
-                else:
-                    break
+                if linetrigger:
+                    self.line_trigger(linetrigger_offset)
+                sequence()
+                if readout_mode == "pmt" or readout_mode == "pmt_parity":
+                    pmt_count = self.pmt_readout(readout_duration)
+                    self.record_result("raw_run_data", j, pmt_count)
+                elif (readout_mode == "camera" or
+                        readout_mode == "camera_states" or 
+                        readout_mode == "camera_parity"):
+                    pass
             self.update_raw_data(seq_name, i)
             if readout_mode == "pmt":
                 self.update_pmt(seq_name, i, is_multi)
@@ -249,6 +294,7 @@ class PulseSequence(EnvExperiment):
                 pass
             rem = (i + 1) % 5
             if rem == 0:
+                self.update_carriers()
                 self.save_result(seq_name, is_multi, xdata=True, i=i)
                 self.send_to_hist(seq_name, i)
                 if readout_mode == "pmt" or readout_mode == "pmt_parity":
@@ -263,6 +309,7 @@ class PulseSequence(EnvExperiment):
                 elif readout_mode == "camera_parity":
                     pass
         else:
+            self.set_run_looper_off()
             rem = (i + 1) % 5
             self.send_to_hist(seq_name, rem, edge=True)
             self.save_result(seq_name, is_multi, xdata=True, i=rem, edge=True)
@@ -277,7 +324,16 @@ class PulseSequence(EnvExperiment):
                 pass
             elif readout_mode == "camera_parity":
                 pass
+    
+    def set_start_point(self, point, i):
+        if point == 1:
+            self.start_point1 = i
+        if point == 2:
+            self.start_point2 = i
 
+    def set_run_looper_off(self):
+        self.run_looper = False
+    
     @rpc(flags={"async"})
     def update_pmt(self, seq_name, i, is_multi, with_parity=False):
         data = sorted(self.get_dataset(seq_name + "-raw_data")[i])
@@ -345,8 +401,7 @@ class PulseSequence(EnvExperiment):
 
     @kernel
     def reset_cw_settings(self, dds_list, freq_list, amp_list, state_list, att_list):
-        # Return the CW settings to what they were when prepare
-        # stage was run
+        # Return the CW settings to what they were when prepare stage was run
         self.core.reset()
         for cpld in self.cpld_list:
             cpld.init()
@@ -417,9 +472,23 @@ class PulseSequence(EnvExperiment):
         self.pmt_hist.plot(data.flatten())
 
     @rpc(flags={"async"})
-    def update_parameters(self):
-        pass
+    def update_carriers(self):
+        current_lines = self.sd_tracker.get_current_lines(dt_config.client_name)
+        d = dict()
+        for carrier, frequency in current_lines:
+            units = frequency.units
+            d[self.carrier_translation[carrier]] = frequency[units] * self.G[units]
+        self.p["Carriers"] = d
 
+    # def calculate_spectrum_shift(self):
+    #     shift = 0 
+    #     trap = self.p.TrapFrequencies
+    #     sideband_selection = self.p.Spectrum.sideband_selection
+    #     sideband_frequencies = [trap.radial_frequency_1, trap.radial_frequency_2, trap.axial_frequency, trap.rf_drive_frequency]
+    #     for order, sideband_frequency in zip(sideband_selection, sideband_frequencies):
+    #         shift += order * sideband_frequency
+    #     return shift
+    
     def add_sequence(self, subsequence, replacement_parameters={}):
         new_parameters = self.p.copy()
         for key, val in replacement_parameters.items():
@@ -429,12 +498,14 @@ class PulseSequence(EnvExperiment):
         subsequence(self).run()
 
     def analyze(self):
+        self.run_finally()
+        self.cxn.disconnect()
+        self.global_cxn.disconnect()
         try:
             self.rcg.close_rpc()
             self.pmt_hist.close_rpc()
         except:
             pass
-        self.run_finally()
     
     def setup(self):
         pass
