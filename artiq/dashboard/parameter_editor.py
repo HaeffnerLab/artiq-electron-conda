@@ -156,6 +156,8 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
             yield p.addListener(listener=self.refresh_values, source=None,
                                 ID=parameterchangedID, context=context)
         except:
+            import traceback
+            logger.warning(traceback.format_exc())
             logger.warning("failed to add parameter changed listener")
 
     @inlineCallbacks
