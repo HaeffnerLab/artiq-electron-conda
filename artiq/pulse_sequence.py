@@ -138,7 +138,7 @@ class PulseSequence(EnvExperiment):
                 dims.append(N)
                 self.set_dataset("{}-raw_data".format(seq_name), np.full(dims, np.nan), broadcast=True)
                 self.timestamp[seq_name] = None
-        elif self.rm in ["camera", "camera_parity"]:
+        elif self.rm in ["camera", "camera_states", "camera_parity"]:
             self.n_ions = int(self.p.IonsOnCamera.ion_number)
         
         # Setup for saving data
@@ -211,6 +211,10 @@ class PulseSequence(EnvExperiment):
                             pmt_count = self.pmt_readout(readout_duration)
                             self.record_result(seq_name + "-raw_data", 
                                 ((i, i + 1), (j, j + 1), (k, k + 1)), pmt_count)
+                        elif (readout_mode == "camera" or
+                              readout_mode == "camera_states" or
+                              readout_mode == "camera_parity"):
+                            pass
             return
 
         i = 0  # For compiler, always needs a defined value (even when iterable empty)
@@ -226,6 +230,10 @@ class PulseSequence(EnvExperiment):
                     if readout_mode == "pmt" or readout_mode == "pmt_parity":
                         pmt_count = self.pmt_readout(readout_duration)
                         self.record_result("raw_run_data", j, pmt_count)
+                    elif (readout_mode == "camera" or
+                          readout_mode == "camera_states" or 
+                          readout_mode == "camera_parity"):
+                        pass
                 else:
                     break
             self.update_raw_data(seq_name, i)
@@ -233,30 +241,42 @@ class PulseSequence(EnvExperiment):
                 self.update_pmt(seq_name, i, is_multi)
             elif readout_mode == "pmt_parity":
                 self.update_pmt(seq_name, i, is_multi, with_parity=True)
+            elif readout_mode == "camera":
+                pass
+            elif readout_mode == "camera_states":
+                pass
+            elif readout_mode == "camera_parity":
+                pass
             rem = (i + 1) % 5
             if rem == 0:
                 self.save_result(seq_name, is_multi, xdata=True, i=i)
                 self.send_to_hist(seq_name, i)
-                for k in range(number_of_ions):
-                    self.save_result(seq_name + "-dark_ions:", is_multi, i=i, index=k)
+                if readout_mode == "pmt" or readout_mode == "pmt_parity":
+                    for k in range(number_of_ions):
+                        self.save_result(seq_name + "-dark_ions:", is_multi, i=i, index=k)
                 if readout_mode == "pmt_parity":
                     self.save_result(seq_name + "-parity", is_multi, i=i)
+                elif readout_mode == "camera":
+                    pass
+                elif readout_mode == "camera_states":
+                    pass
+                elif readout_mode == "camera_parity":
+                    pass
         else:
             rem = (i + 1) % 5
             self.send_to_hist(seq_name, rem, edge=True)
             self.save_result(seq_name, is_multi, xdata=True, i=rem, edge=True)
-            for k in range(number_of_ions):
-                self.save_result(seq_name + "-dark_ions:", is_multi, i=i, index=k, edge=True)
+            if readout_mode == "pmt" or readout_mode == "pmt_parity":
+                for k in range(number_of_ions):
+                    self.save_result(seq_name + "-dark_ions:", is_multi, i=i, index=k, edge=True)
             if readout_mode == "pmt_parity":
                 self.save_result(seq_name + "-parity", is_multi, i=i, edge=True)
-                        
-    def analyze(self):
-        try:
-            self.rcg.close_rpc()
-            self.pmt_hist.close_rpc()
-        except:
-            pass
-        self.run_finally()
+            elif readout_mode == "camera":
+                pass
+            elif readout_mode == "camera_states":
+                pass
+            elif readout_mode == "camera_parity":
+                pass
 
     @rpc(flags={"async"})
     def update_pmt(self, seq_name, i, is_multi, with_parity=False):
@@ -396,6 +416,10 @@ class PulseSequence(EnvExperiment):
                 data = data[i - 4:]
         self.pmt_hist.plot(data.flatten())
 
+    @rpc(flags={"async"})
+    def update_parameters(self):
+        pass
+
     def add_sequence(self, subsequence, replacement_parameters={}):
         new_parameters = self.p.copy()
         for key, val in replacement_parameters.items():
@@ -404,6 +428,14 @@ class PulseSequence(EnvExperiment):
         subsequence.p = edict(new_parameters)
         subsequence(self).run()
 
+    def analyze(self):
+        try:
+            self.rcg.close_rpc()
+            self.pmt_hist.close_rpc()
+        except:
+            pass
+        self.run_finally()
+    
     def setup(self):
         pass
     
