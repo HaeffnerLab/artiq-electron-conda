@@ -394,23 +394,23 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         acxn.add_on_connect("ParameterVault", parameter_vault_connect)
         acxn.add_on_disconnect("ParameterVault", parameter_vault_disconnect)
 
-        show_params = None
+        accessed_params = None
         try:
             file, class_, _ = manager.resolve_expurl(expurl)
             with open(file) as f:
                 expsource = imp.load_source(file, '', f)
-                show_params = getattr(expsource, class_).show_params
+                accessed_params = getattr(expsource, class_).accessed_params
         except:
             pass
 
-        # only add parameter editor if the experiment has specified show params
-        if show_params:
-            d_show_parameter_editor = parameter_editor.ParameterEditorDock(acxn=acxn,
-                                                                           name="Show Parameters",
-                                                                           show_params=show_params)
-            d_show_parameter_editor.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
-            needs_parameter_vault.append(d_show_parameter_editor)
-            self.layout.addWidget(d_show_parameter_editor, 4, 0, 1, -1)
+        # only add parameter editor if the experiment has specified accessed params
+        if accessed_params:
+            d_accessed_parameter_editor = parameter_editor.ParameterEditorDock(acxn=acxn,
+                                                                           name="Accessed Parameters",
+                                                                           accessed_params=accessed_params)
+            d_accessed_parameter_editor.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
+            needs_parameter_vault.append(d_accessed_parameter_editor)
+            self.layout.addWidget(d_accessed_parameter_editor, 4, 0, 1, -1)
 
     def submit_clicked(self):
         try:
