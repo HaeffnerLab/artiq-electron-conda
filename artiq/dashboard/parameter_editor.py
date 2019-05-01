@@ -3,6 +3,7 @@ import labrad
 import labrad.units as u
 from labrad.units import WithUnit as U
 from labrad.types import types as labradTypes
+from lattice.clients.connection import connection
 from ast import literal_eval
 from decimal import Decimal
 import numpy as np
@@ -30,10 +31,10 @@ types = ["parameter",
 
 class ParameterEditorDock(QtWidgets.QDockWidget):
 
-    def __init__(self, acxn=None, name="Parameter Editor", show_params=None):
+    def __init__(self, acxn=None, name="Parameter Editor", accessed_params=None):
         QtWidgets.QDockWidget.__init__(self, name)
-        self.acxn = acxn
-        self.show_params = show_params
+        self.acxn = acxn if acxn else connection()
+        self.accessed_params = accessed_params
         self.setObjectName(name.replace(" ", "_"))
         self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable |
                          QtWidgets.QDockWidget.DockWidgetFloatable)
@@ -76,8 +77,8 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         r = self.cxn["registry"]
         r.cd("", "Servers", "Parameter Vault")
         registry = dict()
-        is_show_params = self.show_params and (type(self.show_params) == dict)
-        if not is_show_params:
+        only_accessed_params = self.accessed_params and (type(self.accessed_params) == set)
+        if not only_accessed_params:
             collections = r.dir()[0]
             for collection in collections:
                 dict_ = dict()
@@ -87,12 +88,14 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                     dict_[param] = r.get(param)
                 registry[collection] = dict_
         else:
-            for collection in self.show_params.keys():
+            for param in self.accessed_params:
+                param_split = param.split(".")
+                collection = param_split[0]
+                param_name = param_split[1]
+                if not collection in registry.keys():
+                    registry[collection] = dict()
                 r.cd("", "Servers", "Parameter Vault", collection)
-                dict_ = dict()
-                for param in self.show_params[collection]:
-                    dict_[param] = r.get(param)
-                registry[collection] = dict_
+                registry[collection][param_name] = r.get(param_name)
 
         self.table.setHeaderLabels(["Collection", "Value"])
         for collection in registry.keys():
@@ -134,7 +137,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                     # logger.info("Unrecognized parameter vault registry key, value "
                     #             "pair format for: {}, {}".format(collection, param))
                     continue
-            if is_show_params:
+            if only_accessed_params:
                 item.setExpanded(True)
             self.top_level_widget_dict[collection] = item
 
@@ -148,13 +151,16 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
     @inlineCallbacks
     def setup_listeners(self):
         try:
+            yield self.acxn.connect()
             context = yield self.acxn.context()
             p = yield self.acxn.get_server("ParameterVault")
             yield p.signal__parameter_change(parameterchangedID, context=context)
             yield p.addListener(listener=self.refresh_values, source=None,
                                 ID=parameterchangedID, context=context)
         except:
-            logger.warning("failed to add parameter changed listener")
+            import traceback
+            logger.warning(traceback.format_exc())
+            logger.warning("failed to add parameter changed listener for dock: " + self.objectName())
 
     @inlineCallbacks
     def refresh_values(self, *args):
@@ -164,9 +170,6 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
             val = yield p.get_parameter(loc)
             self.widget_dict[loc].update_value(val)
         except KeyError:
-            logger.info("Failed to refresh parameter_editor"
-                        "values on parametervault change "
-                        "{}: {}".format(loc, val))
             pass
 
     def open_menu(self, position):
