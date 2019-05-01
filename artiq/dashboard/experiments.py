@@ -14,7 +14,6 @@ from artiq.gui.entries import procdesc_to_entry, ScanEntry
 from artiq.protocols import pyon
 
 import labrad
-from lattice.clients.connection import connection
 from twisted.internet.defer import inlineCallbacks
 from artiq.dashboard import parameter_editor
 
@@ -376,24 +375,6 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
 
         self.hdf5_load_directory = os.path.expanduser("~")
 
-        needs_parameter_vault = []
-
-        @inlineCallbacks
-        def parameter_vault_connect(*args):
-            for widget in needs_parameter_vault:
-                yield widget.setup_listeners()
-                widget.setDisabled(False)
-
-        def parameter_vault_disconnect(*args):
-            for widget in needs_parameter_vault:
-                widget.setDisabled(True)
-
-        # connect to labrad
-        acxn = connection()
-        acxn.connect()
-        acxn.add_on_connect("ParameterVault", parameter_vault_connect)
-        acxn.add_on_disconnect("ParameterVault", parameter_vault_disconnect)
-
         accessed_params = None
         try:
             file, class_, _ = manager.resolve_expurl(expurl)
@@ -405,11 +386,10 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
 
         # only add parameter editor if the experiment has specified accessed params
         if accessed_params:
-            d_accessed_parameter_editor = parameter_editor.ParameterEditorDock(acxn=acxn,
+            d_accessed_parameter_editor = parameter_editor.ParameterEditorDock(acxn=None,
                                                                            name="Accessed Parameters",
                                                                            accessed_params=accessed_params)
             d_accessed_parameter_editor.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
-            needs_parameter_vault.append(d_accessed_parameter_editor)
             self.layout.addWidget(d_accessed_parameter_editor, 4, 0, 1, -1)
 
     def submit_clicked(self):
