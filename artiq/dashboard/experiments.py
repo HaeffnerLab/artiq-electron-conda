@@ -380,6 +380,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         accessed_params = None
         try:
             file, class_, _ = manager.resolve_expurl(expurl)
+            file = os.path.join(os.path.expanduser("~"), "artiq-work", file)
             with open(file) as f:
                 expsource = imp.load_source(file, '', f)
                 accessed_params = getattr(expsource, class_).accessed_params
