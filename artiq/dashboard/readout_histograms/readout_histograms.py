@@ -66,5 +66,4 @@ class ReadoutHistograms(QtWidgets.QMainWindow):
             d.lines = [d.ax.axvline(line, lw=3, color="r") for line in lines]
             d.n_thresholds.setValue(len(lines))
             d.curr_threshold.setMaximum(len(lines))
-            d.curr_threshold.setValue(1)
             d.canvas.draw()
