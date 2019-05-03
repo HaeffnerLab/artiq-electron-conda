@@ -207,7 +207,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
     @inlineCallbacks
     def setup_listeners(self):
         try:
-            yield self.acxn.connect(host='localhost', password='lab')
+            yield self.acxn.connect()
             context = yield self.acxn.context()
             p = yield self.acxn.get_server("ParameterVault")
             yield p.signal__parameter_change(parameterchangedID, context=context)
