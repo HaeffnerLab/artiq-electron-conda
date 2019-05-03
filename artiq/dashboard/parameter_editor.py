@@ -13,9 +13,17 @@ from artiq.gui.tools import LayoutWidget
 import logging
 from twisted.internet.defer import inlineCallbacks
 
-
 logger = logging.getLogger(__name__)
 
+commonly_used_parameters = {
+    "AO_calibration.delay_time",
+    "Excitation_729.channel_729",
+    "StatePreparation.channel_729",
+    "StatePreparation.optical_pumping_enable",
+    "StatePreparation.sideband_cooling_enable",
+    "StateReadout.threshold_list",
+    "StateReadout.amplitude",
+    }
 
 parameterchangedID = 612512
 types = ["parameter",
@@ -27,7 +35,6 @@ types = ["parameter",
          "spectrum_sensitivity",  # Not currently being used?
       #  "string", fails when using python3 client but python2 pylabrad
          "int_list"]
-
 
 class ParameterEditorDock(QtWidgets.QDockWidget):
 
@@ -51,6 +58,62 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         self.setup_listeners()
         self.make_GUI()
 
+    def make_region_item(self, label):
+        item = QtWidgets.QTreeWidgetItem()
+        item.setText(0, label)
+        font = QtGui.QFont()
+        font.setBold(True)
+        item.setFont(0, font)
+        bgcolor = QtGui.QColor(192, 192, 192)
+        item.setBackground(0, bgcolor)
+        item.setBackground(1, bgcolor)
+        item.setFlags(item.flags() ^ QtCore.Qt.ItemIsSelectable)
+        self.table.addTopLevelItem(item)
+        self.region_widget_items[label] = item
+        return item
+
+    def make_collection_item(self, registry, collection, region_index):
+        item = QtWidgets.QTreeWidgetItem()
+        item.setText(0, collection)
+        font = QtGui.QFont()
+        font.setBold(True)
+        item.setFont(0, font)
+        item.setBackground(0, QtGui.QColor(248, 248, 248))
+        item.setBackground(1, QtGui.QColor(248, 248, 248))
+        item.setFlags(item.flags() ^ QtCore.Qt.ItemIsSelectable)
+        params = sorted(registry[collection].keys())
+        num_children = 0
+        for param in params:
+            try:
+                value = registry[collection][param]
+                child = QtWidgets.QTreeWidgetItem([param, None])
+                if num_children % 2 == 0:
+                    child.setBackground(0, QtGui.QColor(248, 248, 248))
+                else:
+                    child.setBackground(0, QtGui.QColor(228, 228, 228))
+                assert type(value) == tuple
+                assert value[0] in self.types
+                _child = EditorFactory.get_editor(value, self.acxn,
+                                                  (collection, param), child)
+                if _child is None:
+                    # Unrecognized registry key format, ignore
+                    continue
+                item.addChild(child)
+                size = QtCore.QSize()
+                size.setHeight(15)
+                child.setSizeHint(0, size)
+                child.setBackground(1, QtGui.QColor(248, 248, 248))
+                self.table.setItemWidget(child, 1, _child)
+                num_children += 1
+                self.param_widget_items[region_index][collection, param] = _child
+            except (AssertionError, TypeError):
+                # logger.info("Unrecognized parameter vault registry key, value "
+                #             "pair format for: {}, {}".format(collection, param))
+                continue
+        if num_children > 0:
+            return item
+        return None
+
     def make_GUI(self):
         grid = LayoutWidget()
         self.setWidget(grid)
@@ -58,7 +121,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         self.table.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
-        self.table.setSortingEnabled(True)
+        self.table.setSortingEnabled(False)
         self.table.header().setStretchLastSection(False)
         p = QtGui.QPalette()
         p.setColor(9, QtGui.QColor(248,248,248))
@@ -68,82 +131,75 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         self.table.setIndentation(10)
         grid.addWidget(self.table, 0, 0)
 
-        self.widget_dict = dict()
-        self.top_level_widget_dict = dict()
+        self.table.setHeaderLabels(["Collection", "Value"])
+
+        self.region_widget_items = dict()
+        self.collection_widget_items = [dict(), dict()]
+        self.param_widget_items = [dict(), dict()]
 
         if not self.cxn:
             return
 
+        all_params_registry = dict()
+        common_params_registry = dict()
+        accessed_params_registry = dict()
+
         r = self.cxn["registry"]
-        r.cd("", "Servers", "Parameter Vault")
-        registry = dict()
-        only_accessed_params = self.accessed_params and (type(self.accessed_params) == set)
-        if not only_accessed_params:
-            collections = r.dir()[0]
-            for collection in collections:
-                dict_ = dict()
-                r.cd("", "Servers", "Parameter Vault", collection)
-                params = r.dir()[1]
-                for param in params:
-                    dict_[param] = r.get(param)
-                registry[collection] = dict_
-        else:
+
+        if self.accessed_params:
+            # accessed parameters list
             for param in self.accessed_params:
                 param_split = param.split(".")
                 collection = param_split[0]
                 param_name = param_split[1]
-                if not collection in registry.keys():
-                    registry[collection] = dict()
+                if not collection in accessed_params_registry.keys():
+                    accessed_params_registry[collection] = dict()
                 r.cd("", "Servers", "Parameter Vault", collection)
-                registry[collection][param_name] = r.get(param_name)
+                accessed_params_registry[collection][param_name] = r.get(param_name)
+            for collection in sorted(accessed_params_registry.keys()):
+                collection_item = self.make_collection_item(accessed_params_registry, collection, region_index=0)
+                if collection_item:
+                    self.table.addTopLevelItem(collection_item)
+                    collection_item.setExpanded(True)
+                    self.collection_widget_items[0][collection] = collection_item
+        else:
+            # set up top-level items for all parameters and common parameters
+            region_common_params_item = self.make_region_item("Commonly Used Parameters")
+            region_all_params_item = self.make_region_item("All Parameters")
 
-        self.table.setHeaderLabels(["Collection", "Value"])
-        for collection in registry.keys():
-            item = QtWidgets.QTreeWidgetItem()
-            item.setText(0, collection)
-            font = QtGui.QFont()
-            font.setBold(True)
-            item.setFont(0, font)
-            item.setBackground(0, QtGui.QColor(248, 248, 248))
-            item.setBackground(1, QtGui.QColor(248, 248, 248))
-            item.setFlags(item.flags() ^ QtCore.Qt.ItemIsSelectable)
-            params = sorted(registry[collection].keys())
-            i = 0
-            for param in params:
-                try:
-                    value = registry[collection][param]
-                    child = QtWidgets.QTreeWidgetItem([param, None])
-                    if i % 2 == 0:
-                        child.setBackground(0, QtGui.QColor(248, 248, 248))
-                    else:
-                        child.setBackground(0, QtGui.QColor(228, 228, 228))
-                    assert type(value) == tuple
-                    assert value[0] in self.types
-                    _child = EditorFactory.get_editor(value, self.acxn,
-                                                      (collection, param), child)
-                    if _child is None:
-                        # Unrecognized registry key format, ignore
-                        continue
-                    item.addChild(child)
-                    size = QtCore.QSize()
-                    size.setHeight(15)
-                    child.setSizeHint(0, size)
-                    child.setBackground(1, QtGui.QColor(248, 248, 248))
-                    self.table.setItemWidget(child, 1, _child)
-                    i += 1
-                    self.table.addTopLevelItem(item)
-                    self.widget_dict[collection, param] = _child
-                except (AssertionError, TypeError):
-                    # logger.info("Unrecognized parameter vault registry key, value "
-                    #             "pair format for: {}, {}".format(collection, param))
-                    continue
-            if only_accessed_params:
-                item.setExpanded(True)
-            self.top_level_widget_dict[collection] = item
+            # common parameters list
+            for param in commonly_used_parameters:
+                param_split = param.split(".")
+                collection = param_split[0]
+                param_name = param_split[1]
+                if not collection in common_params_registry.keys():
+                    common_params_registry[collection] = dict()
+                r.cd("", "Servers", "Parameter Vault", collection)
+                common_params_registry[collection][param_name] = r.get(param_name)
+            for collection in sorted(common_params_registry.keys()):
+                collection_item = self.make_collection_item(common_params_registry, collection, region_index=0)
+                if collection_item:
+                    region_common_params_item.addChild(collection_item)
+                    self.collection_widget_items[0][collection] = collection_item
+
+            # all parameters list
+            r.cd("", "Servers", "Parameter Vault")
+            collections = r.dir()[0]
+            for collection in collections:
+                collection_dict = dict()
+                r.cd("", "Servers", "Parameter Vault", collection)
+                params = r.dir()[1]
+                for param in params:
+                    collection_dict[param] = r.get(param)
+                all_params_registry[collection] = collection_dict
+            for collection in sorted(all_params_registry.keys()):
+                collection_item = self.make_collection_item(all_params_registry, collection, region_index=1)
+                if collection_item:
+                    region_all_params_item.addChild(collection_item)
+                    self.collection_widget_items[1][collection] = collection_item
 
         self.table.setColumnWidth(0, 350)
         self.table.setColumnWidth(1, 150)
-        self.table.sortByColumn(0, QtCore.Qt.AscendingOrder)
         self.table.header().setFocusPolicy(QtCore.Qt.NoFocus)
 
         self.cxn.disconnect()
@@ -151,7 +207,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
     @inlineCallbacks
     def setup_listeners(self):
         try:
-            yield self.acxn.connect()
+            yield self.acxn.connect(host='localhost', password='lab')
             context = yield self.acxn.context()
             p = yield self.acxn.get_server("ParameterVault")
             yield p.signal__parameter_change(parameterchangedID, context=context)
@@ -166,11 +222,12 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
     def refresh_values(self, *args):
         loc = args[1]
         p = yield self.acxn.get_server("ParameterVault")
-        try:
-            val = yield p.get_parameter(loc)
-            self.widget_dict[loc].update_value(val)
-        except KeyError:
-            pass
+        for region_index in [0,1]:
+            try:
+                val = yield p.get_parameter(loc)
+                self.param_widget_items[region_index][loc].update_value(val)
+            except KeyError:
+                pass
 
     def open_menu(self, position):
         menu = QtWidgets.QMenu()
@@ -229,21 +286,28 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         self.exit_request.set()
 
     def save_state(self):
-        d = dict((x, y.isExpanded()) for x, y in self.top_level_widget_dict.items())
+        dr = dict((x, y.isExpanded()) for x, y in self.region_widget_items.items())
+        d0 = dict((x, y.isExpanded()) for x, y in self.collection_widget_items[0].items())
+        d1 = dict((x, y.isExpanded()) for x, y in self.collection_widget_items[1].items())
         return {"scroll": self.table.verticalScrollBar().value(),
                "geometry": bytes(self.saveGeometry()),
-               "expanded": d}
+               "expanded_r": dr,
+               "expanded_0": d0,
+               "expanded_1": d1}
+
+    def restore_widget_items_state(self, state, state_key, widget_items):
+        d = state[state_key]
+        dkeys = widget_items.keys()
+        for key, value in d.items():
+            if key in dkeys and value:
+                widget_items[key].setExpanded(True)
 
     def restore_state(self, state):
         self.restoreGeometry(QtCore.QByteArray(state["geometry"]))
-        d = state["expanded"]
-        dkeys = self.top_level_widget_dict.keys()
-        for key, value in d.items():
-            if key in dkeys and value:
-                self.top_level_widget_dict[key].setExpanded(True)
-        scrollvalue = state["scroll"]
-        self.table.verticalScrollBar().setSliderPosition(scrollvalue)
-
+        self.restore_widget_items_state(state, "expanded_r", self.region_widget_items)
+        self.restore_widget_items_state(state, "expanded_0", self.collection_widget_items[0])
+        self.restore_widget_items_state(state, "expanded_1", self.collection_widget_items[1])
+        self.table.verticalScrollBar().setSliderPosition(state["scroll"])
 
 class editInputMenu(QtWidgets.QDialog):
     def __init__(self, collection, name, item, cxn, parent=None):
@@ -338,10 +402,14 @@ class editInputMenu(QtWidgets.QDialog):
         r = self.cxn.registry
         p = self.cxn.parametervault
         r.cd("", "Servers", "Parameter Vault", self.collection)
-        widget = self.parent.widget_dict[self.collection, self.name]
-        widget.min_ = self.item[1][0]#U(float(self.item[1][0]), self.units)
-        widget.max_ =  self.item[1][1]#U(float(self.item[1][1]), self.units)
-        widget.state = self.item[1]
+        for region_index in [0,1]:
+            try:
+                widget = self.parent.param_widget_items[region_index][self.collection, self.name]
+                widget.min_ = self.item[1][0]#U(float(self.item[1][0]), self.units)
+                widget.max_ =  self.item[1][1]#U(float(self.item[1][1]), self.units)
+                widget.state = self.item[1]
+            except KeyError:
+                pass
         r.set(self.name, self.item)
         p.set_parameter(self.collection, self.name, self.item, True)
 
@@ -351,11 +419,15 @@ class editInputMenu(QtWidgets.QDialog):
         d = dict(self.item[1][1])
         d[key] = sender.text()
         self.item = (self.item[0], (self.item[1][0], list(d.items())))
-        widget = self.parent.widget_dict[self.collection, self.name]
-        widget.state = self.item[1]
-        widget.clear()
-        widget.addItems(d.values())
-        widget.setCurrentIndex(widget.findText(d[self.item[1][0]]))
+        for region_index in [0,1]:
+            try:
+                widget = self.parent.param_widget_items[region_index][self.collection, self.name]
+                widget.state = self.item[1]
+                widget.clear()
+                widget.addItems(d.values())
+                widget.setCurrentIndex(widget.findText(d[self.item[1][0]]))
+            except KeyError:
+                pass
         r = self.cxn.registry
         p = self.cxn.parametervault
         r.cd("", "Servers", "Parameter Vault", self.collection)
@@ -376,8 +448,12 @@ class editInputMenu(QtWidgets.QDialog):
                 val = np.append(val, nmax + (i + 1) * 2)
         elif diff < 0:
             val = val[:diff]
-        widget = self.parent.widget_dict[self.collection, self.name]
-        widget.update_value(val)
+        for region_index in [0,1]:
+            try:
+                widget = self.parent.param_widget_items[region_index][self.collection, self.name]
+                widget.update_value(val)
+            except KeyError:
+                pass
         r = self.cxn.registry
         p = self.cxn.parametervault
         p.set_parameter(self.collection, self.name, val)
