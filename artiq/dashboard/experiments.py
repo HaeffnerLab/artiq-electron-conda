@@ -393,6 +393,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
                                                                            name="Accessed Parameters",
                                                                            accessed_params=accessed_params)
             d_accessed_parameter_editor.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
+            d_accessed_parameter_editor.setTitleBarWidget(QtGui.QWidget()) # hides title bar
             self.layout.addWidget(d_accessed_parameter_editor, 4, 0, 1, -1)
 
     def submit_clicked(self):
