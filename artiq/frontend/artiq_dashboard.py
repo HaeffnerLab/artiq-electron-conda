@@ -263,7 +263,7 @@ def main():
     laser_room_tab =  LaserRoomTab()
     smgr.register(laser_room_tab)
     tabs.addTab(laser_room_tab, "Laser Room")
-    histograms_tab = ReadoutHistograms(acxn)
+    histograms_tab = ReadoutHistograms(acxn, smgr)
     smgr.register(histograms_tab)
     needs_parameter_vault.append(histograms_tab)
     tabs.addTab(histograms_tab, "Readout")
