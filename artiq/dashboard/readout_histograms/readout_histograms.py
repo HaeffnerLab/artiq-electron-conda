@@ -12,8 +12,9 @@ parameterchangedID = 612512
 
 
 class ReadoutHistograms(QtWidgets.QMainWindow):
-    def __init__(self, acxn=None):
+    def __init__(self, acxn=None, smgr=None):
         self.acxn = acxn
+        self.smgr = smgr
         QtWidgets.QMainWindow.__init__(self)
         qfm = QtGui.QFontMetrics(self.font())
         self.resize(140*qfm.averageCharWidth(), 38*qfm.lineSpacing())
@@ -26,10 +27,14 @@ class ReadoutHistograms(QtWidgets.QMainWindow):
         self.exit_request.set()
 
     def save_state(self):
-        pass
+        return {
+            "state": bytes(self.saveState()),
+            "geometry": bytes(self.saveGeometry())
+        }
 
     def restore_state(self, state):
-        pass
+        self.restoreGeometry(QtCore.QByteArray(state["geometry"]))
+        self.restoreState(QtCore.QByteArray(state["state"]))
 
     @inlineCallbacks
     def setup_listeners(self):
@@ -42,6 +47,7 @@ class ReadoutHistograms(QtWidgets.QMainWindow):
     def add_docks(self, cxn):
         self.d_pmt = pmt_readout_dock.PMTReadoutDock(cxn)
         self.d_camera = camera_readout_dock.CameraReadoutDock(cxn)
+        self.smgr.register(self.d_camera)
         self.addDockWidget(QtCore.Qt.TopDockWidgetArea, self.d_pmt)
         self.addDockWidget(QtCore.Qt.TopDockWidgetArea, self.d_camera)
         self.tabifyDockWidget(self.d_pmt, self.d_camera)
