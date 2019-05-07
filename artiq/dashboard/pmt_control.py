@@ -41,14 +41,14 @@ class PMTControlDock(QtWidgets.QDockWidget):
                              "log_level": 30,
                              "repo_rev": None,
                              "priority": 0}
-        
+
         self.expid_ttl = {"class_name": "change_ttl",
                           "file": "misc/manual_ttl_control.py",
                           "log_level": 30,
-                          "repo_rev": None, 
+                          "repo_rev": None,
                           "priority": 1}
-        
-        self.expid_dds = {"arguments": {},  
+
+        self.expid_dds = {"arguments": {},
                           "class_name": "change_cw",
                           "file": "misc/manual_dds_control.py",
                           "log_level": 30,
@@ -235,7 +235,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
             logger.error("Failed to initially connect to labrad.")
 
         return frame
-    
+
     def set_state(self, override=False):
         if override:
             flag = True
@@ -317,7 +317,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
             raw_val = self.dset_ctl.get("pmt_counts")[-1]
             try:
                 # duration in mseconds
-                duration = float(self.duration.text())  
+                duration = float(self.duration.text())
             except ValueError:
                 # picked up a backspace or something
                 logger.warning("Failed to update LCD", exc_info=True)
@@ -377,7 +377,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 return
             sender.setText("Off")
             self.expid_ttl.update({"arguments": {"device": "blue_PIs",
-                                                 "state": False}})
+                                                 "state": True}})
             if not hasattr(self, "check_pmt_timer"):
                 self.check_pmt_timer = QtCore.QTimer()
                 self.check_pmt_timer.timeout.connect(self.check_pmt_counts)
@@ -388,9 +388,9 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 return
             self.check_pmt_timer.stop()
             self.expid_ttl.update({"arguments": {"device": "blue_PIs",
-                                                 "state": True}})
+                                                 "state": False}})
         self.scheduler.submit("main", self.expid_ttl, priority=1)
-    
+
     def check_pmt_counts(self):
         try:
             counts = self.dataset_db.get("pmt_counts")[self.check_pmt_data_length:]
@@ -408,7 +408,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 "offset":  self.linetriggerLineEdit.text(),
                 "autoload": self.autoLoadSpin.value(),
                 "mode": self.setMode.currentText(),
-                "ltrigger": self.linetriggerButton.isChecked()}   
+                "ltrigger": self.linetriggerButton.isChecked()}
 
     def restore_state(self, state):
         for ctl, value in state["ctl"].items():
@@ -432,7 +432,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
 
     def parameter_vault_disconnect(self):
         self.duration.setDisabled(True)
-    
+
     def picomotor_connect(self):
         for spinbox in self.piezoStepSize.values():
             spinbox.setDisabled(False)
@@ -532,7 +532,7 @@ class ddsControlWidget(QtWidgets.QFrame):
     def parameters_changed(self):
         new_values = {"frequency": float(self.freq) * 1e6,
                       "att": float(self.att),
-                      "state": self.state, 
+                      "state": self.state,
                       "cpld": int(self.cpld),
                       "amplitude": float(self.amplitude)}
         self.parent.all_dds_specs.update({self.name: new_values})
@@ -541,7 +541,7 @@ class ddsControlWidget(QtWidgets.QFrame):
         self.scheduler.submit("main", self.parent.expid_dds, priority=1)
         cxn = labrad.connect()
         p = cxn.parametervault
-        p.set_parameter(["dds_cw_parameters", self.name, 
+        p.set_parameter(["dds_cw_parameters", self.name,
                 [str(self.freq), str(self.amplitude), str(int(self.state)), str(self.att)]])
         cxn.disconnect()
 
