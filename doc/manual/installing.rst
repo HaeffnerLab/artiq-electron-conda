@@ -40,7 +40,7 @@ Nix won't install packages without verifying their cryptographic signature. Add 
   substituters = https://cache.nixos.org https://nixbld.m-labs.hk
   trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nixbld.m-labs.hk-1:5aSRVA5b320xbNvu30tqxVPXpld73bhtOeH6uAjRyHc=
 
-The easiest way to obtain ARTIQ is then to install it into the user environment with ``$ nix-env -f "<m-labs>" -iA artiq-env``. This provides a minimal installation of ARTIQ where the usual commands (``artiq_master``, ``artiq_dashboard``, ``artiq_run``, etc.) are available.
+The easiest way to obtain ARTIQ is then to install it into the user environment with ``$ nix-env -iA m-labs.artiq-env``. This provides a minimal installation of ARTIQ where the usual commands (``artiq_master``, ``artiq_dashboard``, ``artiq_run``, etc.) are available.
 
 .. note::
   If you are getting the error message ``file 'm-labs' was not found in the Nix search path``, you are probably encountering `this Nix bug <https://github.com/NixOS/nix/issues/2709>`_. As a workaround, enter the command ``$ export NIX_PATH=~/.nix-defexpr/channels:$NIX_PATH`` and try again.
@@ -67,9 +67,10 @@ Installing multiple packages and making them visible to the ARTIQ commands requi
       buildInputs = [
         (pkgs.python3.withPackages(ps: [
           # List desired Python packages here.
-          # The board packages are also "Python" packages. You only need a board
-          # package if you intend to reflash that board.
           m-labs.artiq
+          # The board packages are also "Python" packages. You only need a board
+          # package if you intend to reflash that board (those packages contain
+          # only board firmware).
           m-labs.artiq-board-kc705-nist_clock
           sinara.artiq-board-kasli-wipm
           # from the NixOS package collection:
@@ -98,6 +99,9 @@ If your favorite package is not available with Nix, contact us.
 Installing via Conda (Windows, Linux)
 -------------------------------------
 
+.. warning::
+  For Linux users, the Nix package manager is preferred, as it is more reliable and faster than Conda.
+
 First, install `Anaconda <https://www.anaconda.com/distribution/>`_ or the more minimalistic `Miniconda <https://conda.io/en/latest/miniconda.html>`_.
 
 After installing either Anaconda or Miniconda, open a new terminal (also known as command line, console, or shell and denoted here as lines starting with ``$``) and verify the following command works::
@@ -106,7 +110,12 @@ After installing either Anaconda or Miniconda, open a new terminal (also known a
 
 Executing just ``conda`` should print the help of the ``conda`` command. If your shell does not find the ``conda`` command, make sure that the Conda binaries are in your ``$PATH``. If ``$ echo $PATH`` does not show the Conda directories, add them: execute ``$ export PATH=$HOME/miniconda3/bin:$PATH`` if you installed Conda into ``~/miniconda3``.
 
-Download the `ARTIQ installer script <https://raw.githubusercontent.com/m-labs/artiq/master/conda/install-artiq.py>`_ and edit its beginning to define the Conda environment name (you can leave the default environment name if you are just getting started) and select the desired ARTIQ packages. Non-ARTIQ packages should be installed manually later. If you do not need to flash boards, the ``artiq`` package from the ``main`` Hydra build is sufficient.
+Download the `ARTIQ installer script <https://raw.githubusercontent.com/m-labs/artiq/master/conda/install-artiq.py>`_ and edit its beginning to define the Conda environment name (you can leave the default environment name if you are just getting started) and select the desired ARTIQ packages. Non-ARTIQ packages should be installed manually later.
+
+.. note::
+  If you do not need to flash boards, the ``artiq`` package from the ``main`` Hydra build is sufficient. The packages named ``artiq-board-*`` contain only firmware for the FPGA board and are never necessary for using an ARTIQ system without reflashing it.
+
+Controllers for third-party devices (e.g. Thorlabs TCube, Lab Brick Digital Attenuator, etc.) that are not shipped with ARTIQ can also be installed with this script. Browse `Hydra <https://nixbld.m-labs.hk/project/artiq>`_ or see the list of NDSPs in this manual to find the names of the corresponding packages, and list them at the beginning of the script.
 
 Make sure the base Conda environment is activated and then run the installer script: ::
 

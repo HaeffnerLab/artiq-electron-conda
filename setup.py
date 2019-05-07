@@ -12,7 +12,7 @@ if sys.version_info[:3] < (3, 5, 3):
 
 # Depends on PyQt5, but setuptools cannot check for it.
 requirements = [
-    "asyncserial", "numpy", "scipy",
+    "numpy", "scipy",
     "python-dateutil", "prettytable", "h5py",
     "quamash", "pyqtgraph", "pygit2", "aiohttp",
     "llvmlite_artiq", "pythonparser", "python-Levenshtein",
@@ -37,10 +37,6 @@ console_scripts = [
     "artiq_flash = artiq.frontend.artiq_flash:main",
 
     "aqctl_corelog = artiq.frontend.aqctl_corelog:main",
-    "aqctl_korad_ka3005p = artiq.frontend.aqctl_korad_ka3005p:main",
-    "aqctl_lda = artiq.frontend.aqctl_lda:main",
-    "aqctl_novatech409b = artiq.frontend.aqctl_novatech409b:main",
-    "aqctl_thorlabs_tcube = artiq.frontend.aqctl_thorlabs_tcube:main",
 ]
 
 gui_scripts = [
