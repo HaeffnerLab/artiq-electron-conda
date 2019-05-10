@@ -4,6 +4,8 @@ import h5py as h5
 import os
 import csv
 import time
+import sys
+import inspect
 from artiq.language import scan
 from artiq.language.core import TerminationRequested
 from artiq.experiment import *
@@ -16,25 +18,18 @@ from bisect import bisect
 from collections import OrderedDict as odict
 from itertools import product
 from operator import mul
+from HardwareConfiguration import dds_config
+
+
+absolute_frequency_plots = ["CalibLine1", "CalibLine2", "Spectrum"]
 
 
 class PulseSequence(EnvExperiment):
+    is_ndim = False
     fixed_params = list()
-    accessed_params = set()
+    accessed_params = {"Display.relative_frequencies"}
     kernel_invariants = set()
     scan_params = odict()  # Not working as expected
-    carrier_translation = {
-            "S+1/2D-3/2": "c0",
-            "S-1/2D-5/2": "c1",
-            "S+1/2D-1/2": "c2",
-            "S-1/2D-3/2": "c3",
-            "S+1/2D+1/2": "c4",
-            "S-1/2D-1/2": "c5",
-            "S+1/2D+3/2": "c6",
-            "S-1/2D+1/2": "c7",
-            "S+1/2D+5/2": "c8",
-            "S-1/2D+3/2": "c9",
-        }
 
     def build(self):
         self.setattr_device("core")
@@ -44,21 +39,35 @@ class PulseSequence(EnvExperiment):
         self.setattr_device("camera_ttl")
         self.multi_scannables = dict()
         self.rcg_tabs = dict()
-        for seq_name, (scan_list, rcg_tab) in self.scan_params.items():
+        self.selected_scan = dict()
+        for seq_name, (rcg_tab, scan_list) in self.scan_params.items():
             self.rcg_tabs[seq_name] = rcg_tab
             self.multi_scannables[seq_name] = odict()
+            scan_names = list()
             for scan_param in scan_list:
+                scan_names.append(scan_param[0])
                 scan_name = seq_name + ":" + scan_param[0]
                 scannable = scan.Scannable(default=scan.RangeScan(*scan_param[1:]))
                 self.multi_scannables[seq_name].update(
                     {scan_param[0]: self.get_argument(scan_name, scannable, group=seq_name)})
+            self.selected_scan[seq_name] = self.get_argument(seq_name + "-Scan_Selection", 
+                                                EnumerationValue(scan_names), group=seq_name)
         self.setup()
 
         # Load all AD9910 and AD9912 DDS channels specified in device_db:
+        self.dds_names = list()
+        self.dds_offsets = list()
+        self.dds_dp_flags = list()
         for key, val in self.get_device_db().items():
             if isinstance(val, dict) and "class" in val:
                 if val["class"] == "AD9910" or val["class"] == "AD9912":
                     setattr(self, "dds_" + key, self.get_device(key))
+                    try:
+                        self.dds_offsets.append(float(dds_config[key].offset))
+                        self.dds_dp_flags.append(float(dds_config[key].double_pass))
+                        self.dds_names.append(key)
+                    except KeyError:
+                        continue
         self.cpld_list = [self.get_device("urukul{}_cpld".format(i)) for i in range(3)]
 
     def prepare(self):
@@ -141,28 +150,36 @@ class PulseSequence(EnvExperiment):
         scan_specs = dict()
         self.set_dataset("time", [])
         for seq_name, scan_dict in self.multi_scannables.items():
-            scan_specs[seq_name] = [len(scan) for scan in scan_dict.values()]
+            if self.is_ndim:
+                scan_specs[seq_name] = [len(scan) for scan in scan_dict.values()]
+            else:
+                scan_specs[seq_name] = [len(scan_dict[self.selected_scan[seq_name]])]
         self.rm = self.p.StateReadout.readout_mode
         self.set_dataset("raw_run_data", np.full(N, np.nan))
 
+        self.camera_string_states = []
         if self.rm in ["pmt", "pmt_parity"]:
             self.use_camera = False
             self.n_ions = len(self.p.StateReadout.threshold_list)
             for seq_name, dims in scan_specs.items():
-                if len(dims) == 1:
+                if not self.is_ndim:
                 # Currently not supporting any default plotting for (n>1)-dim scans
                     for i in range(self.n_ions):
                         setattr(self, "{}-dark_ions:{}".format(seq_name, i), np.full(dims, np.nan))
                     if self.rm == "pmt_parity":
                         setattr(self, seq_name + "-parity", np.full(dims, np.nan))
-                    x_array = np.array(list(list(self.multi_scannables[seq_name].values())[0]))
-                    self.x_label[seq_name] = [self.scan_params[seq_name][0][0][0]]
+                    x_array = np.array(list(self.multi_scannables[seq_name][self.selected_scan[seq_name]]))
+                    self.x_label[seq_name] = [self.selected_scan[seq_name]]
                     f = seq_name + "-" if len(self.scan_params) > 1 else ""
                     f += self.x_label[seq_name][0]
                     setattr(self, f, x_array)
+                    if (self.rcg_tabs[seq_name] in absolute_frequency_plots 
+                        and not self.p.Display.relative_frequencies):
+                        self.set_dataset(seq_name + "-raw_x_data", [], broadcast=True)
                 else:
-                    self.x_label[seq_name] = [element[0] for element in self.scan_params[seq_name][0]]
-                    dims = [mul(*dims), len(dims)]
+                    raise NotImplementedError("Ndim scans with PMT not implemented yet")
+                    # self.x_label[seq_name] = [element[0] for element in self.scan_params[seq_name][0]]
+                    # dims = [mul(*dims), len(dims)]
                 dims.append(N)
                 self.set_dataset("{}-raw_data".format(seq_name), np.full(dims, np.nan), broadcast=True)
                 self.timestamp[seq_name] = None
@@ -171,7 +188,7 @@ class PulseSequence(EnvExperiment):
             self.use_camera = True
             self.n_ions = int(self.p.IonsOnCamera.ion_number)
             for seq_name, dims in scan_specs.items():
-                if len(dims) == 1:
+                if not self.is_ndim:
                 # Currently not supporting any default plotting for (n>1)-dim scans
                     self.average_confidences = np.full(dims, np.nan)
                     if self.rm == "camera":
@@ -184,10 +201,13 @@ class PulseSequence(EnvExperiment):
                         if self.rm == "camera_parity":
                             setattr(self, "{}-parity".format(seq_name), np.full(dims, np.nan))
                     x_array = np.array(list(list(self.multi_scannables[seq_name].values())[0]))
-                    self.x_label[seq_name] = [self.scan_params[seq_name][0][0][0]]
+                    self.x_label[seq_name] = [self.selected_scan[seq_name]]
                     f = seq_name + "-" if len(self.scan_params) > 1 else ""
                     f += self.x_label[seq_name][0]
                     setattr(self, f, x_array)
+                    if (self.rcg_tabs[seq_name] in absolute_frequency_plots
+                        and not self.p.Display.relative_frequencies):
+                        self.set_dataset(seq_name + "-raw_x_data", [], broadcast=True)
                 else:
                     raise NotImplementedError("Ndim scans with camera not implemented yet")
                     # self.x_label[seq_name] = [element[0] for element in self.scan_params[seq_name][0]]
@@ -200,6 +220,19 @@ class PulseSequence(EnvExperiment):
                                 datetime.now().strftime("%Y-%m-%d"), type(self).__name__)
         os.makedirs(self.dir, exist_ok=True)
         os.chdir(self.dir)
+
+        # Lists to keep track of current line calibrations
+        self.carrier_names = ["S+1/2D-3/2",
+                              "S-1/2D-5/2",
+                              "S+1/2D-1/2",
+                              "S-1/2D-3/2",
+                              "S+1/2D+1/2",
+                              "S-1/2D-1/2",
+                              "S+1/2D+3/2",
+                              "S-1/2D+1/2",
+                              "S+1/2D+5/2",
+                              "S-1/2D+3/2"]
+        self.carrier_values = self.update_carriers()
 
         self.run_initially()
 
@@ -214,27 +247,37 @@ class PulseSequence(EnvExperiment):
         for seq_name, scan_dict in self.multi_scannables.items():
             self.variable_parameter_names = list()
             self.variable_parameter_values = list()
-            scanned_params = set(self.x_label[seq_name])
+            self.parameter_names = list()
+            self.parameter_values = list()
+            scanned_params = set(scan_dict.keys())
             all_accessed_params = self.accessed_params | scanned_params
             self.kernel_invariants = set()
+            for mode_name, frequency in self.p.TrapFrequencies.items():
+                self.kernel_invariants.update({mode_name})
+                setattr(self, mode_name, frequency)
+            abs_freqs = True if self.rcg_tabs[seq_name] in absolute_frequency_plots else False
+            setattr(self, "abs_freqs", abs_freqs)
+            setattr(self, "seq_name", seq_name)
+            self.current_x_value = 902039809834.2
+            self.kernel_invariants.update({"dds_names", "dds_offsets", 
+                                           "dds_dp_flags", "seq_name", "abs_freqs"})
             for param_name in all_accessed_params:
                 collection, key = param_name.split(".")
                 param = self.p[collection][key]
                 new_param_name = param_name.replace(".", "_")
-                if (type(param) is (float or int) and 
-                    param_name in scanned_params):
+                if (type(param) is (float or int)) and (param_name in scanned_params):
                     self.variable_parameter_names.append(new_param_name)
                     self.variable_parameter_values.append(list(scan_dict[param_name])[0])
                 else:
+                    self.parameter_names.append(param_name)
+                    self.parameter_values.append(param)
                     self.kernel_invariants.update({new_param_name})
                     setattr(self, new_param_name, param)
             current_sequence = getattr(self, seq_name)
-            if len(scan_dict) == 1:
-                is_ndim = False
-                scan_iterable = list(list(scan_dict.values())[0])
+            if not self.is_ndim:
+                scan_iterable = list(scan_dict[self.selected_scan[seq_name]])
                 ndim_iterable = [[0]]
             else:
-                is_ndim = True
                 ms_list = [list(x) for x in scan_dict.values()]
                 ndim_iterable = list(map(list, list(product(*ms_list))))  # list city
                 scan_iterable = [0]
@@ -248,8 +291,8 @@ class PulseSequence(EnvExperiment):
                 readout_duration = self.p.StateReadout.pmt_readout_duration
             while self.run_looper:
                 self.looper(current_sequence, self.N, linetrigger, linetrigger_offset, scan_iterable,
-                            self.rm, readout_duration, seq_name, is_multi, self.n_ions, is_ndim, scan_names,
-                            ndim_iterable, self.start_point1, self.start_point2, self.use_camera)
+                        self.rm, readout_duration, seq_name, is_multi, self.n_ions, self.is_ndim, scan_names, 
+                        ndim_iterable, self.start_point1, self.start_point2, self.use_camera)
                 if self.scheduler.check_pause():
                     try:
                         self.core.comm.close()
@@ -293,7 +336,6 @@ class PulseSequence(EnvExperiment):
                         self.set_start_point(1, i)
                         self.set_start_point(2, j)
                         break
-                    # setter(scan_names[j], ndim_iterable[i][j])
                     for k in range(reps):
                         if linetrigger:
                             self.line_trigger(linetrigger_offset)
@@ -326,9 +368,10 @@ class PulseSequence(EnvExperiment):
                 else:
                     self.core.break_realtime()
                 sequence()
-                delay(1*ms)  # Why this is needed is a mystery, probably has something
-                             # to do with zero-duration methods in sequence() but also
-                             # empirically depends on camera settings.
+                if use_camera:
+                    delay(1*ms)  # Why this is needed is a mystery, probably has something
+                                 # to do with zero-duration methods in sequence() but also
+                                 # empirically depends on camera settings.
                 if not use_camera:
                     pmt_count = self.pmt_readout(readout_duration)
                     self.record_result("raw_run_data", j, pmt_count)
@@ -349,7 +392,7 @@ class PulseSequence(EnvExperiment):
             rem = (i + 1) % 5
             if rem == 0:
                 edge = True if (i + 1) == len(scan_iterable) else False
-                self.update_carriers()
+                self.update_carriers_on_kernel(self.update_carriers())
                 if not use_camera:
                     self.save_result(seq_name, is_multi, xdata=True, i=i, edge=edge)
                     self.send_to_hist(seq_name, i, edge=edge)
@@ -386,12 +429,12 @@ class PulseSequence(EnvExperiment):
                 if readout_mode == "camera":
                     for k in range(number_of_ions):
                         self.save_result(seq_name + "-ion number:", is_multi, i=i, 
-                                        index=k, edge=edge)
+                                        index=k, edge=True)
                 else:
                     for state in self.camera_string_states:
-                        self.save_result(seq_name + "-" + state, is_multi, i=i, edge=edge)
+                        self.save_result(seq_name + "-" + state, is_multi, i=i, edge=True)
                     if readout_mode == "camera_parity":
-                        self.save_result(seq_name + "-parity", is_multi, i=i, edge=edge)
+                        self.save_result(seq_name + "-parity", is_multi, i=i, edge=True)
 
     def set_start_point(self, point, i):
         if point == 1:
@@ -408,9 +451,12 @@ class PulseSequence(EnvExperiment):
         thresholds = self.p.StateReadout.threshold_list
         name = seq_name + "-dark_ions:{}"
         idxs = [0]
-        x = getattr(self,
-                seq_name + "-" + self.x_label[seq_name][0]
-                if is_multi else self.x_label[seq_name][0])[:i + 1]
+        if self.abs_freqs:
+            x = [i * 1e-6 for i in self.get_dataset(seq_name + "-raw_x_data")]
+        else:
+            x = getattr(self,
+                    seq_name + "-" + self.x_label[seq_name][0]
+                    if is_multi else self.x_label[seq_name][0])[:i + 1]
         for threshold in thresholds:
             idxs.append(bisect(data, threshold))
         idxs.append(self.N)
@@ -443,9 +489,12 @@ class PulseSequence(EnvExperiment):
         ion_state, camera_readout, confidences = readouts.camera_ion_probabilities(images,
                                                         self.N, self.p.IonsOnCamera, readout_mode)
         self.average_confidences[i] = np.mean(confidences)
-        x = getattr(self,
-                seq_name + "-" + self.x_label[seq_name][0]
-                if is_multi else self.x_label[seq_name][0])[:i + 1]
+        if self.abs_freqs:
+            x = [i * 1e-6 for i in self.get_dataset(seq_name + "-raw_x_data")]
+        else:
+            x = getattr(self,
+                    seq_name + "-" + self.x_label[seq_name][0]
+                    if is_multi else self.x_label[seq_name][0])[:i + 1]
         if readout_mode == "camera":
             name = seq_name + "-ion number:{}"
             for k in range(self.n_ions):
@@ -503,17 +552,17 @@ class PulseSequence(EnvExperiment):
 
     @kernel
     def get_variable_parameter(self, name) -> TFloat:
-        # return 1*ms
         value = 0.
         for i in list(range(len(self.variable_parameter_names))):
             if name == self.variable_parameter_names[i]:
                 value = self.variable_parameter_values[i]
                 break
         else:
-            exc = name + " is not a scannable parameter!"
+            exc = name + " is not a scannable parameter."
             self.host_exception(exc)  
         return value
 
+    
     @kernel
     def set_variable_parameter(self, name, value):
         for i in list(range(len(self.variable_parameter_names))):
@@ -546,6 +595,10 @@ class PulseSequence(EnvExperiment):
         self.mutate_dataset(dataset, idx, val)
 
     @rpc(flags={"async"})
+    def append_result(self, dataset, val):
+        self.append_to_dataset(dataset, val)
+
+    @rpc(flags={"async"})
     def update_raw_data(self, seq_name, i):
         raw_run_data = self.get_dataset("raw_run_data")
         self.record_result(seq_name + "-raw_data", i, raw_run_data)
@@ -560,7 +613,10 @@ class PulseSequence(EnvExperiment):
                 x_label = self.x_label[name][0]
             except:
                 x_label = "x"
-            data = getattr(self, seq_name + "-" + x_label if is_multi else x_label)
+            if self.abs_freqs:
+                data = np.array([i * 1e-6 for i in self.get_dataset(seq_name + "-raw_x_data")])
+            else:
+                data = getattr(self, seq_name + "-" + x_label if is_multi else x_label)
             if not edge:
                 data = data[i - 4:i + 1] if i else data
             else:
@@ -582,8 +638,9 @@ class PulseSequence(EnvExperiment):
                 if xdata:
                     data.attrs["x-axis"] = True
                 return
-            datagrp[dataset].resize(datagrp[dataset].shape[0] + data.shape[0], axis=0)
-            datagrp[dataset][-data.shape[0]:] = data
+            if not xdata or self.abs_freqs:
+                datagrp[dataset].resize(datagrp[dataset].shape[0] + data.shape[0], axis=0)
+                datagrp[dataset][-data.shape[0]:] = data
 
     @rpc(flags={"async"})
     def send_to_hist(self, seq_name, i, edge=False):
@@ -597,41 +654,57 @@ class PulseSequence(EnvExperiment):
                 data = data[i - 4:]
         self.pmt_hist.plot(data.flatten())
 
-    @rpc(flags={"async"})
-    def update_carriers(self):
+    @kernel
+    def calc_frequency(self, line, detuning, 
+                    sideband=0., order=0, dds="", bound_param="") -> TFloat:
+        relative_display = self.Display_relative_frequencies
+        freq = detuning
+        abs_freq = 0.
+        for i in range(10):
+            if line == self.carrier_names[i]:
+                freq = self.carrier_values[i] + detuning
+                freq += sideband * order
+                abs_freq = freq
+                break
+        if dds != "":
+            for i in range(len(self.dds_names)):
+                if dds == self.dds_names[i]:
+                    freq += self.dds_offsets[i]
+                    if self.dds_dp_flags[i]:
+                        freq /= 2
+        if self.current_x_value == abs_freq:
+            return freq
+        else:
+            self.current_x_value = abs_freq
+        if self.abs_freqs and bound_param != "" and not relative_display:
+            for i in list(range(len(self.variable_parameter_names))):
+                if bound_param == self.variable_parameter_names[i]:
+                    self.append_result(self.seq_name + "-raw_x_data", abs_freq)
+                    break
+        return freq
+    
+    # @rpc(flags={"async"})  Can't use async call if function returns non-None value
+    def update_carriers(self) -> TList(TFloat):
         current_lines = self.sd_tracker.get_current_lines(dt_config.client_name)
-        d = dict()
+        _list = [0.] * 10
         for carrier, frequency in current_lines:
             units = frequency.units
-            d[self.carrier_translation[carrier]] = frequency[units] * self.G[units]
-        self.p["Carriers"] = d
+            abs_freq = frequency[units] * self.G[units]
+            for i in range(10):
+                if carrier == self.carrier_names[i]:
+                    _list[i] = abs_freq
+                    break
+        return _list
+
+    @kernel
+    def update_carriers_on_kernel(self, new_carrier_values):
+        for i in list(range(10)):
+            self.carrier_values[i] = new_carrier_values[i]
 
     def prepare_camera(self):
         self.camera.abort_acquisition()
         self.camera.set_number_kinetics(self.N)
         self.camera.start_acquisition()
-
-    def calculate_spectrum_shift(self):
-        shift = 0
-        trap = self.p.TrapFrequencies
-        sideband_selection = self.p.Spectrum.sideband_selection
-        sideband_frequencies = [trap.radial_frequency_1, trap.radial_frequency_2,
-                                trap.axial_frequency, trap.rf_drive_frequency]
-        for order, sideband_frequency in zip(sideband_selection, sideband_frequencies):
-            shift += order * sideband_frequency
-        return shift
-
-    # def add_sequence(self, subsequence, replacement_parameters={}):
-    #     new_parameters = self.p.copy()
-    #     for key, val in replacement_parameters.items():
-    #         collection, parameter = key.split(".")
-    #         new_parameters[collection].update({parameter: val})
-    #     subsequence.p = edict(new_parameters)
-    #     subsequence(self).run()
-
-    @kernel
-    def add_sequence(self):
-        pass
 
     def initialize_camera(self):
         camera = self.cxn.andor_server
@@ -677,6 +750,11 @@ class PulseSequence(EnvExperiment):
             self.pmt_hist.close_rpc()
         except:
             pass
+
+    @classmethod
+    def initialize_parameters(cls):
+        for class_ in EnvExperiment.__subclasses__():
+            cls.accessed_params.update(class_.accessed_params)
 
     def setup(self):
         pass

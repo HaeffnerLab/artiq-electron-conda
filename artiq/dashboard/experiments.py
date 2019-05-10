@@ -49,7 +49,7 @@ class _ArgumentEditor(QtWidgets.QTreeWidget):
             set_resize_mode = self.header().setResizeMode
         set_resize_mode(0, QtWidgets.QHeaderView.ResizeToContents)
         set_resize_mode(1, QtWidgets.QHeaderView.Stretch)
-        set_resize_mode(2, QtWidgets.QHeaderView.ResizeToContents)
+        # set_resize_mode(2, QtWidgets.QHeaderView.ResizeToContents)
         self.header().setVisible(False)
         self.setSelectionMode(self.NoSelection)
         self.setHorizontalScrollMode(self.ScrollPerPixel)
@@ -393,6 +393,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
             d_accessed_parameter_editor.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
             d_accessed_parameter_editor.setTitleBarWidget(QtGui.QWidget()) # hides title bar
             self.layout.addWidget(d_accessed_parameter_editor, 4, 0, 1, -1)
+            self.layout.setRowStretch(0, 10) 
 
     def submit_clicked(self):
         try:
