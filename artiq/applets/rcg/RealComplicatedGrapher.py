@@ -69,7 +69,7 @@ class rcgDock(QDockWidgetCloseDetect):
             return self.rcg.tabs[name]
         
         def plot(self, x, y, tab_name="Current", plot_name=None, 
-                 plot_title="new_plot", append=False, file_=None):
+                 plot_title="new_plot", append=False, file_=None, range_guess=None):
             if plot_name is None:
                 plot_name = tab_name
             idx = self.rcg.tabs[tab_name]
@@ -89,7 +89,7 @@ class rcgDock(QDockWidgetCloseDetect):
                         i += 1
             try:
                 self.rcg.widget(idx).gw_dict[plot_name].add_plot_item(plot_title, 
-                                                                x, y, append=append, file_=file_)
+                                                    x, y, append=append, file_=file_, range_guess=range_guess)
             except AttributeError:
                 # curve not currently displayed on graph
                 return
@@ -428,7 +428,7 @@ class graphWindow(QtWidgets.QWidget):
         msg.exec_()
 
     def add_plot_item(self, name, x, y, over_ride_show_points=None, 
-                      append=False, file_=None):
+                      append=False, file_=None, range_guess=None):
         if name in self.items.keys() and not append:
             return
         if over_ride_show_points is not None:
@@ -443,7 +443,7 @@ class graphWindow(QtWidgets.QWidget):
             item = treeItem(self, name, x, y, self.pg, color, show_points, file_=file_)
             self.items[name] = item
             self.tw.addTopLevelItem(item)
-
+        
         if not self.autoscroll_enabled:
             return item
         try:
@@ -477,6 +477,10 @@ class graphWindow(QtWidgets.QWidget):
         except AttributeError:
             # curve is not currently displayed on graph
             pass
+
+        if range_guess is not None:
+            self.pg.setXRange(*range_guess)
+
         return item
 
     def mouse_moved(self, pos):
