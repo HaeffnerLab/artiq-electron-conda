@@ -431,7 +431,11 @@ class PulseSequence(EnvExperiment):
 
             rem = (i + 1) % 5
             if rem == 0:
-                edge = True if (i + 1) == len(scan_iterable) else False
+                if (i + 1) == len(scan_iterable):
+                    edge = True
+                    i = 4
+                else:
+                    edge = False
                 self.update_carriers_on_kernel(self.update_carriers())
                 if not use_camera:
                     self.save_result(seq_name, is_multi, xdata=True, i=i, edge=edge)
@@ -662,30 +666,37 @@ class PulseSequence(EnvExperiment):
                 data = np.array([i * 1e-6 for i in self.get_dataset(seq_name + "-raw_x_data")])
             else:
                 data = getattr(self, seq_name + "-" + x_label if is_multi else x_label)
-            if not edge:
-                data = data[i - 4:i + 1] if i else data
-            else:
-                data = data[-i:]
+            # if not edge:
+            #     data = data[i - 4:i + 1] if i != "" else data
+            # else:
+            #     data = data[-i:]
+            #     print("XI: ", i)
             dataset = self.x_label[name][0]
         else:
             data = getattr(self, name)
-            if not edge:
-                data = data[i - 4:i + 1] if i else data
-            else:
-                data = data[-i:]
+            # if not edge:
+            #     data = data[i - 4:i + 1] if i != "" else data
+            # else:
+            #     print("YI: ", i)
+            #     data = data[-i:]
             dataset = name
         with h5.File(self.filename[seq_name], "a") as f:
             datagrp = f["scan_data"]
             try:
-                datagrp[dataset]
-            except KeyError:
-                data = datagrp.create_dataset(dataset, data=data, maxshape=(None,))
-                if xdata:
-                    data.attrs["x-axis"] = True
-                return
-            if not xdata or self.abs_freqs:
-                datagrp[dataset].resize(datagrp[dataset].shape[0] + data.shape[0], axis=0)
-                datagrp[dataset][-data.shape[0]:] = data
+                del datagrp[dataset]
+            except:
+                pass
+            data = datagrp.create_dataset(dataset, data=data, maxshape=(None,))
+            if xdata:
+                data.attrs["x-axis"] = True
+                # return
+            # if not xdata or self.abs_freqs:
+                # print("1shape: ", datagrp[dataset].shape[0])
+                # print("2shape: ", data.shape[0])
+                # datagrp[dataset].resize(datagrp[dataset].value.shape[0] + data.shape[0], axis=0)
+                # datagrp[dataset][-data.shape[0]:] = data
+                # datagrp[dataset][...] = data
+            # print("DATA: ", data.shape[0], "\n")
 
     @rpc(flags={"async"})
     def send_to_hist(self, seq_name, i, edge=False):
