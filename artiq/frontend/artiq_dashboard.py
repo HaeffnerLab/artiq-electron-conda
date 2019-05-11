@@ -61,6 +61,7 @@ def get_argparser():
 class TabWidget(QtWidgets.QTabWidget):
     def __init__(self):
         QtWidgets.QTabWidget.__init__(self)
+        self.setFocusPolicy(0)
         self.exit_request = asyncio.Event()
         self.setObjectName("MainTabs")
 

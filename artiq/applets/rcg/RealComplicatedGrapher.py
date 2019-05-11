@@ -104,6 +104,7 @@ class rcgDock(QDockWidgetCloseDetect):
 class RCG(PyQt5.QtWidgets.QTabWidget):
     def __init__(self):
         PyQt5.QtWidgets.QTabWidget.__init__(self)
+        self.setFocusPolicy(0)
         self.tabs = dict()
         for name, graphconfigs in conf.tab_configs:
             idx = self.addTab(graphTab(graphconfigs), name)
