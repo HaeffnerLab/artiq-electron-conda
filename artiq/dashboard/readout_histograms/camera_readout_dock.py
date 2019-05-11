@@ -91,7 +91,10 @@ class CameraReadoutDock(QtWidgets.QDockWidget):
                     param_result = param_result.split(".")
                     param_result1 = param_result[1].split("(")
                     param_result[1] = param_result1[0][:3] + "("
-                    param_result[2] = param_result[2][:3]
+                    try:
+                        param_result[2] = param_result[2][:3]
+                    except IndexError:
+                        pass
                     param_result = ".".join(param_result) 
                     param_result += ")"
                     param_results[i] = param_result
