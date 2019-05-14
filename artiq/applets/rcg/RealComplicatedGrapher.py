@@ -71,7 +71,13 @@ class rcgDock(QDockWidgetCloseDetect):
         def plot(self, x, y, tab_name="Current", plot_name=None, 
                  plot_title="new_plot", append=False, file_=None, range_guess=None):
             if plot_name is None:
-                plot_name = tab_name
+                # need to clean this up
+                for tab, graph_configs in conf.tab_configs:
+                    for gc in graph_configs:
+                        if gc.name == tab_name:
+                            plot_name = tab_name
+                            tab_name = tab
+                            break
             idx = self.rcg.tabs[tab_name]
             if type(x) is np.ndarray:
                 x = x[~np.isnan(x)]
@@ -146,7 +152,8 @@ class graphTab(QtWidgets.QWidget):
                             with h5py.File(h5file, "r") as f:
                                 plot = f["scan_data"].attrs["plot_show"]
                             self.gw_dict[plot].upload_curve(file_=h5file, checked=autocheck, startup=True)
-                        except:
+                        except Exception as e:
+                            # print("ECCEPTION: ", e)
                             continue
 
 
@@ -321,7 +328,6 @@ class graphWindow(QtWidgets.QWidget):
             if not startup:
                 self.warning_message("Can't determine which plot to embed in.")
             return
-
         ylist = []
         for key in data.keys():
             try:
