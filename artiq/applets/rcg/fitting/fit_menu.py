@@ -57,6 +57,7 @@ class fitMenu(QtWidgets.QWidget):
             checkbox.setCheckState(2)
             self.tw.setItemWidget(child, 0, checkbox)
             guess = QtWidgets.QDoubleSpinBox()
+            guess.setDecimals(4)
             guess.setMaximum(1e10)
             guess.setMinimum(-1e10)
             if p0 is not None:
