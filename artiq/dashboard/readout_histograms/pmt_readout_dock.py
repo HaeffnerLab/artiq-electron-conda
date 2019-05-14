@@ -61,8 +61,9 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
                         bar.remove()
                     except ValueError as e:
                         continue
-            _, _, self.hist.hist = self.hist.ax.hist(data, bins="auto", histtype="bar", rwidth=0.9,
+            _, _, self.hist.hist = self.hist.ax.hist(data, bins=35, histtype="bar", rwidth=1,
                                                      edgecolor="k", linewidth=1.2)
+            self.hist.ax.set_xlim(left=0)
             self.hist.canvas.draw()
             self.hist.ax.relim()
             self.hist.ax.autoscale(enable=True, axis="both")
@@ -83,8 +84,8 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
         self.ax = self.fig.add_subplot(111)
         self.ax.set_ylim((0, 50))
         self.ax.set_facecolor((.97,.96,.96))
-        self.ax.tick_params(top="off", bottom="off", left="off", right="off", 
-                            labeltop="on", labelbottom="on", labelleft="on", labelright="on")
+        self.ax.tick_params(top=False, bottom=False, left=False, right=False, 
+                            labeltop=True, labelbottom=True, labelleft=True, labelright=True)
         self.mpl_toolbar = NavigationToolbar2QT(self.canvas, self)
         self.fig.tight_layout()
         self.canvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
