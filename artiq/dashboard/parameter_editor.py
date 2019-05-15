@@ -198,7 +198,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                     region_all_params_item.addChild(collection_item)
                     self.collection_widget_items[1][collection] = collection_item
 
-        self.table.setColumnWidth(0, 350)
+        self.table.setColumnWidth(0, 225)
         self.table.setColumnWidth(1, 150)
         self.table.header().setFocusPolicy(QtCore.Qt.NoFocus)
 
