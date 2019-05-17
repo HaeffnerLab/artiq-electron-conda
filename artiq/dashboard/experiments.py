@@ -238,8 +238,8 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         top_widget = QtWidgets.QWidget()
         top_widget.setLayout(self.layout)
         self.setWidget(top_widget)
-        self.layout.setSpacing(5)
-        self.layout.setContentsMargins(5, 5, 5, 5)
+        self.layout.setSpacing(1)
+        self.layout.setContentsMargins(1, 1, 1, 1)
 
         self.manager = manager
         self.expurl = expurl
@@ -392,8 +392,10 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
                                                                            accessed_params=accessed_params)
             d_accessed_parameter_editor.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
             d_accessed_parameter_editor.setTitleBarWidget(QtGui.QWidget()) # hides title bar
-            self.layout.addWidget(d_accessed_parameter_editor, 4, 0, 1, -1)
-            self.layout.setRowStretch(0, 10) 
+            self.layout.addWidget(d_accessed_parameter_editor, 0, 5, -1, 1)
+            self.layout.setColumnStretch(5, 2)
+            self.layout.setColumnMinimumWidth(5,250)
+            self.layout.setRowStretch(0, 10)
 
     def submit_clicked(self):
         try:
