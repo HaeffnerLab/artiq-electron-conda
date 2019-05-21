@@ -455,7 +455,7 @@ class graphWindow(QtWidgets.QWidget):
 
         
         try:
-t            (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.pg.viewRange()
+            (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.pg.viewRange()
             max_x, min_y, max_y = None, None, None
             for item in self.items.values():
                 localxmax = item.plot_item.dataBounds(0)[-1]
