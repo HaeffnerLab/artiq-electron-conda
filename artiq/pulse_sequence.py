@@ -18,6 +18,7 @@ from bisect import bisect
 from collections import OrderedDict as odict
 from itertools import product
 from operator import mul
+from functools import partial
 from HardwareConfiguration import dds_config
 
 
@@ -30,6 +31,7 @@ class PulseSequence(EnvExperiment):
     accessed_params = {"Display.relative_frequencies"}
     kernel_invariants = set()
     scan_params = odict()  # Not working as expected
+    range_guess = dict()
 
     def build(self):
         self.setattr_device("core")
@@ -239,10 +241,8 @@ class PulseSequence(EnvExperiment):
         self.run_initially()
 
     def run(self):
-        # self.core.reset()
         if self.rm in ["camera", "camera_states", "camera_parity"]:
             self.initialize_camera()
-        self.turn_off_all()
         linetrigger = self.p.line_trigger_settings.enabled
         linetrigger_offset = float(self.p.line_trigger_settings.offset_duration)
         linetrigger_offset = self.core.seconds_to_mu((16 + linetrigger_offset)*ms)
@@ -355,7 +355,8 @@ class PulseSequence(EnvExperiment):
     @kernel
     def line_trigger(self, offset):
         # Phase lock to mains
-        self.core.break_realtime()
+        # self.core.break_realtime()
+        self.core.reset()
         t_gate = self.linetrigger_ttl.gate_rising(16*ms)
         trigger_time = self.linetrigger_ttl.timestamp_mu(t_gate)
         at_mu(trigger_time + offset)
@@ -364,6 +365,7 @@ class PulseSequence(EnvExperiment):
     def looper(self, sequence, reps, linetrigger, linetrigger_offset, scan_iterable,
                readout_mode, readout_duration, seq_name, is_multi, number_of_ions,
                is_ndim, scan_names, ndim_iterable, start1, start2, use_camera):
+        self.turn_off_all()
         if is_ndim:
             for i in list(range(len(ndim_iterable)))[start1:]:
                 if self.scheduler.check_pause():
@@ -495,15 +497,17 @@ class PulseSequence(EnvExperiment):
         thresholds = self.p.StateReadout.threshold_list
         name = seq_name + "-dark_ions:{}"
         idxs = [0]
-        scanned_x = x = getattr(self,
+        scanned_x = getattr(self,
                     seq_name + "-" + self.x_label[seq_name][0]
                     if is_multi else self.x_label[seq_name][0])[:i + 1]
         if self.abs_freqs and not self.p.Display.relative_frequencies:
             x = [i * 1e-6 for i in self.get_dataset(seq_name + "-raw_x_data")]
-            range_guess = x[0], x[0] + scanned_x[-1] * 1e-6
+            if seq_name not in self.range_guess.keys():
+                self.range_guess[seq_name] = [x[0], x[0] - scanned_x[-1] * 1e-6]
         else:
             x = scanned_x
-            range_guess = x[0], x[-1]
+            if seq_name not in self.range_guess.keys():
+                self.range_guess[seq_name] = x[0], x[-1]
         for threshold in thresholds:
             idxs.append(bisect(data, threshold))
         idxs.append(self.N)
@@ -519,11 +523,11 @@ class PulseSequence(EnvExperiment):
             else:
                 parity -= dataset[i]
             self.save_and_send_to_rcg(x, dataset[:i + 1],
-                                      name.split("-")[-1].format(k), seq_name, is_multi, range_guess)
+                                      name.split("-")[-1].format(k), seq_name, is_multi, self.range_guess[seq_name])
         if with_parity:
             dataset = getattr(self, seq_name + "-parity")
             dataset[i] = parity
-            self.save_and_send_to_rcg(x, dataset[:i + 1], "parity", seq_name, is_multi, range_guess)
+            self.save_and_send_to_rcg(x, dataset[:i + 1], "parity", seq_name, is_multi, self.range_guess[seq_name])
 
     # Need this to be a blocking call
     def update_camera(self, seq_name, i, is_multi, readout_mode):
@@ -536,33 +540,36 @@ class PulseSequence(EnvExperiment):
         ion_state, camera_readout, confidences = readouts.camera_ion_probabilities(images,
                                                         self.N, self.p.IonsOnCamera, readout_mode)
         self.average_confidences[i] = np.mean(confidences)
-        scanned_x = x = getattr(self,
+        scanned_x = getattr(self,
                     seq_name + "-" + self.x_label[seq_name][0]
                     if is_multi else self.x_label[seq_name][0])[:i + 1]
         if self.abs_freqs and not self.p.Display.relative_frequencies:
             x = [i * 1e-6 for i in self.get_dataset(seq_name + "-raw_x_data")]
-            range_guess = x[0], x[0] + scanned_x[-1] * 1e-6
+            if seq_name not in self.range_guess.keys():
+                self.range_guess[seq_name] = x[0], x[0] - scanned_x[-1] * 1e-6
         else:
             x = scanned_x
-            range_guess = x[0], x[-1]
+            if seq_name not in self.range_guess.keys():
+                self.range_guess[seq_name] = x[0], x[-1]
         if readout_mode == "camera":
             name = seq_name + "-ion number:{}"
             for k in range(self.n_ions):
                 dataset = getattr(self, name.format(k))
                 dataset[i] = ion_state[k]
                 self.save_and_send_to_rcg(x, dataset[:i + 1],
-                                        name.split("-")[-1].format(k), seq_name, is_multi, range_guess)
+                    name.split("-")[-1].format(k), seq_name, is_multi, self.range_guess[seq_name])
         elif readout_mode == "camera_states" or readout_mode == "camera_parity":
             name = seq_name + "-{}"
             for k, state in enumerate(self.camera_states_repr(self.n_ions)):
                 dataset = getattr(self, name.format(state))
                 dataset[i] = ion_state[k]
                 self.save_and_send_to_rcg(x, dataset[:i + 1],
-                                        name.split("-")[-1].format(state), seq_name, is_multi, range_guess)
+                    name.split("-")[-1].format(state), seq_name, is_multi, self.range_guess[seq_name])
             if readout_mode == "camera_parity":
                 dataset = getattr(self, seq_name + "-parity")
                 dataset[i] = ion_state[-1]
-                self.save_and_send_to_rcg(x, dataset[:i + 1], "parity", seq_name, is_multi, range_guess)
+                self.save_and_send_to_rcg(x, dataset[:i + 1], "parity", 
+                                          seq_name, is_multi, self.range_guess[seq_name])
 
     @rpc(flags={"async"})
     def save_and_send_to_rcg(self, x, y, name, seq_name, is_multi, range_guess=None):
@@ -629,15 +636,18 @@ class PulseSequence(EnvExperiment):
         for cpld in self.cpld_list:
             cpld.init()
         self.core.break_realtime()
-        with parallel:
-            for i in range(len(dds_list)):
+        for i in range(len(dds_list)):
+            try:
                 dds_list[i].init()
-                dds_list[i].set(freq_list[i], amplitude=amp_list[i])
-                dds_list[i].set_att(att_list[i]*dB)
-                if state_list[i]:
-                    dds_list[i].sw.on()
-                else:
-                    dds_list[i].sw.off()
+            except RTIOUnderflow:
+                self.core.break_realtime()
+                dds_list[i].init()
+            dds_list[i].set(freq_list[i], amplitude=amp_list[i])
+            dds_list[i].set_att(att_list[i]*dB)
+            if state_list[i]:
+                dds_list[i].sw.on()
+            else:
+                dds_list[i].sw.off()
 
     @rpc(flags={"async"})
     def record_result(self, dataset, idx, val):
@@ -693,7 +703,7 @@ class PulseSequence(EnvExperiment):
         self.pmt_hist.plot(data.flatten())
 
     @kernel
-    def calc_frequency(self, line, detuning, 
+    def calc_frequency(self, line, detuning=0., 
                     sideband=0., order=0, dds="", bound_param="") -> TFloat:
         relative_display = self.Display_relative_frequencies
         freq = detuning
@@ -710,16 +720,16 @@ class PulseSequence(EnvExperiment):
                     freq += self.dds_offsets[i]
                     if self.dds_dp_flags[i]:
                         freq /= 2
-        if self.current_x_value == abs_freq:
-            return freq
-        else:
-            self.current_x_value = abs_freq
         if self.abs_freqs and bound_param != "" and not relative_display:
+            if self.current_x_value == abs_freq:
+                return 220*MHz - freq
+            else:
+                self.current_x_value = abs_freq
             for i in list(range(len(self.variable_parameter_names))):
                 if bound_param == self.variable_parameter_names[i]:
                     self.append_result(self.seq_name + "-raw_x_data", abs_freq)
                     break
-        return freq
+        return 220*MHz - freq
     
     # @rpc(flags={"async"})  Can't use async call if function returns non-None value
     def update_carriers(self) -> TList(TFloat):
@@ -793,6 +803,32 @@ class PulseSequence(EnvExperiment):
     def initialize_parameters(cls):
         for class_ in EnvExperiment.__subclasses__():
             cls.accessed_params.update(class_.accessed_params)
+
+    def _set_subsequence_defaults(self, subsequence):
+        d = subsequence.__dict__
+        kwargs = dict()
+        for key, value in d.items():
+            if type(value) == str:
+                try:
+                    c, v = value.split(".")
+                except AttributeError:
+                    continue
+                try:
+                    pv_value = self.p[c][v]
+                except KeyError:
+                    continue
+                try:
+                    pv_value = float(pv_value)
+                except:
+                    pass
+                kwargs[key] = pv_value
+        for key, value in kwargs.items():
+            setattr(subsequence, key, value)
+
+    def add_subsequence(self, subsequence):
+        self._set_subsequence_defaults(subsequence)
+        subsequence.run = kernel(subsequence.subsequence)
+        return subsequence
 
     def setup(self):
         pass
