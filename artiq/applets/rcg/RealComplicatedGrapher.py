@@ -450,27 +450,35 @@ class graphWindow(QtWidgets.QWidget):
             item = treeItem(self, name, x, y, self.pg, color, show_points, file_=file_)
             self.items[name] = item
             self.tw.addTopLevelItem(item)
+            if range_guess is not None:
+                self.pg.setXRange(*range_guess)
+
         
-        if not self.autoscroll_enabled:
-            return item
         try:
-            (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.pg.viewRange()
-            max_x, min_y, max_y = 0, 0, 0
+t            (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.pg.viewRange()
+            max_x, min_y, max_y = None, None, None
             for item in self.items.values():
                 localxmax = item.plot_item.dataBounds(0)[-1]
                 localymin, localymax = item.plot_item.dataBounds(1)
-                if localxmax > max_x:
+                if max_x is None:
                     max_x = localxmax
-                if localymax > max_y:
+                elif localxmax > max_x:
+                    max_x = localxmax
+                if max_y is None:
                     max_y = localymax
-                if localymin < min_y:
+                elif localymax > max_y:
+                    max_y = localymax
+                if min_y is None:
                     min_y = localymin
-            window_width = xmax_cur - xmin_cur
+                elif localymin < min_y:
+                    min_y = localymin
+            window_width = abs(xmax_cur - xmin_cur)
+            if not self.autoscroll_enabled:
+                return item
             if max_x > xmin_cur + window_width:
-                shift = (xmax_cur - xmin_cur) / 2
-                xmin = xmin_cur + shift
-                xmax = xmax_cur + shift
-                limits = [xmin, xmax]
+                shift = window_width / 2
+                xmax = max_x + shift
+                limits = [xmin_cur, xmax]
                 self.pg.setXRange(*limits)
             if max_y > ymax_cur:
                 ymax = max_y
@@ -484,9 +492,6 @@ class graphWindow(QtWidgets.QWidget):
         except AttributeError:
             # curve is not currently displayed on graph
             pass
-
-        if range_guess is not None:
-            self.pg.setXRange(*range_guess)
 
         return item
 
