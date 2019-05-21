@@ -235,8 +235,8 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
             QtWidgets.QStyle.SP_FileDialogContentsView))
 
         self.layout = QtWidgets.QGridLayout()
-        top_widget = QtWidgets.QWidget()
-        top_widget.setLayout(self.layout)
+        top_widget = QtWidgets.QSplitter()
+        top_widget.setHandleWidth(1)
         self.setWidget(top_widget)
         self.layout.setSpacing(1)
         self.layout.setContentsMargins(1, 1, 1, 1)
@@ -392,10 +392,19 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
                                                                            accessed_params=accessed_params)
             d_accessed_parameter_editor.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
             d_accessed_parameter_editor.setTitleBarWidget(QtGui.QWidget()) # hides title bar
-            self.layout.addWidget(d_accessed_parameter_editor, 0, 5, -1, 1)
-            self.layout.setColumnStretch(5, 2)
-            self.layout.setColumnMinimumWidth(5,250)
+            # d_accessed_parameter_editor.setMinimumWidth(500)
+            # self.layout.addWidget(d_accessed_parameter_editor, 0, 5, -1, 1)
+            # self.layout.setColumnStretch(5, 2)
+            # self.layout.setColumnMinimumWidth(5, 150)
             self.layout.setRowStretch(0, 10)
+            self.layout.setHorizontalSpacing(3)
+            widget1 = QtWidgets.QWidget()
+            widget1.setLayout(self.layout)
+            widget1.setContentsMargins(0, 0, 0, 0)
+            widget2 = d_accessed_parameter_editor
+            widget2.setContentsMargins(0, 0, 0, 0)
+            top_widget.addWidget(widget1)
+            top_widget.addWidget(widget2)
 
     def submit_clicked(self):
         try:
