@@ -6,6 +6,7 @@ import csv
 import time
 import sys
 import inspect
+import logging
 from artiq.language import scan
 from artiq.language.core import TerminationRequested
 from artiq.experiment import *
@@ -23,6 +24,7 @@ from HardwareConfiguration import dds_config
 
 
 absolute_frequency_plots = ["CalibLine1", "CalibLine2", "Spectrum"]
+logger = logging.getLogger(__name__)
 
 
 class PulseSequence(EnvExperiment):
@@ -32,6 +34,8 @@ class PulseSequence(EnvExperiment):
     kernel_invariants = set()
     scan_params = odict()  # Not working as expected
     range_guess = dict()
+    data = edict()
+    run_after = dict()
 
     def build(self):
         self.setattr_device("core")
@@ -154,6 +158,7 @@ class PulseSequence(EnvExperiment):
         scan_specs = dict()
         self.set_dataset("time", [])
         for seq_name, scan_dict in self.multi_scannables.items():
+            self.data[seq_name] = dict(x=[], y=[])
             if self.is_ndim:
                 scan_specs[seq_name] = [len(scan) for scan in scan_dict.values()]
             else:
@@ -309,6 +314,13 @@ class PulseSequence(EnvExperiment):
                         self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list,
                                                self.state_list, self.att_list)
                         return
+            try:
+                self.run_after[seq_name]()
+            except KeyError:
+                continue
+            except FitError:
+                logger.error("Fit failed.", exc_info=True)
+                break
         self.set_dataset("raw_run_data", None, archive=False)
         self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list, self.state_list, self.att_list)
 
@@ -677,9 +689,11 @@ class PulseSequence(EnvExperiment):
             else:
                 data = getattr(self, seq_name + "-" + x_label if is_multi else x_label)
             dataset = self.x_label[name][0]
+            self.data[seq_name]["x"] = data  # This will fail for ndim scans
         else:
             data = getattr(self, name)
             dataset = name
+            self.data[seq_name]["y"] = data  # This will fail for ndim scans
         with h5.File(self.filename[seq_name], "a") as f:
             datagrp = f["scan_data"]
             try:
@@ -841,3 +855,7 @@ class PulseSequence(EnvExperiment):
 
     def run_finally(self):
         pass
+
+
+class FitError(Exception):
+    pass
