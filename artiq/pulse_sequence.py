@@ -416,7 +416,6 @@ class PulseSequence(EnvExperiment):
 
         i = 0  # For compiler, always needs a defined value (even when iterable empty)
         for i in list(range(len(scan_iterable)))[start1:]:
-            # self.core.reset()
             if self.scheduler.check_pause():
                 self.set_start_point(1, i)
                 return
@@ -427,8 +426,8 @@ class PulseSequence(EnvExperiment):
             for j in range(reps):
                 if linetrigger:
                     self.line_trigger(linetrigger_offset)
-                # else:
-                #     self.core.break_realtime()
+                else:
+                    self.core.break_realtime()
                 sequence()
                 if use_camera:
                     delay(1*ms)  # Why this is needed is a mystery, probably has something
