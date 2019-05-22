@@ -681,6 +681,7 @@ class LineSelectionEditor(QtWidgets.QComboBox, BaseEditor):
             return
         selected, selections = self.state
         d_selections = dict(selections)
+        self.d_selections = d_selections
         for i, selection in enumerate(d_selections.values()):
             if d_selections[selected] == selection:
                 curr_idx = i
@@ -708,7 +709,7 @@ class LineSelectionEditor(QtWidgets.QComboBox, BaseEditor):
     def update_value(self, val):
         if self.state[0] == val[0]:
             return
-        idx = self.findText(val)
+        idx = self.findText(self.d_selections[val])
         self.setCurrentIndex(idx)
         self.state = val, self.state[1]
 
