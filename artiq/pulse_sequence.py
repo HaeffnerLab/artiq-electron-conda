@@ -250,7 +250,7 @@ class PulseSequence(EnvExperiment):
             self.initialize_camera()
         linetrigger = self.p.line_trigger_settings.enabled
         linetrigger_offset = float(self.p.line_trigger_settings.offset_duration)
-        linetrigger_offset = self.core.seconds_to_mu((16 + linetrigger_offset)*ms)
+        linetrigger_offset = self.core.seconds_to_mu(linetrigger_offset*us)
         is_multi = True if len(self.multi_scannables) > 1 else False
         for seq_name, scan_dict in self.multi_scannables.items():
             self.variable_parameter_names = list()
@@ -367,10 +367,16 @@ class PulseSequence(EnvExperiment):
     @kernel
     def line_trigger(self, offset):
         # Phase lock to mains
-        # self.core.break_realtime()
         self.core.reset()
-        t_gate = self.linetrigger_ttl.gate_rising(16*ms)
-        trigger_time = self.linetrigger_ttl.timestamp_mu(t_gate)
+        trigger_time = -1
+        while True:
+            with parallel:
+                t_gate = self.linetrigger_ttl.gate_rising(1000*us)
+                trigger_time = self.linetrigger_ttl.timestamp_mu(t_gate)
+            if trigger_time == -1:
+                delay(5*us)
+                continue
+            break
         at_mu(trigger_time + offset)
 
     @kernel
@@ -410,6 +416,7 @@ class PulseSequence(EnvExperiment):
 
         i = 0  # For compiler, always needs a defined value (even when iterable empty)
         for i in list(range(len(scan_iterable)))[start1:]:
+            # self.core.reset()
             if self.scheduler.check_pause():
                 self.set_start_point(1, i)
                 return
@@ -420,8 +427,8 @@ class PulseSequence(EnvExperiment):
             for j in range(reps):
                 if linetrigger:
                     self.line_trigger(linetrigger_offset)
-                else:
-                    self.core.break_realtime()
+                # else:
+                #     self.core.break_realtime()
                 sequence()
                 if use_camera:
                     delay(1*ms)  # Why this is needed is a mystery, probably has something
@@ -515,7 +522,10 @@ class PulseSequence(EnvExperiment):
         if self.abs_freqs and not self.p.Display.relative_frequencies:
             x = [i * 1e-6 for i in self.get_dataset(seq_name + "-raw_x_data")]
             if seq_name not in self.range_guess.keys():
-                self.range_guess[seq_name] = [x[0], x[0] - scanned_x[-1] * 1e-6]
+                try:
+                    self.range_guess[seq_name] = [x[0], x[0] - scanned_x[-1] * 1e-6]
+                except IndexError:
+                    self.range_guess[seq_name] = None
         else:
             x = scanned_x
             if seq_name not in self.range_guess.keys():
