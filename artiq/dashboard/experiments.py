@@ -699,13 +699,13 @@ class ExperimentManager:
         self.main_window.centralWidget().addSubWindow(dock)
         dock.show()
         dock.sigClosed.connect(partial(self.on_dock_closed, expurl))
-        if expurl in self.dock_states:
-            try:
-                dock.restore_state(self.dock_states[expurl])
-            except:
-                logger.warning("Failed to restore dock state when opening "
-                               "experiment %s", expurl,
-                               exc_info=True)
+        # if expurl in self.dock_states:
+        #     try:
+        #         dock.restore_state(self.dock_states[expurl])
+        #     except:
+        #         logger.warning("Failed to restore dock state when opening "
+        #                        "experiment %s", expurl,
+        #                        exc_info=True)
         return dock
 
     def on_dock_closed(self, expurl):
@@ -810,8 +810,8 @@ class ExperimentManager:
         self.submission_scheduling = state["scheduling"]
         self.submission_options = state["options"]
         self.submission_arguments = state["arguments"]
-        for expurl in state["open_docks"]:
-            self.open_experiment(expurl)
+        # for expurl in state["open_docks"]:
+        #     self.open_experiment(expurl)
 
     def show_quick_open(self):
         if self.is_quick_open_shown:
