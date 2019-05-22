@@ -63,10 +63,10 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
                         continue
             _, _, self.hist.hist = self.hist.ax.hist(data, bins=35, histtype="bar", rwidth=1,
                                                      edgecolor="k", linewidth=1.2)
-            self.hist.ax.set_xlim(left=0)
             self.hist.canvas.draw()
-            self.hist.ax.relim()
             self.hist.ax.autoscale(enable=True, axis="both")
+            self.hist.ax.set_xlim(left=0)
+            self.hist.ax.relim()
 
 
     def closeEvent(self, event):
@@ -83,6 +83,7 @@ class PMTReadoutDock(QtWidgets.QDockWidget):
         self.canvas.setParent(self)
         self.ax = self.fig.add_subplot(111)
         self.ax.set_ylim((0, 50))
+        self.ax.set_xlim((0, 100))
         self.ax.set_facecolor((.97,.96,.96))
         self.ax.tick_params(top=False, bottom=False, left=False, right=False, 
                             labeltop=True, labelbottom=True, labelleft=True, labelright=True)
