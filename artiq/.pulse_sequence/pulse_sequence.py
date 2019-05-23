@@ -53,7 +53,11 @@ class PulseSequence(EnvExperiment):
             for scan_param in scan_list:
                 scan_names.append(scan_param[0])
                 scan_name = seq_name + ":" + scan_param[0]
-                scannable = scan.Scannable(default=scan.RangeScan(*scan_param[1:]))
+                if len(scan_param) == 4:
+                    scannable = scan.Scannable(default=scan.RangeScan(*scan_param[1:]))
+                elif len(scan_param) == 5:
+                    scannable = scan.Scannable(default=scan.RangeScan(*scan_param[1:-1]), 
+                                               unit=scan_param[-1])
                 self.multi_scannables[seq_name].update(
                     {scan_param[0]: self.get_argument(scan_name, scannable, group=seq_name)})
             self.selected_scan[seq_name] = self.get_argument(seq_name + "-Scan_Selection", 
