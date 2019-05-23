@@ -46,13 +46,13 @@ tab_configs = [
     ("Spectrum", [graphConfig(name="Spectrum")]),
     ("CalibLines", [graphConfig(name="CalibLine1", title="Line1"),
                     graphConfig(name="CalibLine2", title="Line2", col=1)]),
-    ("Rabi", [graphConfig(name="Rabi")]),
+    ("Rabi", [graphConfig(name="Rabi", ylims=[0, 200])]),
     ("Molmer-Sorensen", [graphConfig(name="Molmer-Sorensen")]),
     ("VAET", [graphConfig(name="vaet_parity", title="VAET Parity", ylims=[-1, 1]),
              graphConfig(name="scan_nu_eff", title="Scan Nu_eff", col=1),
-              graphConfig(name="vaet_time", title="VAET Time", row=1, colspan=2)]),
+              graphConfig(name="vaet_time", title="VAET Time", row=1, colspan=2, ylims=[0, 2000])]),
     ("Parity", [graphConfig(name="Parity", ylims=[-1, 1])]),
-    ("Ramsey", [graphConfig(name="Ramsey")])
+    ("Ramsey", [graphConfig(name="Ramsey", ylims=[0, 2000])])
 ]
 
 
