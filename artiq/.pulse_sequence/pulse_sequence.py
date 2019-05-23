@@ -287,7 +287,7 @@ class PulseSequence(EnvExperiment):
                     setattr(self, new_param_name, param)
             current_sequence = getattr(self, seq_name)
             if not self.is_ndim:
-                scan_iterable = list(scan_dict[self.selected_scan[seq_name]])
+                scan_iterable = sorted(list(scan_dict[self.selected_scan[seq_name]]))
                 ndim_iterable = [[0]]
             else:
                 ms_list = [list(x) for x in scan_dict.values()]
@@ -316,11 +316,12 @@ class PulseSequence(EnvExperiment):
                         return
             try:
                 self.run_after[seq_name]()
-            except KeyError:
-                continue
             except FitError:
                 logger.error("Fit failed.", exc_info=True)
                 break
+            except:
+                logger.error("run_after failed for seq_name: {}.".format(seq_name), exc_info=True)
+                continue
         self.set_dataset("raw_run_data", None, archive=False)
         self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list, self.state_list, self.att_list)
 
@@ -807,7 +808,10 @@ class PulseSequence(EnvExperiment):
         return str_repr
 
     def analyze(self):
-        self.run_finally()
+        try:
+            self.run_finally()
+        except:
+            pass
         if self.rm in ["camera", "camera_states", "camera_parity"]:
             self.camera.abort_acquisition()
             self.camera.set_trigger_mode(self.initial_trigger_mode)
