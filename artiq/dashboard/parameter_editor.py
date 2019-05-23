@@ -719,6 +719,7 @@ class ParameterSelectionEditor(QtWidgets.QDoubleSpinBox, BaseEditor):
     def __init__(self, *params):
         BaseEditor.__init__(self, *params)
         QtWidgets.QDoubleSpinBox.__init__(self)
+        self.setDecimals(5)
         self.setMinimum(-1e20)
         self.setMaximum(1e20)
         if not (type(self.state) == u.ValueArray or
