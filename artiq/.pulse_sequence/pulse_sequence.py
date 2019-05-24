@@ -272,8 +272,8 @@ class PulseSequence(EnvExperiment):
                 self.kernel_invariants.update({mode_name})
                 setattr(self, mode_name, frequency)
             abs_freqs = True if self.rcg_tabs[seq_name] in absolute_frequency_plots else False
-            setattr(self, "abs_freqs", abs_freqs)
-            setattr(self, "seq_name", seq_name)
+            self.abs_freqs = abs_freqs
+            self.seq_name = seq_name
             self.current_x_value = 989898989.98989898
             self.kernel_invariants.update({"dds_names", "dds_offsets", 
                                            "dds_dp_flags", "seq_name", "abs_freqs"})
@@ -323,6 +323,8 @@ class PulseSequence(EnvExperiment):
             except FitError:
                 logger.error("Fit failed.", exc_info=True)
                 break
+            except KeyError:
+                continue
             except:
                 logger.error("run_after failed for seq_name: {}.".format(seq_name), exc_info=True)
                 continue
@@ -520,14 +522,15 @@ class PulseSequence(EnvExperiment):
         thresholds = self.p.StateReadout.threshold_list
         name = seq_name + "-dark_ions:{}"
         idxs = [0]
-        scanned_x = getattr(self,
-                    seq_name + "-" + self.x_label[seq_name][0]
-                    if is_multi else self.x_label[seq_name][0])[:i + 1]
+        scanned_x = sorted(list(self.multi_scannables[seq_name][self.selected_scan[seq_name]]))
+                    # getattr(self,
+                    # seq_name + "-" + self.x_label[seq_name][0]
+                    # if is_multi else self.x_label[seq_name][0])
         if self.abs_freqs and not self.p.Display.relative_frequencies:
             x = [i * 1e-6 for i in self.get_dataset(seq_name + "-raw_x_data")]
             if seq_name not in self.range_guess.keys():
                 try:
-                    self.range_guess[seq_name] = [x[0], x[0] - scanned_x[-1] * 1e-6]
+                    self.range_guess[seq_name] = x[0], x[0] + (scanned_x[-1] - scanned_x[0]) * 1e-6
                 except IndexError:
                     self.range_guess[seq_name] = None
         else:
@@ -568,11 +571,11 @@ class PulseSequence(EnvExperiment):
         self.average_confidences[i] = np.mean(confidences)
         scanned_x = getattr(self,
                     seq_name + "-" + self.x_label[seq_name][0]
-                    if is_multi else self.x_label[seq_name][0])[:i + 1]
+                    if is_multi else self.x_label[seq_name][0])
         if self.abs_freqs and not self.p.Display.relative_frequencies:
             x = [i * 1e-6 for i in self.get_dataset(seq_name + "-raw_x_data")]
             if seq_name not in self.range_guess.keys():
-                self.range_guess[seq_name] = x[0], x[0] - scanned_x[-1] * 1e-6
+                self.range_guess[seq_name] = x[0], x[0] + (scanned_x[-1] - scanned_x[0]) * 1e-6
         else:
             x = scanned_x
             if seq_name not in self.range_guess.keys():
