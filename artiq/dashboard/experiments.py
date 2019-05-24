@@ -335,6 +335,16 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         log_level.currentIndexChanged.connect(update_log_level)
         self.log_level = log_level
 
+        self.periodic_schedule_checkbox = QtWidgets.QCheckBox("Schedule Periodically")
+        self.periodic_schedule_checkbox.stateChanged.connect(self.schedule_periodic)
+        self.periodic_schedule_checkbox.setToolTip("Schedule an experiment to run periodically.")
+        self.periodic_schedule_spinbox = QtWidgets.QDoubleSpinBox()
+        self.periodic_schedule_spinbox.setRange(0.166, 1440.)
+        self.periodic_schedule_spinbox.setSingleStep(0.0166)
+        self.periodic_schedule_spinbox.setSuffix(" minutes")
+        self.layout.addWidget(self.periodic_schedule_checkbox, 4, 0)
+        self.layout.addWidget(self.periodic_schedule_spinbox, 4, 1)
+
         if "repo_rev" in options:
             repo_rev = QtWidgets.QLineEdit()
             repo_rev.setPlaceholderText("current")
@@ -408,6 +418,21 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
             top_widget.addWidget(widget1)
             top_widget.addWidget(widget2)
 
+    def schedule_periodic(self, state):
+        if state:
+            asyncio.ensure_future(self.async_schedule_periodic())
+        else:
+            self.schedule_periodic_bool = False
+    
+    async def async_schedule_periodic(self):
+        self.schedule_periodic_bool = True
+        period = float(self.periodic_schedule_spinbox.value())
+        await asyncio.sleep(1e-4)
+        expurl = self.expurl
+        while self.schedule_periodic_bool:
+            self.manager.submit(expurl)
+            await asyncio.sleep(period * 60)
+    
     def submit_clicked(self):
         try:
             self.manager.submit(self.expurl)

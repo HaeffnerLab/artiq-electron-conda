@@ -450,20 +450,25 @@ class graphWindow(QtWidgets.QWidget):
             item = treeItem(self, name, x, y, self.pg, color, show_points, file_=file_)
             self.items[name] = item
             self.tw.addTopLevelItem(item)
-            if range_guess is not None:
+        (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.pg.viewRange()
+        if range_guess is not None and self.autoscroll_enabled:
+            if (xmin_cur > range_guess[0] or xmax_cur < range_guess[1] or 
+                abs(xmax_cur - xmin_cur) > abs(range_guess[1] - range_guess[0]) * 3):
                 self.pg.setXRange(*range_guess)
-
-        
         try:
-            (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.pg.viewRange()
             max_x, min_y, max_y = None, None, None
+            
+            max_x = max(list(x))#self.items[name].plot_item.databounds(0)[-1]
+            
+            # Can optionally auto adjust range in response to all currently plotted items,
+            # by uncommenting below
             for item in self.items.values():
-                localxmax = item.plot_item.dataBounds(0)[-1]
+            #     localxmax = item.plot_item.dataBounds(0)[-1]
                 localymin, localymax = item.plot_item.dataBounds(1)
-                if max_x is None:
-                    max_x = localxmax
-                elif localxmax > max_x:
-                    max_x = localxmax
+            #     if max_x is None:
+            #         max_x = localxmax
+            #     elif localxmax > max_x:
+            #         max_x = localxmax
                 if max_y is None:
                     max_y = localymax
                 elif localymax > max_y:
@@ -472,6 +477,7 @@ class graphWindow(QtWidgets.QWidget):
                     min_y = localymin
                 elif localymin < min_y:
                     min_y = localymin
+
             window_width = abs(xmax_cur - xmin_cur)
             if not self.autoscroll_enabled:
                 return item
