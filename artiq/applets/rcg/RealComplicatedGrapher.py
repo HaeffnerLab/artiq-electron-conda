@@ -95,7 +95,7 @@ class rcgDock(QDockWidgetCloseDetect):
                         i += 1
             try:
                 self.rcg.widget(idx).gw_dict[plot_name].add_plot_item(plot_title, 
-                                                    x, y, append=append, file_=file_, range_guess=range_guess)
+                                x, y, append=append, file_=file_, range_guess=range_guess)
             except AttributeError:
                 # curve not currently displayed on graph
                 return
@@ -152,8 +152,7 @@ class graphTab(QtWidgets.QWidget):
                             with h5py.File(h5file, "r") as f:
                                 plot = f["scan_data"].attrs["plot_show"]
                             self.gw_dict[plot].upload_curve(file_=h5file, checked=autocheck, startup=True)
-                        except Exception as e:
-                            # print("ECCEPTION: ", e)
+                        except:
                             continue
 
 
@@ -447,14 +446,18 @@ class graphWindow(QtWidgets.QWidget):
             item.plot_item.setData(x, y)
         else:
             color = next(self.color_chooser)
-            item = treeItem(self, name, x, y, self.pg, color, show_points, file_=file_)
+            try:
+                item = treeItem(self, name, x, y, self.pg, color, show_points, file_=file_)
+            except Exception as e:
+                print("exception: ", e)
             self.items[name] = item
             self.tw.addTopLevelItem(item)
         (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.pg.viewRange()
         if range_guess is not None and self.autoscroll_enabled:
             if (xmin_cur > range_guess[0] or xmax_cur < range_guess[1] or 
-                abs(xmax_cur - xmin_cur) > abs(range_guess[1] - range_guess[0]) * 3):
+                    abs(xmax_cur - xmin_cur) > abs(range_guess[1] - range_guess[0]) * 3):
                 self.pg.setXRange(*range_guess)
+        
         try:
             max_x, min_y, max_y = None, None, None
             
@@ -498,7 +501,7 @@ class graphWindow(QtWidgets.QWidget):
         except AttributeError:
             # curve is not currently displayed on graph
             pass
-
+        
         return item
 
     def mouse_moved(self, pos):

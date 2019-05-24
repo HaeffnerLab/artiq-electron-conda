@@ -245,6 +245,17 @@ class PulseSequence(EnvExperiment):
                               "S-1/2D+1/2",
                               "S+1/2D+5/2",
                               "S-1/2D+3/2"]
+        # Convenience dictionary for user sequences
+        self.carrier_dict = {"S+1/2D-3/2": 0,
+                              "S-1/2D-5/2": 1,
+                              "S+1/2D-1/2": 2,
+                              "S-1/2D-3/2": 3,
+                              "S+1/2D+1/2": 4,
+                              "S-1/2D-1/2": 5,
+                              "S+1/2D+3/2": 6,
+                              "S-1/2D+1/2": 7,
+                              "S+1/2D+5/2": 8,
+                              "S-1/2D+3/2": 9}
         self.carrier_values = self.update_carriers()
 
         self.run_initially()
@@ -537,6 +548,7 @@ class PulseSequence(EnvExperiment):
             x = scanned_x
             if seq_name not in self.range_guess.keys():
                 self.range_guess[seq_name] = x[0], x[-1]
+            x = x[:i + 1]
         for threshold in thresholds:
             idxs.append(bisect(data, threshold))
         idxs.append(self.N)
@@ -577,9 +589,9 @@ class PulseSequence(EnvExperiment):
             if seq_name not in self.range_guess.keys():
                 self.range_guess[seq_name] = x[0], x[0] + (scanned_x[-1] - scanned_x[0]) * 1e-6
         else:
-            x = scanned_x
             if seq_name not in self.range_guess.keys():
                 self.range_guess[seq_name] = x[0], x[-1]
+            x = x[:i + 1]
         if readout_mode == "camera":
             name = seq_name + "-ion number:{}"
             for k in range(self.n_ions):
@@ -817,6 +829,8 @@ class PulseSequence(EnvExperiment):
     def analyze(self):
         try:
             self.run_finally()
+        except FitError:
+            logger.error("Final fit failed.", exc_info=True)
         except:
             pass
         if self.rm in ["camera", "camera_states", "camera_parity"]:
