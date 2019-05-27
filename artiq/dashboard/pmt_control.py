@@ -28,32 +28,49 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.dataset_db = Client("::1", 3251, "master_dataset_db")
         self.rid = None
         self.pulsed = False
-        self.expid_continuous = {"arguments": {},
-                                 "class_name": "pmt_collect_continuously",
-                                 "file": "run_continuously/run_pmt_continuously.py",
-                                 "log_level": 30,
-                                 "repo_rev": None,
-                                 "priority": 0}
+        self.expid_continuous = {
+            "arguments": {},
+            "class_name": "pmt_collect_continuously",
+            "file": "run_continuously/run_pmt_continuously.py",
+            "log_level": 30,
+            "repo_rev": None,
+            "priority": 0
+        }
 
-        self.expid_pulsed = {"arguments": {},
-                             "class_name": "pmt_collect_pulsed",
-                             "file": "run_continuously/run_pmt_pulsed.py",
-                             "log_level": 30,
-                             "repo_rev": None,
-                             "priority": 0}
+        self.expid_pulsed = {
+            "arguments": {},
+            "class_name": "pmt_collect_pulsed",
+            "file": "run_continuously/run_pmt_pulsed.py",
+            "log_level": 30,
+            "repo_rev": None,
+            "priority": 0
+        }
 
-        self.expid_ttl = {"class_name": "change_ttl",
-                          "file": "misc/manual_ttl_control.py",
-                          "log_level": 30,
-                          "repo_rev": None,
-                          "priority": 1}
+        self.expid_ttl = {
+            "class_name": "change_ttl",
+            "file": "misc/manual_ttl_control.py",
+            "log_level": 30,
+            "repo_rev": None,
+            "priority": 1
+        }
 
-        self.expid_dds = {"arguments": {},
-                          "class_name": "change_cw",
-                          "file": "misc/manual_dds_control.py",
-                          "log_level": 30,
-                          "repo_rev": None,
-                          "priority": 1}
+        self.expid_dds = {
+            "arguments": {},
+            "class_name": "change_cw",
+            "file": "misc/manual_dds_control.py",
+            "log_level": 30,
+            "repo_rev": None,
+            "priority": 1
+        }
+
+        self.expid_dc = {
+            "arguments": {},
+            "class_name": "set_dopplercooling_and_statereadout",
+            "file": "misc/set_dopplercooling_and_statereadout.py",
+            "log_level": 30,
+            "repo_rev": None,
+            "priority": 2 
+        }
 
         frame = QtWidgets.QFrame()
         layout = QtWidgets.QVBoxLayout()
@@ -86,6 +103,8 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.onButton = QtWidgets.QPushButton("On")
         self.onButton.setCheckable(True)
         self.onButton.clicked[bool].connect(self.set_state)
+        self.setDCButton = QtWidgets.QPushButton("set")
+        self.setDCButton.clicked.connect(self.set_dc_and_state_readout)
         self.autoLoadButton = QtWidgets.QPushButton("On")
         self.autoLoadButton.setCheckable(True)
         self.autoLoadButton.clicked[bool].connect(self.toggle_autoload)
@@ -135,6 +154,9 @@ class PMTControlDock(QtWidgets.QDockWidget):
         layout.addWidget(QtWidgets.QLabel("Autoload: "), 4, 0)
         layout.addWidget(self.autoLoadButton, 4, 1)
         layout.addWidget(self.autoLoadSpin, 4, 2)
+        dcLabel = QtWidgets.QLabel("Set Doppler cooling and state readout: ")
+        layout.addWidget(dcLabel, 5, 0, 1, 2)
+        layout.addWidget(self.setDCButton, 5, 2)
         frame.setLayout(layout)
         return frame
 
@@ -257,6 +279,9 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 self.scheduler.request_termination(self.rid)
                 self.rid = None
             self.onButton.setText("On")
+
+    def set_dc_and_state_readout(self):
+        self.scheduler.submit("main", self.expid_dc, 2)
 
     @inlineCallbacks
     def duration_changed(self, *args, **kwargs):
