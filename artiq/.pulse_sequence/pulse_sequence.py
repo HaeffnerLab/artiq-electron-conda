@@ -36,6 +36,7 @@ class PulseSequence(EnvExperiment):
     range_guess = dict()
     data = edict()
     run_after = dict()
+    set_subsequence = dict()
 
     def build(self):
         self.setattr_device("core")
@@ -80,6 +81,8 @@ class PulseSequence(EnvExperiment):
                         self.dds_names.append(key)
                     except KeyError:
                         continue
+        self.dds_729 = self.get_device("729G")
+        self.dds_729_SP = self.get_device("SP_729G")
         self.cpld_list = [self.get_device("urukul{}_cpld".format(i)) for i in range(3)]
 
     def prepare(self):
@@ -247,17 +250,21 @@ class PulseSequence(EnvExperiment):
                               "S-1/2D+3/2"]
         # Convenience dictionary for user sequences
         self.carrier_dict = {"S+1/2D-3/2": 0,
-                              "S-1/2D-5/2": 1,
-                              "S+1/2D-1/2": 2,
-                              "S-1/2D-3/2": 3,
-                              "S+1/2D+1/2": 4,
-                              "S-1/2D-1/2": 5,
-                              "S+1/2D+3/2": 6,
-                              "S-1/2D+1/2": 7,
-                              "S+1/2D+5/2": 8,
-                              "S-1/2D+3/2": 9}
+                             "S-1/2D-5/2": 1,
+                             "S+1/2D-1/2": 2,
+                             "S-1/2D-3/2": 3,
+                             "S+1/2D+1/2": 4,
+                             "S-1/2D-1/2": 5,
+                             "S+1/2D+3/2": 6,
+                             "S-1/2D+1/2": 7,
+                             "S+1/2D+5/2": 8,
+                             "S-1/2D+3/2": 9}
         self.carrier_values = self.update_carriers()
-
+        self.trap_frequency_names = list()
+        self.trap_frequency_values = list()
+        for name, value in self.p.TrapFrequencies.items():
+            self.trap_frequency_names.append(name)
+            self.trap_frequency_values.append(value)
         self.run_initially()
 
     def run(self):
@@ -285,7 +292,7 @@ class PulseSequence(EnvExperiment):
             abs_freqs = True if self.rcg_tabs[seq_name] in absolute_frequency_plots else False
             self.abs_freqs = abs_freqs
             self.seq_name = seq_name
-            self.current_x_value = 989898989.98989898
+            self.current_x_value = 9898989898.9898989898
             self.kernel_invariants.update({"dds_names", "dds_offsets", 
                                            "dds_dp_flags", "seq_name", "abs_freqs"})
             for param_name in all_accessed_params:
@@ -294,24 +301,37 @@ class PulseSequence(EnvExperiment):
                 new_param_name = param_name.replace(".", "_")
                 if (type(param) is (float or int)) and (param_name in scanned_params):
                     self.variable_parameter_names.append(new_param_name)
-                    self.variable_parameter_values.append(list(scan_dict[param_name])[0])
+                    if self.selected_scan[seq_name] == param_name:
+                        self.variable_parameter_values.append(list(scan_dict[param_name])[0])
+                    else:
+                        collection, parameter = param_name.split(".")
+                        self.variable_parameter_values.append(self.p[collection][parameter])
                 else:
                     self.parameter_names.append(param_name)
                     self.parameter_values.append(param)
                     self.kernel_invariants.update({new_param_name})
                     setattr(self, new_param_name, param)
             current_sequence = getattr(self, seq_name)
+            selected_scan = self.selected_scan[seq_name]
+            self.selected_scan_name = selected_scan.replace(".", "_")
             if not self.is_ndim:
-                scan_iterable = sorted(list(scan_dict[self.selected_scan[seq_name]]))
+                scan_iterable = sorted(list(scan_dict[selected_scan]))
                 ndim_iterable = [[0]]
             else:
                 ms_list = [list(x) for x in scan_dict.values()]
-                ndim_iterable = list(map(list, list(product(*ms_list))))  # list city
+                ndim_iterable = list(map(list, list(product(*ms_list))))
                 scan_iterable = [0]
                 self.set_dataset("x_data", ndim_iterable)
             scan_names = list(map(lambda x: x.replace(".", "_"), self.x_label[seq_name]))
             self.start_point1, self.start_point2 = 0, 0
             self.run_looper = True
+            try:
+                set_subsequence = self.set_subsequence[seq_name]
+            except KeyError:
+                @kernel
+                def maybe_needed_delay(): 
+                    delay(.1*us)
+                set_subsequence = maybe_needed_delay
             if self.use_camera:
                 readout_duration = self.p.StateReadout.camera_readout_duration
             else:
@@ -319,16 +339,20 @@ class PulseSequence(EnvExperiment):
             while self.run_looper:
                 self.looper(current_sequence, self.N, linetrigger, linetrigger_offset, scan_iterable,
                         self.rm, readout_duration, seq_name, is_multi, self.n_ions, self.is_ndim, scan_names, 
-                        ndim_iterable, self.start_point1, self.start_point2, self.use_camera)
+                        ndim_iterable, self.start_point1, self.start_point2, self.use_camera, set_subsequence)
                 if self.scheduler.check_pause():
                     try:
                         self.core.comm.close()
                         self.scheduler.pause()
                     except TerminationRequested:
-                        self.set_dataset("raw_run_data", None, archive=False)
-                        self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list,
-                                               self.state_list, self.att_list)
-                        return
+                        try:
+                            self.run_after[seq_name]()
+                            continue
+                        except:
+                            self.set_dataset("raw_run_data", None, archive=False)
+                            self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list,
+                                                self.state_list, self.att_list)
+                            return
             try:
                 self.run_after[seq_name]()
             except FitError:
@@ -400,7 +424,8 @@ class PulseSequence(EnvExperiment):
     @kernel
     def looper(self, sequence, reps, linetrigger, linetrigger_offset, scan_iterable,
                readout_mode, readout_duration, seq_name, is_multi, number_of_ions,
-               is_ndim, scan_names, ndim_iterable, start1, start2, use_camera):
+               is_ndim, scan_names, ndim_iterable, start1, start2, use_camera, 
+               set_subsequence):
         self.turn_off_all()
         if is_ndim:
             for i in list(range(len(ndim_iterable)))[start1:]:
@@ -440,7 +465,9 @@ class PulseSequence(EnvExperiment):
             if use_camera:
                 self.prepare_camera()
             for l in list(range(len(self.variable_parameter_names))):
-                self.set_variable_parameter(self.variable_parameter_names[l], scan_iterable[i])
+                self.set_variable_parameter(
+                    self.variable_parameter_names[l], scan_iterable[i])
+                set_subsequence()
             for j in range(reps):
                 if linetrigger:
                     self.line_trigger(linetrigger_offset)
@@ -653,8 +680,12 @@ class PulseSequence(EnvExperiment):
         value = 0.
         for i in list(range(len(self.variable_parameter_names))):
             if name == self.variable_parameter_names[i]:
+                # if name == self.selected_scan_name:
                 value = self.variable_parameter_values[i]
                 break
+                # else:
+                #     value = self.variable_parameter_values[0]
+                #     break
         else:
             exc = name + " is not a scannable parameter."
             self.host_exception(exc)  
@@ -663,6 +694,9 @@ class PulseSequence(EnvExperiment):
     @kernel
     def set_variable_parameter(self, name, value):
         for i in list(range(len(self.variable_parameter_names))):
+            print("NAMEVALUE: ", name, self.variable_parameter_names[i])
+            if name != self.selected_scan_name:
+                break
             if name == self.variable_parameter_names[i]:
                 self.variable_parameter_values[i] = value
                 break
@@ -747,20 +781,27 @@ class PulseSequence(EnvExperiment):
 
     @kernel
     def calc_frequency(self, line, detuning=0., 
-                    sideband=0., order=0, dds="", bound_param="") -> TFloat:
+                    sideband="", order=0., dds="", bound_param="") -> TFloat:
         relative_display = self.Display_relative_frequencies
         freq = detuning
         abs_freq = 0.
+        line_set = False
+        sideband_set = True if sideband == "" else False
         for i in range(10):
             if line == self.carrier_names[i]:
                 freq = self.carrier_values[i] + detuning
-                freq += sideband * order
+                line_set = True
+            if sideband != "" and i <= len(self.trap_frequency_names) - 1:
+                if sideband == self.trap_frequency_names[i]:
+                    freq += self.trap_frequency_values[i] * order
+                    sideband_set = True
+            if line_set and sideband_set:
                 abs_freq = freq
                 break
         if dds != "":
             for i in range(len(self.dds_names)):
                 if dds == self.dds_names[i]:
-                    freq += self.dds_offsets[i]
+                    freq += self.dds_offsets[i] * 1e6
                     if self.dds_dp_flags[i]:
                         freq /= 2
         if self.abs_freqs and bound_param != "" and not relative_display:
@@ -791,6 +832,21 @@ class PulseSequence(EnvExperiment):
     def update_carriers_on_kernel(self, new_carrier_values):
         for i in list(range(10)):
             self.carrier_values[i] = new_carrier_values[i]
+
+    @kernel
+    def get_729_dds(self, name):
+        if name == "729L1":
+            self.dds_729 = self.dds_729L1
+            self.dds_729_SP = self.dds_SP_729L1
+        elif name == "729L2":
+            self.dds_729 = self.dds_729L2
+            self.dds_729_SP = self.dds_SP_729L2
+        elif name == "729G":
+            self.dds_729 = self.dds_729G
+            self.dds_729_SP = self.dds_SP_729G
+        else:
+            self.dds_729 = self.dds_729G
+            self.dds_729_SP = self.dds_SP_729G
 
     def prepare_camera(self):
         self.camera.abort_acquisition()
