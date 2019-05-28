@@ -6,6 +6,7 @@ import pyqtgraph
 from PyQt5 import QtCore
 
 from artiq.applets.simple import TitleApplet
+from artiq.protocols.pc_rpc import Client
 
 
 class PMTPlot(pyqtgraph.PlotWidget):
@@ -36,8 +37,23 @@ class PMTPlot(pyqtgraph.PlotWidget):
         self.disableAutoRange()
         self.scene().sigMouseClicked.connect(self.mouse_clicked)
         self.getPlotItem().setClipToView(True)
+        self.data_mgr = Client("::1", 3251, "master_dataset_db")
 
     def data_changed(self, data, mods, title):
+        try:
+            clear_pmt_plot = data[self.args.clear_pmt_plot][1]
+            if clear_pmt_plot:
+                self.clear()
+                self.curves = dict()
+                self.current_curve_x_start = dict()
+                self.current_curve_point_count = dict()
+                self.data_mgr.set("clear_pmt_plot", False)
+                self.data_mgr.set("pmt_counts", [])
+                self.data_mgr.set("pmt_counts_866_off", [])
+                self.data_mgr.set("diff_counts", [])
+                return  # don't want to plot twice
+        except Exception as e:
+            print(Exception)
         self.disableAutoRange()
         raw_data = {}
         try:
@@ -137,6 +153,7 @@ def main():
     applet.add_dataset("with_866_off", "", required=False)
     applet.add_dataset("diff_counts", "", required=False)
     applet.add_dataset("pulsed", "", required=False)
+    applet.add_dataset("clear_pmt_plot", required=False)
     applet.run()
 
 if __name__ == "__main__":
