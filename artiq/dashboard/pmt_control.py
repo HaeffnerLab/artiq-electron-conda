@@ -105,6 +105,8 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.onButton.clicked[bool].connect(self.set_state)
         self.setDCButton = QtWidgets.QPushButton("set")
         self.setDCButton.clicked.connect(self.set_dc_and_state_readout)
+        self.clearPMTPlotButton = QtWidgets.QPushButton("clear")
+        self.clearPMTPlotButton.clicked.connect(self.clear_pmt_plot)
         self.autoLoadButton = QtWidgets.QPushButton("On")
         self.autoLoadButton.setCheckable(True)
         self.autoLoadButton.clicked[bool].connect(self.toggle_autoload)
@@ -157,6 +159,9 @@ class PMTControlDock(QtWidgets.QDockWidget):
         dcLabel = QtWidgets.QLabel("Set Doppler cooling and state readout: ")
         layout.addWidget(dcLabel, 5, 0, 1, 2)
         layout.addWidget(self.setDCButton, 5, 2)
+        clearLabel = QtWidgets.QLabel("Reset PMT plot: ")
+        layout.addWidget(clearLabel, 6, 0)
+        layout.addWidget(self.clearPMTPlotButton, 6, 1, 1, 2)
         frame.setLayout(layout)
         return frame
 
@@ -282,6 +287,9 @@ class PMTControlDock(QtWidgets.QDockWidget):
 
     def set_dc_and_state_readout(self):
         self.scheduler.submit("main", self.expid_dc, 2)
+
+    def clear_pmt_plot(self):
+        self.dataset_db.set("clear_pmt_plot", True)
 
     @inlineCallbacks
     def duration_changed(self, *args, **kwargs):
