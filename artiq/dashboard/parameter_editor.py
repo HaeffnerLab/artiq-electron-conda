@@ -769,6 +769,8 @@ class ParameterSelectionEditor(QtWidgets.QDoubleSpinBox, BaseEditor):
         if changed:
             return
         try:
+            # print("Val: ", val)
+            # print("units: ", self.units)
             self.setValue(val[self.units])
             self.state[-1] = val[self.units]
         except:

@@ -3,13 +3,15 @@ import logging
 import labrad
 import lmfit 
 import numpy as np
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 from matplotlib.backends.backend_qt5agg import (NavigationToolbar2QT,
                                                 FigureCanvasQTAgg)
 from matplotlib.figure import Figure
 from matplotlib.cm import get_cmap
+from matplotlib import colors
 from artiq.protocols.pc_rpc import Server, Client
 from artiq.readout_analysis.ion_state_detector import ion_state_detector
+from artiq.dashboard.parameter_editor import ParameterEditorDock
 from contextlib import suppress
 from datetime import datetime as dt
 
@@ -73,8 +75,7 @@ class CameraReadoutDock(QtWidgets.QDockWidget):
                 self.plt.cb.remove()
             I = self.plt.ax.imshow(image, cmap="cividis", interpolation="spline16", 
                                extent=[x_axis.min(), x_axis.max(), y_axis.max(), y_axis.min()])
-            self.plt.cb = self.plt.fig.colorbar(I)
-            # self.plt.ax.contourf(xx, yy, np.flip(image, axis=0))
+            self.plt.cb = self.plt.fig.colorbar(I, fraction=0.046, pad=0.04)
             x_axis_fit = np.linspace(x_axis.min(), x_axis.max(), x_axis.size * 10)
             y_axis_fit = np.linspace(y_axis.min(), y_axis.max(), y_axis.size * 10)
             xx, yy = np.meshgrid(x_axis_fit, y_axis_fit)
@@ -122,24 +123,46 @@ class CameraReadoutDock(QtWidgets.QDockWidget):
     def make_GUI(self):
         layout = QtWidgets.QGridLayout()
 
-        self.fig = Figure()
+        self.fig = Figure(figsize=(10,10), tight_layout=True)
         self.fig.patch.set_facecolor((.97, .96, .96))
         self.canvas = FigureCanvasQTAgg(self.fig)
         self.canvas.setParent(self)
+        # self.canvas.setMinimumSize(800, 800)
         self.ax = self.fig.add_subplot(111)
         self.ax.set_facecolor((.97,.96,.96))
-        self.ax.tick_params(top="off", bottom="off", left="off", right="off", 
-                            labeltop="on", labelbottom="on", labelleft="on", labelright="on")
+        self.ax.tick_params(
+                top=False, bottom=False, left=False, right=False, 
+                labeltop=True, labelbottom=True, labelleft=True, labelright=False
+            )
         self.mpl_toolbar = NavigationToolbar2QT(self.canvas, self)
-        self.fig.tight_layout()
         self.canvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
                                   QtWidgets.QSizePolicy.Expanding)
         self.ax.tick_params(axis="both", direction="in")
         self.reference_image_button = QtWidgets.QPushButton("reference image")
+
+        try:
+            cxn = labrad.connect()
+            p = cxn.parametervault
+        except: 
+            pass
+        accessed_params = set()
+        parameters = p.get_parameter_names("IonsOnCamera")
+        for parameter in parameters:
+            accessed_params.update({"IonsOnCamera." + parameter})
         
-        layout.addWidget(self.mpl_toolbar, 0, 0)
-        layout.addWidget(self.reference_image_button, 0, 1)
-        layout.addWidget(self.canvas, 1, 0, 1, 2)
+        d_accessed_parameter_editor = ParameterEditorDock(
+                acxn=None,
+                name="Camera Options",
+                accessed_params=accessed_params
+            )
+        d_accessed_parameter_editor.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
+        d_accessed_parameter_editor.setTitleBarWidget(QtGui.QWidget())
+        d_accessed_parameter_editor.table.setMaximumWidth(390)
+        
+        layout.addWidget(self.mpl_toolbar, 0, 0, 1, 1)
+        layout.addWidget(self.reference_image_button, 0, 2, 1, 1)
+        layout.addWidget(d_accessed_parameter_editor, 1, 0, 1, 1)
+        layout.addWidget(self.canvas, 1, 1, 3, 1)
 
         self.main_widget.setLayout(layout)
 
