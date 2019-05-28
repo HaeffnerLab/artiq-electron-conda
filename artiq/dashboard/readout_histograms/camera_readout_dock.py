@@ -162,7 +162,7 @@ class CameraReadoutDock(QtWidgets.QDockWidget):
         layout.addWidget(self.mpl_toolbar, 0, 0, 1, 1)
         layout.addWidget(self.reference_image_button, 0, 2, 1, 1)
         layout.addWidget(d_accessed_parameter_editor, 1, 0, 1, 1)
-        layout.addWidget(self.canvas, 1, 1, 3, 1)
+        layout.addWidget(self.canvas, 1, 1, 1, 2)
 
         self.main_widget.setLayout(layout)
 
