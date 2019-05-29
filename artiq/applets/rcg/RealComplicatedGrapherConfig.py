@@ -46,7 +46,7 @@ tab_configs = [
     ("Spectrum", [graphConfig(name="Spectrum")]),
     ("CalibLines", [graphConfig(name="CalibLine1", title="Line1"),
                     graphConfig(name="CalibLine2", title="Line2", col=1)]),
-    ("Rabi", [graphConfig(name="Rabi", ylims=[0, 200])]),
+    ("Rabi", [graphConfig(name="Rabi", ylims=[0, 1])]),
     ("Molmer-Sorensen", [graphConfig(name="Molmer-Sorensen")]),
     ("VAET", [graphConfig(name="vaet_parity", title="VAET Parity", ylims=[-1, 1]),
              graphConfig(name="scan_nu_eff", title="Scan Nu_eff", col=1),
