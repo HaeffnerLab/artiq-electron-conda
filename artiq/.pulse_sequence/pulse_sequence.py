@@ -30,7 +30,15 @@ logger = logging.getLogger(__name__)
 class PulseSequence(EnvExperiment):
     is_ndim = False
     fixed_params = list()
-    accessed_params = {"Display.relative_frequencies"}
+    accessed_params = {
+        "Display.relative_frequencies",
+        "StateReadout.amplitude_397",
+        "StateReadout.amplitude_866",
+        "StateReadout.att_397",
+        "StateReadout.att_866",
+        "StateReadout.frequency_397",
+        "StateReadout.frequency_866"
+    }
     kernel_invariants = set()
     scan_params = odict()  # Not working as expected
     range_guess = dict()
@@ -390,33 +398,19 @@ class PulseSequence(EnvExperiment):
         delay(self.StateReadout_doppler_cooling_repump_additional)
         self.dds_866.sw.off()
         return self.pmt.count(t_count)
-
-    @kernel
-    def camera_readout(self, duration):
-        self.core.break_realtime()
-        self.dds_397.set(self.StateReadout_frequency_397, amplitude=self.StateReadout_amplitude_397)
-        self.dds_397.set_att(self.StateReadout_att_397)
-        self.dds_866.set(self.StateReadout_frequency_866, amplitude=self.StateReadout_amplitude_866)
-        self.dds_866.set_att(self.StateReadout_att_866)
-        self.dds_397.sw.on()
-        self.dds_866.sw.on()
-        self.camera_ttl.pulse(100*us)
-        delay(duration)
-        self.dds_397.sw.off()
-        delay(self.StateReadout_doppler_cooling_repump_additional)
-        self.dds_866.sw.off()
-
+            
     @kernel
     def line_trigger(self, offset):
         # Phase lock to mains
         self.core.reset()
+        self.camera_ttl.off()
         trigger_time = -1
         while True:
             with parallel:
                 t_gate = self.linetrigger_ttl.gate_rising(1000*us)
                 trigger_time = self.linetrigger_ttl.timestamp_mu(t_gate)
             if trigger_time == -1:
-                delay(5*us)
+                delay(10*us)
                 continue
             break
         at_mu(trigger_time + offset)
@@ -474,15 +468,25 @@ class PulseSequence(EnvExperiment):
                 else:
                     self.core.break_realtime()
                 sequence()
-                if use_camera:
-                    delay(1*ms)  # Why this is needed is a mystery, probably has something
-                                 # to do with zero-duration methods in sequence() but also
-                                 # empirically depends on camera settings.
                 if not use_camera:
                     pmt_count = self.pmt_readout(readout_duration)
                     self.record_result("raw_run_data", j, pmt_count)
                 else:
-                    self.camera_readout(readout_duration + 1*ms)  # Add some extra time for camera transfer
+                    print("For some reason, I can only get camera readout to work right now"
+                          "if I insert a print statement here.")
+                    self.camera_ttl.off()
+                    self.dds_397.set(self.StateReadout_frequency_397, amplitude=self.StateReadout_amplitude_397)
+                    self.dds_397.set_att(self.StateReadout_att_397)
+                    self.dds_866.set(self.StateReadout_frequency_866, amplitude=self.StateReadout_amplitude_866)
+                    self.dds_866.set_att(self.StateReadout_att_866)
+                    with parallel:
+                        self.dds_397.sw.on()
+                        self.dds_866.sw.on()
+                        self.camera_ttl.pulse(100*us)
+                    delay(readout_duration)
+                    self.dds_397.sw.off()
+                    delay(100*us)
+                    self.dds_866.sw.off()
             if not use_camera:
                 self.update_raw_data(seq_name, i)
                 if readout_mode == "pmt":
@@ -492,6 +496,7 @@ class PulseSequence(EnvExperiment):
             elif (readout_mode == "camera" or
                   readout_mode == "camera_states" or
                   readout_mode == "camera_parity"):
+                # delay(10*ms)  # try adding extra time here instead
                 self.update_camera(seq_name, i, is_multi, readout_mode)
 
             rem = (i + 1) % 5
@@ -616,6 +621,7 @@ class PulseSequence(EnvExperiment):
             if seq_name not in self.range_guess.keys():
                 self.range_guess[seq_name] = x[0], x[0] + (scanned_x[-1] - scanned_x[0]) * 1e-6
         else:
+            x = scanned_x
             if seq_name not in self.range_guess.keys():
                 self.range_guess[seq_name] = x[0], x[-1]
             x = x[:i + 1]
@@ -694,7 +700,6 @@ class PulseSequence(EnvExperiment):
     @kernel
     def set_variable_parameter(self, name, value):
         for i in list(range(len(self.variable_parameter_names))):
-            print("NAMEVALUE: ", name, self.variable_parameter_names[i])
             if name != self.selected_scan_name:
                 break
             if name == self.variable_parameter_names[i]:
@@ -708,6 +713,7 @@ class PulseSequence(EnvExperiment):
     def reset_cw_settings(self, dds_list, freq_list, amp_list, state_list, att_list):
         # Return the CW settings to what they were when prepare stage was run
         self.core.reset()
+        self.camera_ttl.off()
         for cpld in self.cpld_list:
             cpld.init()
         self.core.break_realtime()
@@ -723,6 +729,7 @@ class PulseSequence(EnvExperiment):
                 dds_list[i].sw.on()
             else:
                 dds_list[i].sw.off()
+        self.camera_ttl.off()
 
     @rpc(flags={"async"})
     def record_result(self, dataset, idx, val):
@@ -789,7 +796,7 @@ class PulseSequence(EnvExperiment):
         sideband_set = True if sideband == "" else False
         for i in range(10):
             if line == self.carrier_names[i]:
-                freq = self.carrier_values[i] + detuning
+                freq += self.carrier_values[i]
                 line_set = True
             if sideband != "" and i <= len(self.trap_frequency_names) - 1:
                 if sideband == self.trap_frequency_names[i]:
