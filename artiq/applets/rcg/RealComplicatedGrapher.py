@@ -40,7 +40,7 @@ class rcgDock(QDockWidgetCloseDetect):
 
     def top_level_changed(self):
         if self.isFloating():
-            self.setWindowFlags(QtCore.Qt.CustomizeWindowHint | 
+            self.setWindowFlags(QtCore.Qt.CustomizeWindowHint |
                                 QtCore.Qt.Window |
                                 QtCore.Qt.WindowMinimizeButtonHint |
                                 QtCore.Qt.WindowMaximizeButtonHint |
@@ -53,7 +53,7 @@ class rcgDock(QDockWidgetCloseDetect):
 
     def closeEvent(self, event):
         self.is_closed = True
-        self.task.cancel() 
+        self.task.cancel()
         self.loop.create_task(self.server.stop())
         super(rcgDock, self).closeEvent(event)
 
@@ -64,11 +64,11 @@ class rcgDock(QDockWidgetCloseDetect):
 
         def echo(self, mssg):
             return mssg
-        
+
         def get_tab_index_from_name(self, name):
             return self.rcg.tabs[name]
-        
-        def plot(self, x, y, tab_name="Current", plot_name=None, 
+
+        def plot(self, x, y, tab_name="Current", plot_name=None,
                  plot_title="new_plot", append=False, file_=None, range_guess=None):
             if plot_name is None:
                 # need to clean this up
@@ -94,19 +94,19 @@ class rcgDock(QDockWidgetCloseDetect):
                     else:
                         i += 1
             try:
-                self.rcg.widget(idx).gw_dict[plot_name].add_plot_item(plot_title, 
+                self.rcg.widget(idx).gw_dict[plot_name].add_plot_item(plot_title,
                                 x, y, append=append, file_=file_, range_guess=range_guess)
             except AttributeError:
                 # curve not currently displayed on graph
                 return
-    
+
         def plot_from_file(self, file_, tab_name="Current", plot_name=None):
             if plot_name is None:
                 plot_name = tab_name
             idx = self.rcg.tabs[tab_name]
             self.rcg.widget(idx).gw_dict[plot_name].upload_curve(file_=file_)
 
-    
+
 class RCG(PyQt5.QtWidgets.QTabWidget):
     def __init__(self):
         PyQt5.QtWidgets.QTabWidget.__init__(self)
@@ -121,7 +121,7 @@ class graphTab(QtWidgets.QWidget):
     def __init__(self, graphconfigs):
         QtWidgets.QWidget.__init__(self)
         layout = QtWidgets.QGridLayout()
-        
+
         self.gw_dict = {}
         for gc in graphconfigs:
             gw = graphWindow(gc.name, gc.show_points, gc.ylims)
@@ -130,7 +130,7 @@ class graphTab(QtWidgets.QWidget):
         layout.setHorizontalSpacing(3)
         layout.setVerticalSpacing(3)
         layout.setContentsMargins(0, 0, 0, 0)
-        
+
         for gw in self.gw_dict.values():
             s1 = gw.tw.sizeHint().width()
             s2 = gw.pg.sizeHint().width()
@@ -192,13 +192,13 @@ class graphWindow(QtWidgets.QWidget):
         uncheck_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
         uncheck_action.triggered.connect(self.uncheck)
         self.tw.addAction(uncheck_action)
-        
+
         uncheck_all_action = QtWidgets.QAction("Uncheck All", self.tw)
         uncheck_all_action.setShortcut("SHIFT+ENTER")
         uncheck_all_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
         uncheck_all_action.triggered.connect(self.uncheck_all)
         self.tw.addAction(uncheck_all_action)
-        
+
         fit_menu = QtWidgets.QMenu()
         fit_curve_action = QtWidgets.QAction("Fit", self.tw)
         fit_curve_action.setMenu(fit_menu)
@@ -208,19 +208,19 @@ class graphWindow(QtWidgets.QWidget):
             action.triggered.connect(partial(self.fit, model))
             fit_menu.addAction(action)
         self.fit_menu = fit_menu
-        
+
         upload_curve_action = QtWidgets.QAction("Upload Curve", self.tw)
         upload_curve_action.setShortcut("TAB")
         upload_curve_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
         upload_curve_action.triggered.connect(self.upload_curve)
         self.tw.addAction(upload_curve_action)
-        
+
         remove_curve_action = QtWidgets.QAction("Remove", self.tw)
         remove_curve_action.setShortcut("DELETE")
         remove_curve_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
         remove_curve_action.triggered.connect(self.remove_curve)
         self.tw.addAction(remove_curve_action)
-        
+
         colors_menu = QtWidgets.QMenu()
         colors_action = QtWidgets.QAction("Color Options", self.tw)
         colors_action.setMenu(colors_menu)
@@ -259,7 +259,7 @@ class graphWindow(QtWidgets.QWidget):
         vb.addItem(self.img)
         self.pg.scene().sigMouseMoved.connect(self.mouse_moved)
         self.pg.scene().sigMouseClicked.connect(self.mouse_clicked)
-        
+
         self.main_widget.addWidget(self.tw)
 
         sublayout = QtWidgets.QVBoxLayout()
@@ -278,7 +278,7 @@ class graphWindow(QtWidgets.QWidget):
         layout.addWidget(self.main_widget)
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
-        
+
     def uncheck(self):
         for item in self.tw.selectedItems():
             item.setCheckState(0, 0)
@@ -294,10 +294,10 @@ class graphWindow(QtWidgets.QWidget):
             return
         self.fitmenu = fitMenu(model, name, sI[0].plot_item, self)
         self.fitmenu.show()
-    
+
     def upload_curve(self, *args, file_=None, checked=True, startup=False):
         if file_ is None:
-            fname = QtWidgets.QFileDialog.getOpenFileName(self, 
+            fname = QtWidgets.QFileDialog.getOpenFileName(self,
                             self.tr("Upload Data"), conf.data_dir,
                             self.tr("HDF5 Files (*.h5 *.hdf5)"))[0]
         else:
@@ -317,7 +317,7 @@ class graphWindow(QtWidgets.QWidget):
             if not startup:
                 self.warning_message("HDF5 file does not contain a 'scan_data' group.")
             return
-        try: 
+        try:
             plot_name = data.attrs["plot_show"]
             if plot_name != self.name:
                 if not startup:
@@ -356,7 +356,7 @@ class graphWindow(QtWidgets.QWidget):
             except AssertionError:
                 continue
         if len(Ylist) == 0:
-            return 
+            return
         for i in range(len(Ylist)):
             item = self.add_plot_item(txtlist[i], X, Ylist[i], file_=fname)
             if not checked:
@@ -395,7 +395,7 @@ class graphWindow(QtWidgets.QWidget):
         for i in range(N):
             if self.color_dialog.customColor(i).getRgb() != (254, 254, 254):
                 self.custom_colors = [self.color_dialog.customColor(i).getRgb() for i in range(N)]
-                pickle.dump(self.custom_colors, 
+                pickle.dump(self.custom_colors,
                             open("/home/lattice/artiq/artiq/applets/rcg/custom_colors.pkl", "wb"))
 
     def use_default_colors(self):
@@ -433,7 +433,7 @@ class graphWindow(QtWidgets.QWidget):
         msg.setText(txt)
         msg.exec_()
 
-    def add_plot_item(self, name, x, y, over_ride_show_points=None, 
+    def add_plot_item(self, name, x, y, over_ride_show_points=None,
                       append=False, file_=None, range_guess=None):
         if name in self.items.keys() and not append:
             return
@@ -454,15 +454,15 @@ class graphWindow(QtWidgets.QWidget):
             self.tw.addTopLevelItem(item)
         (xmin_cur, xmax_cur), (ymin_cur, ymax_cur) = self.pg.viewRange()
         if range_guess is not None and self.autoscroll_enabled:
-            if (xmin_cur > range_guess[0] or xmax_cur < range_guess[1] or 
+            if (xmin_cur > range_guess[0] or xmax_cur < range_guess[1] or
                     abs(xmax_cur - xmin_cur) > abs(range_guess[1] - range_guess[0]) * 3):
                 self.pg.setXRange(*range_guess)
-        
+
         try:
             max_x, min_y, max_y = None, None, None
-            
+
             max_x = max(list(x))#self.items[name].plot_item.databounds(0)[-1]
-            
+
             # Can optionally auto adjust range in response to all currently plotted items,
             # by uncommenting below
             for item in self.items.values():
@@ -501,12 +501,22 @@ class graphWindow(QtWidgets.QWidget):
         except AttributeError:
             # curve is not currently displayed on graph
             pass
-        
+
         return item
 
     def mouse_moved(self, pos):
         pnt = self.img.mapFromScene(pos)
-        str_ = "    ({:.5f} , {:.5f})".format(pnt.x(), pnt.y())
+        xpnt = pnt.x()
+        ypnt = pnt.y()
+        if abs(xpnt) < 1e-3 or abs(xpnt) > 1e4:
+            pnt_x = "{:.2E}".format(xpnt)
+        else:
+            pnt_x = "{:.4f}".format(xpnt)
+        if abs(ypnt) < 1e-3 or abs(ypnt) > 1e4:
+            pnt_y = "{:.2E}".format(ypnt)
+        else:
+            pnt_y = "{:.4f}".format(ypnt)
+        str_ = "    ({} , {})".format(pnt_x, pnt_y)
         self.coords.setText(str_)
         self.pos = pos
 
@@ -529,11 +539,11 @@ def main():
     app = QtWidgets.QApplication(["Real Complicated Grapher"])
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
-    
+
     class mainWindow(QtWidgets.QMainWindow):
         def __init__(self):
             QtWidgets.QMainWindow.__init__(self)
-            icon = QtGui.QIcon(os.path.join(artiq_dir, "applets", 
+            icon = QtGui.QIcon(os.path.join(artiq_dir, "applets",
                                "rcg", "rcg.svg"))
             self.setWindowIcon(icon)
             self.exit_request = asyncio.Event()
@@ -554,7 +564,7 @@ def main():
         pass
     finally:
         loop.close()
-    
+
 
 if __name__ == "__main__":
     main()
