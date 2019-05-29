@@ -338,7 +338,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         self.periodic_schedule_checkbox.setToolTip("Schedule an experiment to run periodically.")
         self.periodic_schedule_spinbox = QtWidgets.QDoubleSpinBox()
         self.periodic_schedule_spinbox.setRange(0.166, 1440.)
-        self.periodic_schedule_spinbox.setSingleStep(0.0166)
+        self.periodic_schedule_spinbox.setSingleStep(10.0)
         self.periodic_schedule_spinbox.setSuffix(" minutes")
         self.layout.addWidget(self.periodic_schedule_checkbox, 4, 0)
         self.layout.addWidget(self.periodic_schedule_spinbox, 4, 1)
@@ -427,9 +427,12 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         period = float(self.periodic_schedule_spinbox.value())
         await asyncio.sleep(1e-4)
         expurl = self.expurl
-        while self.schedule_periodic_bool:
-            self.manager.submit(expurl)
-            await asyncio.sleep(period * 60)
+        while True:
+            if self.schedule_periodic_bool:
+                self.manager.submit(expurl)
+                await asyncio.sleep(period * 60)
+            else:
+                break
     
     def submit_clicked(self):
         try:
@@ -537,6 +540,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
 
     def closeEvent(self, event):
         self.sigClosed.emit()
+        self.schedule_periodic_bool = False # probably not necessary
         QtWidgets.QMdiSubWindow.closeEvent(self, event)
 
     def save_state(self):

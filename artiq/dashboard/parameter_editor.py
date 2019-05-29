@@ -118,7 +118,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         grid = LayoutWidget()
         self.setWidget(grid)
         self.table = QtWidgets.QTreeWidget()
-        self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+        self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectItems)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         self.table.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
         self.table.setSortingEnabled(False)
@@ -769,13 +769,21 @@ class ParameterSelectionEditor(QtWidgets.QDoubleSpinBox, BaseEditor):
         if changed:
             return
         try:
-            # print("Val: ", val)
-            # print("units: ", self.units)
             self.setValue(val[self.units])
-            self.state[-1] = val[self.units]
-        except:
-            self.setValue(val)
             self.state[-1] = val
+        except:
+            try:
+                self.setValue(val)
+                self.state[-1] = val
+            except TypeError:
+                # not sure what's happening here
+                self.units = val.units
+                self.setValue(val[self.units])
+                self.state[-1] = val[self.units]
+
+    def focusOutEvent(self, event):
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+        super(ParameterSelectionEditor, self).focusOutEvent(event)
 
 
 class IntListEditor(BaseEditor):
