@@ -52,7 +52,7 @@ tab_configs = [
              graphConfig(name="scan_nu_eff", title="Scan Nu_eff", col=1),
               graphConfig(name="vaet_time", title="VAET Time", row=1, colspan=2, ylims=[0, 2000])]),
     ("Parity", [graphConfig(name="Parity", ylims=[-1, 1])]),
-    ("Ramsey", [graphConfig(name="Ramsey", ylims=[0, 2000])])
+    ("Ramsey", [graphConfig(name="Ramsey", ylims=[0, 1])])
 ]
 
 

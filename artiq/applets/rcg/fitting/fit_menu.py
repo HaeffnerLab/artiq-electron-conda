@@ -29,6 +29,10 @@ class fitMenu(QtWidgets.QWidget):
                 argspec = inspect.getfullargspec(self.model)
                 self.args = argspec.args[1:]
                 p0 = argspec.defaults
+                try:
+                    self.guess_parameters = fit_function.guess_parameters
+                except AttributeError:
+                    self.guess_parameters = None
                 break
         else:
             return
@@ -47,7 +51,11 @@ class fitMenu(QtWidgets.QWidget):
         self.tw.setHeaderLabels(["", "Parameter", "Guess", "Fit Value"])
         self.tw.setColumnWidth(0, 25)
         self.tw.setAlternatingRowColors(True)
-        
+
+        if self.guess_parameters is not None:
+            x, y = self.data_item.getData()
+            p0 = list(self.guess_parameters(x, y))
+
         for i, arg in enumerate(self.args):
             child = QtWidgets.QTreeWidgetItem(["", arg, "", ""])
             child.setFlags(QtCore.Qt.ItemIsSelectable |  QtCore.Qt.ItemIsEnabled)
@@ -57,7 +65,7 @@ class fitMenu(QtWidgets.QWidget):
             checkbox.setCheckState(2)
             self.tw.setItemWidget(child, 0, checkbox)
             guess = QtWidgets.QDoubleSpinBox()
-            guess.setDecimals(4)
+            guess.setDecimals(6)
             guess.setMaximum(1e10)
             guess.setMinimum(-1e10)
             if p0 is not None:
@@ -79,7 +87,7 @@ class fitMenu(QtWidgets.QWidget):
             model_label.setPixmap(Tex)
         except:
             pass
-        
+
         manual_button = QtWidgets.QPushButton("Manual")
         manual_button.released.connect(self.on_manual_button_released)
         manual_button.setCheckable(False)
@@ -89,7 +97,7 @@ class fitMenu(QtWidgets.QWidget):
         sublayout = QtWidgets.QHBoxLayout()
         sublayout.addWidget(manual_button)
         sublayout.addWidget(fit_button)
-        
+
         layout.addWidget(model_label)
         layout.addWidget(self.tw)
         layout.addLayout(sublayout)
@@ -101,18 +109,19 @@ class fitMenu(QtWidgets.QWidget):
             return
         sender = self.sender()
         stepsize = sender.value() / 100
-        if stepsize < .001: 
+        if stepsize < .001:
             stepsize = .001
         sender.setSingleStep(stepsize)
         self.on_manual_button_released()
 
     def on_manual_button_released(self):
         self.plot_active = True
-        self.p0 = [self.tw.itemWidget(self.tw.topLevelItem(i), 2).value() 
+        self.p0 = [self.tw.itemWidget(self.tw.topLevelItem(i), 2).value()
                                     for i in range(self.tw.topLevelItemCount())]
-        
+
         x = self.data_item.getData()[0]
-        xrange_ = np.linspace(x[0], x[-1], 10000)
+        delta = np.abs(x[-1] - x[0])
+        xrange_ = np.linspace(x[0] - delta, x[-1] + delta, 10000)
         try:
             y = self.fit_function(xrange_, *self.p0)
         except:
@@ -150,7 +159,7 @@ class fitMenu(QtWidgets.QWidget):
             top_widget = self.tw.topLevelItem(i)
             self.tw.itemWidget(top_widget, 2).setValue(float(value))
             self.fit_function.__defaults__ = self.defaults
-        
+
     def closeEvent(self, event):
         self.graph.remove_curve(curve=self.plot_item)
 
