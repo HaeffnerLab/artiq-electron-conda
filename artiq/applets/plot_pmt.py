@@ -18,6 +18,7 @@ class PMTPlot(pyqtgraph.PlotWidget):
         self.current_curve_point_count = {}
         self.showGrid(x=True, y=True, alpha=0.75)
         self.setYRange(0, 1000)
+        self.setXRange(0, 500)
 
         self.pens = {"with_866_on":  pyqtgraph.mkPen((255, 0, 0), width=2),
                      "with_866_off": pyqtgraph.mkPen((0, 0, 255), width=2),
@@ -51,6 +52,8 @@ class PMTPlot(pyqtgraph.PlotWidget):
                 self.data_mgr.set("pmt_counts", [])
                 self.data_mgr.set("pmt_counts_866_off", [])
                 self.data_mgr.set("diff_counts", [])
+                self.setYRange(0, 1000)
+                self.setXRange(0, 500)
                 return  # don't want to plot twice
         except Exception as e:
             print(Exception)
@@ -142,7 +145,7 @@ class PMTPlot(pyqtgraph.PlotWidget):
                 limits = [xmin, xmax]
                 self.setXRange(*limits)
             self.setTitle(title)
-        
+
     def mouse_clicked(self, ev):
         if ev.double():
             self.autoscroll = not self.autoscroll
