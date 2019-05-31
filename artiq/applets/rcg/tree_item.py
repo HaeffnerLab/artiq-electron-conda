@@ -30,7 +30,7 @@ class treeItem(QtWidgets.QTreeWidgetItem):
         if self.plot_item is not None:
             self.remove_plot()
         self.plot_item = self.axes.plot(x=self.x, y=self.y,
-                                        pen=pyqtgraph.mkPen(self.color, width=2), 
+                                        pen=pyqtgraph.mkPen(self.color, width=2),
                                         symbolBrush=self.color if self.show_points else None,
                                         symbol="o" if self.show_points else None)
         self.plot_item.sigClicked.connect(self.curve_clicked)
@@ -66,7 +66,7 @@ class treeItem(QtWidgets.QTreeWidgetItem):
                 if c.plot_item is not None:
                     c.plot_item.setShadowPen(color=c.color, width=2)
                 c.is_selected = False
-                
+
     def deselect(self):
         self.parent_.tw.clearSelection()
         self.plot_item.setShadowPen(color=self.color, width=2)
@@ -75,16 +75,16 @@ class treeItem(QtWidgets.QTreeWidgetItem):
     def copy_to_clipboard(self):
         # Only works if data was generated that day
         day = datetime.now().strftime("%Y%m%d")
-        data = self.name.split("-")[-1].replace(" ", "").replace("_", ".")
+        data = self.name.split("-")[0].replace(" ", "").replace("_", ".")
         pyperclip.copy("#data {}/{}#".format(day, data))
-    
+
     def remove_plot(self):
         if self.plot_item is None:
             return
         self.axes.removeItem(self.plot_item)
         del self.plot_item
         self.plot_item = None
-    
+
     def setData(self, index, role, value):
         super(treeItem, self).setData(index, role, value)
         if role == 10:
