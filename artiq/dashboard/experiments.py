@@ -431,7 +431,6 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         period = float(self.periodic_schedule_spinbox.value())
         await asyncio.sleep(1e-4)
         expurl = self.expurl
-        expurl.update({"priority": self.priority.value()})
         while True:
             if self.schedule_periodic_bool:
                 self.manager.submit(expurl)
@@ -765,7 +764,7 @@ class ExperimentManager:
         for expurl, dock in self.open_experiments.items():
             self.dock_states[expurl] = dock.save_state()
         for val in self.submission_scheduling.values():
-            val.update({"priority": self.priority.value()})
+            val.update({"priority": dock.priority.value()})
         return {
             "scheduling": self.submission_scheduling,
             "options": self.submission_options,
