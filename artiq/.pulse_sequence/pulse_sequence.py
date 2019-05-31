@@ -29,23 +29,14 @@ logger = logging.getLogger(__name__)
 
 class PulseSequence(EnvExperiment):
     is_ndim = False
-    fixed_params = list()
-    accessed_params = {
-        "Display.relative_frequencies",
-        "StateReadout.amplitude_397",
-        "StateReadout.amplitude_866",
-        "StateReadout.att_397",
-        "StateReadout.att_866",
-        "StateReadout.frequency_397",
-        "StateReadout.frequency_866"
-    }
     kernel_invariants = set()
     scan_params = odict()  # Not working as expected
     range_guess = dict()
     data = edict()
     run_after = dict()
     set_subsequence = dict()
-
+    fixed_params = list()
+    
     def build(self):
         self.setattr_device("core")
         self.setattr_device("scheduler")
@@ -55,23 +46,8 @@ class PulseSequence(EnvExperiment):
         self.multi_scannables = dict()
         self.rcg_tabs = dict()
         self.selected_scan = dict()
-        for seq_name, (rcg_tab, scan_list) in self.scan_params.items():
-            self.rcg_tabs[seq_name] = rcg_tab
-            self.multi_scannables[seq_name] = odict()
-            scan_names = list()
-            for scan_param in scan_list:
-                scan_names.append(scan_param[0])
-                scan_name = seq_name + ":" + scan_param[0]
-                if len(scan_param) == 4:
-                    scannable = scan.Scannable(default=scan.RangeScan(*scan_param[1:]))
-                elif len(scan_param) == 5:
-                    scannable = scan.Scannable(default=scan.RangeScan(*scan_param[1:-1]), 
-                                               unit=scan_param[-1])
-                self.multi_scannables[seq_name].update(
-                    {scan_param[0]: self.get_argument(scan_name, scannable, group=seq_name)})
-            self.selected_scan[seq_name] = self.get_argument(seq_name + "-Scan_Selection", 
-                                                EnumerationValue(scan_names), group=seq_name)
-        self.setup()
+        self.update_scan_params(self.scan_params)
+        self.run_in_build()
 
         # Load all AD9910 and AD9912 DDS channels specified in device_db
         self.dds_names = list()
@@ -92,6 +68,7 @@ class PulseSequence(EnvExperiment):
         self.dds_729 = self.get_device("729G")
         self.dds_729_SP = self.get_device("SP_729G")
         self.cpld_list = [self.get_device("urukul{}_cpld".format(i)) for i in range(3)]
+        self.setattr_device("core_dma")
 
     def prepare(self):
         # Grab parametervault params:
@@ -174,6 +151,8 @@ class PulseSequence(EnvExperiment):
         self.set_dataset("time", [])
         for seq_name, scan_dict in self.multi_scannables.items():
             self.data[seq_name] = dict(x=[], y=[])
+            if isinstance(scan_dict[self.selected_scan[seq_name]], scan.NoScan):
+                self.rcg_tabs[seq_name] = "Current"
             if self.is_ndim:
                 scan_specs[seq_name] = [len(scan) for scan in scan_dict.values()]
             else:
@@ -274,6 +253,22 @@ class PulseSequence(EnvExperiment):
             self.trap_frequency_names.append(name)
             self.trap_frequency_values.append(value)
         self.run_initially()
+        
+    @classmethod
+    def set_global_params(cls):
+        cls.accessed_params.update({
+            "Display.relative_frequencies",
+            "StateReadout.amplitude_397",
+            "StateReadout.amplitude_866",
+            "StateReadout.att_397",
+            "StateReadout.att_866",
+            "StateReadout.frequency_397",
+            "StateReadout.frequency_866",
+            "StateReadout.readout_mode",
+            "StateReadout.doppler_cooling_repump_additional",
+            "StateReadout.frequency_397"
+            }
+        )
 
     def run(self):
         if self.rm in ["camera", "camera_states", "camera_parity"]:
@@ -288,11 +283,8 @@ class PulseSequence(EnvExperiment):
             self.parameter_names = list()
             self.parameter_values = list()
             scanned_params = set(scan_dict.keys())
-            statereadout = {"StateReadout.frequency_397", "StateReadout.frequency_866",
-                            "StateReadout.amplitude_397", "StateReadout.amplitude_866",
-                            "StateReadout.att_397", "StateReadout.att_866",
-                            "StateReadout.doppler_cooling_repump_additional"}
-            all_accessed_params = self.accessed_params | scanned_params | statereadout
+            self.set_global_params()
+            all_accessed_params = self.accessed_params | scanned_params
             self.kernel_invariants = set()
             for mode_name, frequency in self.p.TrapFrequencies.items():
                 self.kernel_invariants.update({mode_name})
@@ -386,8 +378,13 @@ class PulseSequence(EnvExperiment):
     @kernel
     def pmt_readout(self, duration) -> TInt32:
         self.core.break_realtime()
+        while True:
+            try:
+                self.dds_397.set_att(self.StateReadout_att_397)
+                break
+            except RTIOUnderflow:
+                delay(1*us)
         self.dds_397.set(self.StateReadout_frequency_397, amplitude=self.StateReadout_amplitude_397)
-        self.dds_397.set_att(self.StateReadout_att_397)
         self.dds_866.set(self.StateReadout_frequency_866, amplitude=self.StateReadout_amplitude_866)
         self.dds_866.set_att(self.StateReadout_att_866)
         self.dds_397.sw.on()
@@ -397,6 +394,7 @@ class PulseSequence(EnvExperiment):
         self.dds_397.sw.off()
         delay(self.StateReadout_doppler_cooling_repump_additional)
         self.dds_866.sw.off()
+        self.core.wait_until_mu(now_mu())
         return self.pmt.count(t_count)
             
     @kernel
@@ -461,7 +459,7 @@ class PulseSequence(EnvExperiment):
             for l in list(range(len(self.variable_parameter_names))):
                 self.set_variable_parameter(
                     self.variable_parameter_names[l], scan_iterable[i])
-                set_subsequence()
+            set_subsequence()
             for j in range(reps):
                 if linetrigger:
                     self.line_trigger(linetrigger_offset)
@@ -472,17 +470,18 @@ class PulseSequence(EnvExperiment):
                     pmt_count = self.pmt_readout(readout_duration)
                     self.record_result("raw_run_data", j, pmt_count)
                 else:
-                    print("For some reason, I can only get camera readout to work right now"
-                          "if I insert a print statement here.")
-                    self.camera_ttl.off()
-                    self.dds_397.set(self.StateReadout_frequency_397, amplitude=self.StateReadout_amplitude_397)
+                    delay(10*us)
+                    self.dds_397.set(self.StateReadout_frequency_397, 
+                                     amplitude=self.StateReadout_amplitude_397)
                     self.dds_397.set_att(self.StateReadout_att_397)
-                    self.dds_866.set(self.StateReadout_frequency_866, amplitude=self.StateReadout_amplitude_866)
+                    self.dds_866.set(self.StateReadout_frequency_866, 
+                                     amplitude=self.StateReadout_amplitude_866)
                     self.dds_866.set_att(self.StateReadout_att_866)
                     with parallel:
+                        self.camera_ttl.pulse(100*us)
                         self.dds_397.sw.on()
                         self.dds_866.sw.on()
-                        self.camera_ttl.pulse(100*us)
+                    self.core.wait_until_mu(now_mu())
                     delay(readout_duration)
                     self.dds_397.sw.off()
                     delay(100*us)
@@ -496,7 +495,6 @@ class PulseSequence(EnvExperiment):
             elif (readout_mode == "camera" or
                   readout_mode == "camera_states" or
                   readout_mode == "camera_parity"):
-                # delay(10*ms)  # try adding extra time here instead
                 self.update_camera(seq_name, i, is_multi, readout_mode)
 
             rem = (i + 1) % 5
@@ -565,10 +563,10 @@ class PulseSequence(EnvExperiment):
         thresholds = self.p.StateReadout.threshold_list
         name = seq_name + "-dark_ions:{}"
         idxs = [0]
-        scanned_x = sorted(list(self.multi_scannables[seq_name][self.selected_scan[seq_name]]))
-                    # getattr(self,
-                    # seq_name + "-" + self.x_label[seq_name][0]
-                    # if is_multi else self.x_label[seq_name][0])
+        scan_name = self.selected_scan_name.replace("_", ".", 1)
+        scanned_x = sorted(list(self.multi_scannables[seq_name][scan_name]))
+        if isinstance(self.multi_scannables[seq_name][scan_name], scan.NoScan):
+            scanned_x = np.linspace(0, len(scanned_x), len(scanned_x))
         if self.abs_freqs and not self.p.Display.relative_frequencies:
             x = [i * 1e-6 for i in self.get_dataset(seq_name + "-raw_x_data")]
             if seq_name not in self.range_guess.keys():
@@ -613,9 +611,10 @@ class PulseSequence(EnvExperiment):
         ion_state, camera_readout, confidences = readouts.camera_ion_probabilities(images,
                                                         self.N, self.p.IonsOnCamera, readout_mode)
         self.average_confidences[i] = np.mean(confidences)
-        scanned_x = getattr(self,
-                    seq_name + "-" + self.x_label[seq_name][0]
-                    if is_multi else self.x_label[seq_name][0])
+        scan_name = self.selected_scan_name.replace("_", ".", 1)
+        scanned_x = sorted(list(self.multi_scannables[seq_name][scan_name]))
+        if isinstance(self.multi_scannables[seq_name][scan_name], scan.NoScan):
+            scanned_x = np.linspace(0, len(scanned_x), len(scanned_x))
         if self.abs_freqs and not self.p.Display.relative_frequencies:
             x = [i * 1e-6 for i in self.get_dataset(seq_name + "-raw_x_data")]
             if seq_name not in self.range_guess.keys():
@@ -941,9 +940,38 @@ class PulseSequence(EnvExperiment):
         subsequence.run = kernel(subsequence.subsequence)
         return subsequence
 
-    def setup(self):
+    def update_scan_params(self, scan_params, iteration=None):
+        for seq_name, (rcg_tab, scan_list) in scan_params.items():
+            if iteration is not None:
+                seq_name += str(iteration)
+            self.rcg_tabs[seq_name] = rcg_tab
+            self.multi_scannables[seq_name] = odict()
+            scan_names = list()
+            for scan_param in scan_list:
+                scan_names.append(scan_param[0])
+                scan_name = seq_name + ":" + scan_param[0]
+                if len(scan_param) == 4:
+                    scannable = scan.Scannable(default=scan.RangeScan(*scan_param[1:]))
+                elif len(scan_param) == 5:
+                    scannable = scan.Scannable(default=scan.RangeScan(*scan_param[1:-1]), 
+                                            unit=scan_param[-1])
+                self.multi_scannables[seq_name].update(
+                    {scan_param[0]: self.get_argument(scan_name, scannable, group=seq_name)})
+            self.selected_scan[seq_name] = self.get_argument(seq_name + "-Scan_Selection", 
+                                                EnumerationValue(scan_names), group=seq_name)
+    
+    def dynamically_generate_scans(self, main_scan, scan_params):
+        scan_length = len(list(main_scan))
+        for i in range(scan_length):
+            self.update_scan_params(scan_params, iteration=i)
+            for seq_name in scan_params.keys():
+                self.set_subsequence[seq_name + str(i)] = self.set_subsequence[seq_name]
+                setattr(self, seq_name + str(i), getattr(self, seq_name))
+                            
+    
+    def run_in_build(self):
         pass
-
+    
     def run_initially(self):
         pass
 
