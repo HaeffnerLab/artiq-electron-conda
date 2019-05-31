@@ -38,8 +38,9 @@ types = ["parameter",
 
 class ParameterEditorDock(QtWidgets.QDockWidget):
 
-    def __init__(self, acxn=None, name="Parameter Editor", accessed_params=None):
+    def __init__(self, acxn=None, name="Parameter Editor", accessed_params=None, expand_accessed_params=True):
         QtWidgets.QDockWidget.__init__(self, name)
+        self.expand_accessed_params = expand_accessed_params
         self.acxn = acxn if acxn else connection()
         self.accessed_params = accessed_params
         self.setObjectName(name.replace(" ", "_"))
@@ -160,7 +161,10 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                 collection_item = self.make_collection_item(accessed_params_registry, collection, region_index=0)
                 if collection_item:
                     self.table.addTopLevelItem(collection_item)
-                    collection_item.setExpanded(True)
+                    if self.expand_accessed_params:
+                        collection_item.setExpanded(True)
+                    else:
+                        collection_item.setExpanded(False)
                     self.collection_widget_items[0][collection] = collection_item
         else:
             # set up top-level items for all parameters and common parameters

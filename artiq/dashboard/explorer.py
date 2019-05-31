@@ -64,6 +64,8 @@ class _OpenFileDialog(QtWidgets.QDialog):
                          self.explorer.current_directory, exc_info=True)
             return
         for name in sorted(contents, key=lambda x: (x[-1] not in "\\/", x)):
+            # if "PulseSequence" in name:
+            #     continue
             if name[-1] in "\\/":
                 icon = QtWidgets.QStyle.SP_DirIcon
             else:

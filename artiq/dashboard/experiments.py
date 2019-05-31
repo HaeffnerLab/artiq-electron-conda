@@ -5,6 +5,7 @@ import re
 from functools import partial
 from collections import OrderedDict
 import imp
+import importlib
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 import h5py
@@ -339,8 +340,9 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         self.periodic_schedule_checkbox.stateChanged.connect(self.schedule_periodic)
         self.periodic_schedule_checkbox.setToolTip("Schedule an experiment to run periodically.")
         self.periodic_schedule_spinbox = QtWidgets.QDoubleSpinBox()
+        self.periodic_schedule_spinbox.setValue(10.0)
         self.periodic_schedule_spinbox.setRange(0.166, 1440.)
-        self.periodic_schedule_spinbox.setSingleStep(10.0)
+        self.periodic_schedule_spinbox.setSingleStep(.0167)
         self.periodic_schedule_spinbox.setSuffix(" minutes")
         self.layout.addWidget(self.periodic_schedule_checkbox, 4, 0)
         self.layout.addWidget(self.periodic_schedule_spinbox, 4, 1)
@@ -393,15 +395,17 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
             file = os.path.join(os.path.expanduser("~"), "artiq-work", file)
             with open(file) as f:
                 expsource = imp.load_source(file, '', f)
-                accessed_params = getattr(expsource, class_).accessed_params
+                mod =  getattr(expsource, class_)
+                mod.set_global_params()
+                accessed_params = mod.accessed_params
         except:
             logger.info("No accessed params found for " + expurl, exc_info=True)
 
         # only add parameter editor if the experiment has specified accessed params
         if accessed_params:
-            d_accessed_parameter_editor = parameter_editor.ParameterEditorDock(acxn=None,
-                                                                           name="Accessed Parameters",
-                                                                           accessed_params=accessed_params)
+            d_accessed_parameter_editor = parameter_editor.ParameterEditorDock(
+                    acxn=None, name="Accessed Parameters", accessed_params=accessed_params,
+                    expand_accessed_params=False)
             d_accessed_parameter_editor.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
             d_accessed_parameter_editor.setTitleBarWidget(QtGui.QWidget()) # hides title bar
             # d_accessed_parameter_editor.setMinimumWidth(500)
