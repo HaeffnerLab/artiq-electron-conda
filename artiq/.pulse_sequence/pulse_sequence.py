@@ -23,7 +23,9 @@ from functools import partial
 from HardwareConfiguration import dds_config
 
 
-absolute_frequency_plots = ["CalibLine1", "CalibLine2", "Spectrum"]
+absolute_frequency_plots = [
+        "CalibLine1", "CalibLine2", "Spectrum", "CalibRed", "CalibBlue"
+    ]
 logger = logging.getLogger(__name__)
 
 
@@ -36,6 +38,7 @@ class PulseSequence(EnvExperiment):
     run_after = dict()
     set_subsequence = dict()
     fixed_params = list()
+    master_scans = list()
     
     def build(self):
         self.setattr_device("core")
@@ -46,7 +49,23 @@ class PulseSequence(EnvExperiment):
         self.multi_scannables = dict()
         self.rcg_tabs = dict()
         self.selected_scan = dict()
+        self.master_scan_iterables = list()
+        self.master_scan_names = list()
         self.update_scan_params(self.scan_params)
+        if self.master_scans:
+            for scan_descr in self.master_scans:
+                scan_name = scan_descr[0]
+                self.master_scan_names.append(scan_name)
+                self.accessed_params.update({scan_name})
+                if len(scan_descr) == 4:
+                    scannable = scan.Scannable(default=scan.RangeScan(*scan_descr[1:]))
+                elif len(scan_descr) == 5:
+                    scannable = scan.Scannable(default=scan.RangeScan(*scan_descr[1:-1]),
+                                               unit=scan_descr[-1])
+                self.master_scan_iterables.append(self.get_argument(
+                            scan_name, scannable, group="Master Scans"
+                        )
+                    )
         self.run_in_build()
 
         # Load all AD9910 and AD9912 DDS channels specified in device_db
@@ -277,92 +296,98 @@ class PulseSequence(EnvExperiment):
         linetrigger_offset = float(self.p.line_trigger_settings.offset_duration)
         linetrigger_offset = self.core.seconds_to_mu(linetrigger_offset*us)
         is_multi = True if len(self.multi_scannables) > 1 else False
-        for seq_name, scan_dict in self.multi_scannables.items():
-            self.variable_parameter_names = list()
-            self.variable_parameter_values = list()
-            self.parameter_names = list()
-            self.parameter_values = list()
-            scanned_params = set(scan_dict.keys())
-            self.set_global_params()
-            all_accessed_params = self.accessed_params | scanned_params
-            self.kernel_invariants = set()
-            for mode_name, frequency in self.p.TrapFrequencies.items():
-                self.kernel_invariants.update({mode_name})
-                setattr(self, mode_name, frequency)
-            abs_freqs = True if self.rcg_tabs[seq_name] in absolute_frequency_plots else False
-            self.abs_freqs = abs_freqs
-            self.seq_name = seq_name
-            self.current_x_value = 9898989898.9898989898
-            self.kernel_invariants.update({"dds_names", "dds_offsets", 
-                                           "dds_dp_flags", "seq_name", "abs_freqs"})
-            for param_name in all_accessed_params:
-                collection, key = param_name.split(".")
-                param = self.p[collection][key]
-                new_param_name = param_name.replace(".", "_")
-                if (type(param) is (float or int)) and (param_name in scanned_params):
-                    self.variable_parameter_names.append(new_param_name)
-                    if self.selected_scan[seq_name] == param_name:
-                        self.variable_parameter_values.append(list(scan_dict[param_name])[0])
+        master_iterable = product(*self.master_scan_iterables)
+        for master_scan_values in master_iterable:
+            self.timestamp = odict()
+            for i, value in enumerate(master_scan_values):
+                collection, key = self.master_scan_names[i].split(".")
+                self.p[collection][key] = value
+            for seq_name, scan_dict in self.multi_scannables.items():
+                self.variable_parameter_names = list()
+                self.variable_parameter_values = list()
+                self.parameter_names = list()
+                self.parameter_values = list()
+                scanned_params = set(scan_dict.keys())
+                self.set_global_params()
+                all_accessed_params = self.accessed_params | scanned_params
+                self.kernel_invariants = set()
+                for mode_name, frequency in self.p.TrapFrequencies.items():
+                    self.kernel_invariants.update({mode_name})
+                    setattr(self, mode_name, frequency)
+                abs_freqs = True if self.rcg_tabs[seq_name] in absolute_frequency_plots else False
+                self.abs_freqs = abs_freqs
+                self.seq_name = seq_name
+                self.current_x_value = 9898989898.9898989898
+                self.kernel_invariants.update({"dds_names", "dds_offsets", 
+                                            "dds_dp_flags", "seq_name", "abs_freqs"})
+                for param_name in all_accessed_params:
+                    collection, key = param_name.split(".")
+                    param = self.p[collection][key]
+                    new_param_name = param_name.replace(".", "_")
+                    if (type(param) is (float or int)) and (param_name in scanned_params):
+                        self.variable_parameter_names.append(new_param_name)
+                        if self.selected_scan[seq_name] == param_name:
+                            self.variable_parameter_values.append(list(scan_dict[param_name])[0])
+                        else:
+                            collection, parameter = param_name.split(".")
+                            self.variable_parameter_values.append(self.p[collection][parameter])
                     else:
-                        collection, parameter = param_name.split(".")
-                        self.variable_parameter_values.append(self.p[collection][parameter])
+                        self.parameter_names.append(param_name)
+                        self.parameter_values.append(param)
+                        self.kernel_invariants.update({new_param_name})
+                        setattr(self, new_param_name, param)
+                current_sequence = getattr(self, seq_name)
+                selected_scan = self.selected_scan[seq_name]
+                self.selected_scan_name = selected_scan.replace(".", "_")
+                if not self.is_ndim:
+                    scan_iterable = sorted(list(scan_dict[selected_scan]))
+                    ndim_iterable = [[0]]
                 else:
-                    self.parameter_names.append(param_name)
-                    self.parameter_values.append(param)
-                    self.kernel_invariants.update({new_param_name})
-                    setattr(self, new_param_name, param)
-            current_sequence = getattr(self, seq_name)
-            selected_scan = self.selected_scan[seq_name]
-            self.selected_scan_name = selected_scan.replace(".", "_")
-            if not self.is_ndim:
-                scan_iterable = sorted(list(scan_dict[selected_scan]))
-                ndim_iterable = [[0]]
-            else:
-                ms_list = [list(x) for x in scan_dict.values()]
-                ndim_iterable = list(map(list, list(product(*ms_list))))
-                scan_iterable = [0]
-                self.set_dataset("x_data", ndim_iterable)
-            scan_names = list(map(lambda x: x.replace(".", "_"), self.x_label[seq_name]))
-            self.start_point1, self.start_point2 = 0, 0
-            self.run_looper = True
-            try:
-                set_subsequence = self.set_subsequence[seq_name]
-            except KeyError:
-                @kernel
-                def maybe_needed_delay(): 
-                    delay(.1*us)
-                set_subsequence = maybe_needed_delay
-            if self.use_camera:
-                readout_duration = self.p.StateReadout.camera_readout_duration
-            else:
-                readout_duration = self.p.StateReadout.pmt_readout_duration
-            while self.run_looper:
-                self.looper(current_sequence, self.N, linetrigger, linetrigger_offset, scan_iterable,
-                        self.rm, readout_duration, seq_name, is_multi, self.n_ions, self.is_ndim, scan_names, 
-                        ndim_iterable, self.start_point1, self.start_point2, self.use_camera, set_subsequence)
-                if self.scheduler.check_pause():
-                    try:
-                        self.core.comm.close()
-                        self.scheduler.pause()
-                    except TerminationRequested:
+                    ms_list = [list(x) for x in scan_dict.values()]
+                    ndim_iterable = list(map(list, list(product(*ms_list))))
+                    scan_iterable = [0]
+                    self.set_dataset("x_data", ndim_iterable)
+                scan_names = list(map(lambda x: x.replace(".", "_"), self.x_label[seq_name]))
+                self.start_point1, self.start_point2 = 0, 0
+                self.run_looper = True
+                try:
+                    set_subsequence = self.set_subsequence[seq_name]
+                except KeyError:
+                    @kernel
+                    def maybe_needed_delay(): 
+                        delay(.1*us)
+                    set_subsequence = maybe_needed_delay
+                if self.use_camera:
+                    readout_duration = self.p.StateReadout.camera_readout_duration
+                else:
+                    readout_duration = self.p.StateReadout.pmt_readout_duration
+                while self.run_looper:
+                    self.looper(current_sequence, self.N, linetrigger, linetrigger_offset, scan_iterable,
+                            self.rm, readout_duration, seq_name, is_multi, self.n_ions, self.is_ndim, scan_names, 
+                            ndim_iterable, self.start_point1, self.start_point2, self.use_camera, set_subsequence)
+                    if self.scheduler.check_pause():
                         try:
-                            self.run_after[seq_name]()
-                            continue
-                        except:
-                            self.set_dataset("raw_run_data", None, archive=False)
-                            self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list,
-                                                self.state_list, self.att_list)
-                            return
-            try:
-                self.run_after[seq_name]()
-            except FitError:
-                logger.error("Fit failed.", exc_info=True)
-                break
-            except KeyError:
-                continue
-            except:
-                logger.error("run_after failed for seq_name: {}.".format(seq_name), exc_info=True)
-                continue
+                            self.core.comm.close()
+                            self.scheduler.pause()
+                        except TerminationRequested:
+                            try:
+                                self.run_after[seq_name]()
+                                continue
+                            except:
+                                self.set_dataset("raw_run_data", None, archive=False)
+                                self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list,
+                                                    self.state_list, self.att_list)
+                                return
+                try:
+                    self.run_after[seq_name]()
+                except FitError:
+                    logger.error("Fit failed.", exc_info=True)
+                    continue
+                except KeyError:
+                    continue
+                except:
+                    logger.error("run_after failed for seq_name: {}.".format(seq_name), exc_info=True)
+                    continue
         self.set_dataset("raw_run_data", None, archive=False)
         self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list, self.state_list, self.att_list)
 
@@ -593,6 +618,10 @@ class PulseSequence(EnvExperiment):
                 parity += dataset[i]
             else:
                 parity -= dataset[i]
+            # For some reason, when using master scans, xdata for consecutive runs is appended.
+            # Need to figure out why, but for now this will do.
+            if len(x) != len(dataset[:i + 1]):
+                x = x[-len(dataset[:i + 1]):]
             self.save_and_send_to_rcg(x, dataset[:i + 1],
                                       name.split("-")[-1].format(k), seq_name, is_multi, self.range_guess[seq_name])
         if with_parity:
@@ -624,6 +653,10 @@ class PulseSequence(EnvExperiment):
             if seq_name not in self.range_guess.keys():
                 self.range_guess[seq_name] = x[0], x[-1]
             x = x[:i + 1]
+        # For some reason, when using master scans, xdata for consecutive runs is appended.
+        # Need to figure out why, but for now this will do.
+        if len(x) != len(dataset[:i + 1]):
+            x = x[-len(dataset[:i + 1]):]
         if readout_mode == "camera":
             name = seq_name + "-ion number:{}"
             for k in range(self.n_ions):
@@ -646,6 +679,8 @@ class PulseSequence(EnvExperiment):
 
     @rpc(flags={"async"})
     def save_and_send_to_rcg(self, x, y, name, seq_name, is_multi, range_guess=None):
+        if seq_name not in self.timestamp.keys():
+            self.timestamp[seq_name] = None
         if self.timestamp[seq_name] is None:
             self.start_time = datetime.now()
             self.timestamp[seq_name] = self.start_time.strftime("%H%M_%S")
@@ -674,10 +709,15 @@ class PulseSequence(EnvExperiment):
             except:
                 return
         try:
+            if self.master_scans:
+                title = self.timestamp[seq_name] + " - " + name + " ({})".format(seq_name)
+            else:
+                title = self.timestamp[seq_name] + " - " + name
             self.rcg.plot(x, y, tab_name=self.rcg_tabs[seq_name],
-                          plot_title=self.timestamp[seq_name] + " - " + name, append=True,
+                          plot_title=title, append=True,
                           file_=os.path.join(os.getcwd(), self.filename[seq_name]), range_guess=range_guess)
-        except:
+        except Exception as e:
+            print("exception: ", e)
             return
 
     @kernel
@@ -959,15 +999,6 @@ class PulseSequence(EnvExperiment):
                     {scan_param[0]: self.get_argument(scan_name, scannable, group=seq_name)})
             self.selected_scan[seq_name] = self.get_argument(seq_name + "-Scan_Selection", 
                                                 EnumerationValue(scan_names), group=seq_name)
-    
-    def dynamically_generate_scans(self, main_scan, scan_params):
-        scan_length = len(list(main_scan))
-        for i in range(scan_length):
-            self.update_scan_params(scan_params, iteration=i)
-            for seq_name in scan_params.keys():
-                self.set_subsequence[seq_name + str(i)] = self.set_subsequence[seq_name]
-                setattr(self, seq_name + str(i), getattr(self, seq_name))
-                            
     
     def run_in_build(self):
         pass
