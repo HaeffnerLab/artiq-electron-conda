@@ -232,7 +232,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         QtWidgets.QMdiSubWindow.__init__(self)
         qfm = QtGui.QFontMetrics(self.font())
         self.resize(100*qfm.averageCharWidth(), 30*qfm.lineSpacing())
-        self.setWindowTitle(expurl)
+        self.setWindowTitle(expurl.split("/")[-1])
         self.setWindowIcon(QtWidgets.QApplication.style().standardIcon(
             QtWidgets.QStyle.SP_FileDialogContentsView))
 
@@ -542,7 +542,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
 
     def closeEvent(self, event):
         self.sigClosed.emit()
-        self.schedule_periodic_bool = False # probably not necessary
+        self.schedule_periodic_bool = False  # probably not necessary
         QtWidgets.QMdiSubWindow.closeEvent(self, event)
 
     def save_state(self):
