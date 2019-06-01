@@ -361,6 +361,7 @@ class graphWindow(QtWidgets.QWidget):
             return
         for i in range(len(Ylist)):
             item = self.add_plot_item(txtlist[i], X, Ylist[i], file_=fname)
+            self.pg.setXRange(X[0], X[-1])
             if not checked:
                 item.setCheckState(0, 0)
         f.close()
