@@ -174,6 +174,8 @@ class graphWindow(QtWidgets.QWidget):
             # Not that important
             pass
 
+        self.event = lambda evt: True
+
         self.main_widget = QtWidgets.QSplitter()
         self.main_widget.setHandleWidth(1)
 
@@ -548,10 +550,11 @@ def main():
             self.setWindowIcon(icon)
             self.exit_request = asyncio.Event()
             self.setWindowTitle("Real Complicated Grapher")
+        
         def closeEvent(self, event):
             event.ignore()
             self.exit_request.set()
-
+        
     main_window = mainWindow()
     dock = rcgDock(main_window)
     dock.setFloating(False)
