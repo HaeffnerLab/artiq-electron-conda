@@ -119,6 +119,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
         grid = LayoutWidget()
         self.setWidget(grid)
         self.table = QtWidgets.QTreeWidget()
+        self.table.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectItems)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         self.table.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
@@ -599,13 +600,9 @@ class BaseEditor(QtWidgets.QWidget, EditorFactory):
         self.state, self.acxn, descr, self.prt = params
         self.collection, self.name = descr
 
-    def focusInEvent(self, e):
-        self.prt.setSelected(True)
-        super(BaseEditor, self).focusInEvent(e)
-
-    def focusOutEvent(self, e):
-        self.prt.setSelected(False)
-        super(BaseEditor, self).focusOutEvent(e)
+    def wheelEvent(self, *args, **kwargs):
+        # Prevent widgets from interacting with mouse wheel
+        pass
 
 
 class BoolEditor(QtWidgets.QCheckBox, BaseEditor):
@@ -613,6 +610,7 @@ class BoolEditor(QtWidgets.QCheckBox, BaseEditor):
     def __init__(self, *params):
         BaseEditor.__init__(self, *params)
         QtWidgets.QCheckBox.__init__(self)
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.setChecked(self.state)
         layout = QtWidgets.QVBoxLayout()
         layout.setAlignment(QtCore.Qt.AlignVCenter)
@@ -641,6 +639,7 @@ class SelectionSimpleEditor(QtWidgets.QComboBox, BaseEditor):
     def __init__(self, *params):
         BaseEditor.__init__(self, *params)
         QtWidgets.QComboBox.__init__(self)
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
         if not type(self.state) == tuple:
             return
         selected, selections = self.state
@@ -679,6 +678,7 @@ class LineSelectionEditor(QtWidgets.QComboBox, BaseEditor):
     def __init__(self, *params):
         BaseEditor.__init__(self, *params)
         QtWidgets.QComboBox.__init__(self)
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
         if (not type(self.state) == tuple or
             not type(self.state[1]) == labradTypes.LazyList):
             # Improper format
@@ -723,6 +723,7 @@ class ParameterSelectionEditor(QtWidgets.QDoubleSpinBox, BaseEditor):
     def __init__(self, *params):
         BaseEditor.__init__(self, *params)
         QtWidgets.QDoubleSpinBox.__init__(self)
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.setDecimals(5)
         self.setMinimum(-1e20)
         self.setMaximum(1e20)
@@ -796,6 +797,7 @@ class IntListEditor(BaseEditor):
     def __init__(self, *params):
         BaseEditor.__init__(self, *params)
         QtWidgets.QWidget.__init__(self)
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
         try:
             assert type(self.state) == np.ndarray
             for i in self.state:
