@@ -14,6 +14,7 @@ from collections import OrderedDict as dict
 class fitMenu(QtWidgets.QWidget):
     def __init__(self, name, title, data_item, graph):
         QtWidgets.QWidget.__init__(self)
+        self.fit_curve_drawn = False
         self.data_item = data_item
         self.graph = graph
         for f in fit_functions:
@@ -134,6 +135,7 @@ class fitMenu(QtWidgets.QWidget):
         self.plot_item = treeItem(self.graph, self.title, xrange_, y, self.graph.pg, self.color, False)
         self.graph.items[self.title] = self.plot_item
         self.graph.tw.addTopLevelItem(self.plot_item)
+        self.fit_curve_drawn = True
 
     def on_fit_button_released(self):
         p0 = dict()
@@ -159,9 +161,11 @@ class fitMenu(QtWidgets.QWidget):
             top_widget = self.tw.topLevelItem(i)
             self.tw.itemWidget(top_widget, 2).setValue(float(value))
             self.fit_function.__defaults__ = self.defaults
+        self.fit_curve_drawn = True
 
     def closeEvent(self, event):
-        self.graph.remove_curve(curve=self.plot_item)
+        if self.fit_curve_drawn:
+            self.graph.remove_curve(curve=self.plot_item)
 
     def mathTex_to_QPixmap(self, mathTex, fs):
         #https://stackoverflow.com/questions/32035251/displaying-latex-in-pyqt-pyside-qtablewidget
