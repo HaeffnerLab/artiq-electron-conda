@@ -55,7 +55,9 @@ tab_configs = [
     ("Ramsey", [graphConfig(name="Ramsey", ylims=[0, 1])]),
     ("CalibSidebands", [graphConfig(name="nbar", title="nbar", colspan=2),
                         graphConfig(name="CalibRed", title="CalibRed", row=1),
-                        graphConfig(name="CalibBlue", title="CalibBlue", row=1, col=1)])
+                        graphConfig(name="CalibBlue", title="CalibBlue", row=1, col=1)]),
+    ("DriftTrackerRamsey", [graphConfig(name="DriftTrackerRamsey1", title="DriftTrackerRamsey1"),
+                            graphConfig(name="DriftTrackerRamsey2", title="DriftTrackerRamsey2", col=1)])
 ]
 
 
