@@ -514,7 +514,10 @@ class DriftTracker(QtWidgets.QMainWindow):
                                           .9 - i * .7 / num), xycoords="data", 
                                           fontsize=13)
                 lcs.spectral_lines.append(label)
-            lcs.spec.set_xlim(left=srt[0][1]["MHz"] - 1, right=srt[-1][1]["MHz"] + 1)
+                try:
+                    lcs.spec.set_xlim(left=srt[0][1]["MHz"] - 1, right=srt[-1][1]["MHz"] + 1)
+                except:
+                    pass
             lcs.spec_canvas.draw()
 
     def plot_fit_b(self, p):
@@ -652,8 +655,11 @@ class DriftTracker(QtWidgets.QMainWindow):
                 yspan = ymax - ymin
                 xlims = [xmin - .25 * xspan, xmax + .5 * xspan]
                 ylims = [ymin - .5 * yspan, ymax + 0.5 * yspan]
-            axes.set_xlim(xlims)
-            axes.set_ylim(ylims)
+            try:
+                axes.set_xlim(xlims)
+                axes.set_ylim(ylims)
+            except:
+                pass
             lct.drift_canvas.draw()
 
         if type(fitted) is list:
