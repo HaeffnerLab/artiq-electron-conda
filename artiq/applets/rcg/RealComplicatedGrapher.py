@@ -212,10 +212,17 @@ class graphWindow(QtWidgets.QWidget):
         self.fit_menu = fit_menu
 
         upload_curve_action = QtWidgets.QAction("Upload Curve", self.tw)
-        upload_curve_action.setShortcut("TAB")
+        upload_curve_action.setShortcut("Ctrl+O")
         upload_curve_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
         upload_curve_action.triggered.connect(self.upload_curve)
         self.tw.addAction(upload_curve_action)
+
+        # For some reason, pyqtgraph autoscale not working well, so adding this hack
+        snap_to_view_action = QtWidgets.QAction("snap to view", self.tw)
+        snap_to_view_action.setShortcut("Ctrl+I")
+        snap_to_view_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
+        snap_to_view_action.triggered.connect(self.snap_to_view)
+        self.tw.addAction(snap_to_view_action)
 
         remove_curve_action = QtWidgets.QAction("Remove", self.tw)
         remove_curve_action.setShortcut("DELETE")
@@ -241,13 +248,13 @@ class graphWindow(QtWidgets.QWidget):
         colors_menu.addAction(use_custom_colors_action)
 
         toggle_autoscroll_action = QtWidgets.QAction("Toggle AutoScroll", self.tw)
-        toggle_autoscroll_action.setShortcut("SHIFT+TAB")
+        toggle_autoscroll_action.setShortcut("Ctrl+A")
         toggle_autoscroll_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
         toggle_autoscroll_action.triggered.connect(self.toggle_autoscroll)
         self.tw.addAction(toggle_autoscroll_action)
 
         load_params_action = QtWidgets.QAction("Load Parameters", self.tw)
-        load_params_action.setShortcut("SHIFT+P")
+        load_params_action.setShortcut("Ctrl+P")
         load_params_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
         load_params_action.triggered.connect(self.load_params)
         self.tw.addAction(load_params_action)
@@ -323,8 +330,8 @@ class graphWindow(QtWidgets.QWidget):
             plot_name = data.attrs["plot_show"]
             if plot_name != self.name:
                 if not startup:
-                    self.warning_message("Can't embed in this plot. {}, {}".format(plot_name, self.name))
-                return
+                    self.warning_message("Embeddding {} in {} window.".format(plot_name, self.name))
+                # return
         except KeyError:
             if not startup:
                 self.warning_message("Can't determine which plot to embed in.")
@@ -436,6 +443,30 @@ class graphWindow(QtWidgets.QWidget):
         msg.setText(txt)
         msg.exec_()
 
+    def snap_to_view(self):
+        globalymin, globalymax, globalxmin, globalxmax = None, None, None, None
+        for item in self.items.values():
+            ymin, ymax = item.plot_item.dataBounds(1)
+            xmin, xmax = item.plot_item.dataBounds(0)
+            if globalymin is None:
+                globalymin = ymin 
+            elif globalymin > ymin:
+                globalymin = ymin
+            elif globalymax < ymax:
+                globalymax = ymax
+            if globalymax is None:
+                globalymax = ymax 
+            if globalxmin is None:
+                globalxmin = xmin 
+            if globalxmax is None:
+                globalxmax = xmax 
+            elif globalxmin > xmin:
+                globalxmin = xmin 
+            elif globalxmax < xmax:
+                globalxmax = xmax 
+        self.pg.setXRange(globalxmin, globalxmax)
+        self.pg.setYRange(globalymin, globalymax)
+    
     def add_plot_item(self, name, x, y, over_ride_show_points=None,
                       append=False, file_=None, range_guess=None):
         if name in self.items.keys() and not append:
@@ -504,7 +535,6 @@ class graphWindow(QtWidgets.QWidget):
         except AttributeError:
             # curve is not currently displayed on graph
             pass
-
         return item
 
     def mouse_moved(self, pos):
