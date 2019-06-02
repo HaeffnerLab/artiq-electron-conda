@@ -18,7 +18,7 @@ class treeItem(QtWidgets.QTreeWidgetItem):
         self.plot_item = None
         self.is_selected = False
         self.setText(0, txt)
-        self.setForeground(0, QtGui.QBrush(QtGui.QColor("white")))
+        self.setForeground(0, QtGui.QBrush(QtGui.QColor(*color)))
         font = QtGui.QFont()
         font.setBold(True)
         self.setFont(0, font)
@@ -35,6 +35,7 @@ class treeItem(QtWidgets.QTreeWidgetItem):
                                         symbol="o" if self.show_points else None)
         self.plot_item.sigClicked.connect(self.curve_clicked)
         self.plot_item.sigPlotChanged.connect(self.plot_changed)
+        self.setForeground(0, QtGui.QBrush(QtGui.QColor(*self.color)))
 
     def curve_clicked(self, curve, *args):
         for c in list(self.parent_.items.values()):
@@ -57,7 +58,6 @@ class treeItem(QtWidgets.QTreeWidgetItem):
                     copy_to_clipboard_action = QtWidgets.QAction("Copy to Clipboard", menu)
                     copy_to_clipboard_action.triggered.connect(self.copy_to_clipboard)
                     menu.addAction(copy_to_clipboard_action)
-                    # probably the wrong way to do this
                     p = QtCore.QPoint()
                     p.setX(self.parent_.pos.x() + 100)  # Values determined empirically
                     p.setY(self.parent_.pos.y() - 10)   #
