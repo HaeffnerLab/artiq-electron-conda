@@ -35,7 +35,10 @@ class treeItem(QtWidgets.QTreeWidgetItem):
                                         symbol="o" if self.show_points else None)
         self.plot_item.sigClicked.connect(self.curve_clicked)
         self.plot_item.sigPlotChanged.connect(self.plot_changed)
-        self.setForeground(0, QtGui.QBrush(QtGui.QColor(*self.color)))
+        try:
+            self.setForeground(0, QtGui.QBrush(QtGui.QColor(*self.color)))
+        except TypeError:
+            self.setForeground(0, QtGui.QBrush(self.color))
 
     def curve_clicked(self, curve, *args):
         for c in list(self.parent_.items.values()):
