@@ -344,8 +344,14 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         self.periodic_schedule_spinbox.setRange(0.166, 1440.)
         self.periodic_schedule_spinbox.setSingleStep(.0167)
         self.periodic_schedule_spinbox.setSuffix(" minutes")
+        self.periodic_schedule_priority_spinbox = QtWidgets.QSpinBox()
+        self.periodic_schedule_priority_spinbox.setValue(2)
+        self.periodic_schedule_priority_spinbox.setToolTip("Priority for periodic experiments.")
+        self.periodic_schedule_priority_spinbox.setRange(2, 1000)
         self.layout.addWidget(self.periodic_schedule_checkbox, 4, 0)
         self.layout.addWidget(self.periodic_schedule_spinbox, 4, 1)
+        self.layout.addWidget(QtWidgets.QLabel("Periodic Priority: "), 4, 2)
+        self.layout.addWidget(self.periodic_schedule_priority_spinbox, 4, 3)
 
         if "repo_rev" in options:
             repo_rev = QtWidgets.QLineEdit()
@@ -435,7 +441,11 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         expurl = self.expurl
         while True:
             if self.schedule_periodic_bool:
+                scheduling = self.manager.get_submission_scheduling(self.expurl)
+                priority = scheduling["priority"]
+                scheduling["priority"] = self.periodic_schedule_priority_spinbox.value()
                 self.manager.submit(expurl)
+                scheduling["priority"] = priority
                 await asyncio.sleep(period * 60)
             else:
                 break
