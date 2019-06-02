@@ -46,6 +46,8 @@ class PulseSequence(EnvExperiment):
         self.setattr_device("pmt")
         self.setattr_device("linetrigger_ttl")
         self.setattr_device("camera_ttl")
+        self.setattr_device("core_dma")
+        self.setattr_device("mod397")
         self.multi_scannables = dict()
         self.rcg_tabs = dict()
         self.selected_scan = dict()
@@ -87,7 +89,6 @@ class PulseSequence(EnvExperiment):
         self.dds_729 = self.get_device("729G")
         self.dds_729_SP = self.get_device("SP_729G")
         self.cpld_list = [self.get_device("urukul{}_cpld".format(i)) for i in range(3)]
-        self.setattr_device("core_dma")
 
     def prepare(self):
         # Grab parametervault params:
@@ -171,7 +172,7 @@ class PulseSequence(EnvExperiment):
         for seq_name, scan_dict in self.multi_scannables.items():
             self.data[seq_name] = dict(x=[], y=[])
             if isinstance(scan_dict[self.selected_scan[seq_name]], scan.NoScan):
-                self.rcg_tabs[seq_name] = "Current"
+                self.rcg_tabs[seq_name][self.selected_scan[seq_name]] = "Current"
             if self.is_ndim:
                 scan_specs[seq_name] = [len(scan) for scan in scan_dict.values()]
             else:
@@ -195,9 +196,6 @@ class PulseSequence(EnvExperiment):
                     f = seq_name + "-" if len(self.scan_params) > 1 else ""
                     f += self.x_label[seq_name][0]
                     setattr(self, f, x_array)
-                    if (self.rcg_tabs[seq_name] in absolute_frequency_plots 
-                        and not self.p.Display.relative_frequencies):
-                        self.set_dataset(seq_name + "-raw_x_data", [], broadcast=True)
                 else:
                     raise NotImplementedError("Ndim scans with PMT not implemented yet")
                     # self.x_label[seq_name] = [element[0] for element in self.scan_params[seq_name][0]]
@@ -227,9 +225,6 @@ class PulseSequence(EnvExperiment):
                     f = seq_name + "-" if len(self.scan_params) > 1 else ""
                     f += self.x_label[seq_name][0]
                     setattr(self, f, x_array)
-                    if (self.rcg_tabs[seq_name] in absolute_frequency_plots
-                        and not self.p.Display.relative_frequencies):
-                        self.set_dataset(seq_name + "-raw_x_data", [], broadcast=True)
                 else:
                     raise NotImplementedError("Ndim scans with camera not implemented yet")
                     # self.x_label[seq_name] = [element[0] for element in self.scan_params[seq_name][0]]
@@ -285,7 +280,9 @@ class PulseSequence(EnvExperiment):
             "StateReadout.frequency_866",
             "StateReadout.readout_mode",
             "StateReadout.doppler_cooling_repump_additional",
-            "StateReadout.frequency_397"
+            "StateReadout.frequency_397",
+            "StatePreparation.sideband_cooling_enable",
+            "StatePreparation.pulsed_optical_pumping"
             }
         )
 
@@ -303,18 +300,34 @@ class PulseSequence(EnvExperiment):
                 collection, key = self.master_scan_names[i].split(".")
                 self.p[collection][key] = value
             for seq_name, scan_dict in self.multi_scannables.items():
+                if (self.rcg_tabs[seq_name][self.selected_scan[seq_name]] in absolute_frequency_plots
+                        and not self.p.Display.relative_frequencies):
+                        self.set_dataset(seq_name + "-raw_x_data", [], broadcast=True)
                 self.variable_parameter_names = list()
                 self.variable_parameter_values = list()
                 self.parameter_names = list()
                 self.parameter_values = list()
                 scanned_params = set(scan_dict.keys())
                 self.set_global_params()
-                all_accessed_params = self.accessed_params | scanned_params
+                repump_dc_params = {
+                    "RepumpD_5_2.repump_d_duration",
+                    "RepumpD_5_2.repump_d_frequency_854",
+                    "RepumpD_5_2.repump_d_att_854",
+                    "RepumpD_5_2.repump_d_amplitude_854",
+                    "RepumpD_5_2.repump_d_duration",
+                    "DopplerCooling.doppler_cooling_frequency_866",
+                    "DopplerCooling.doppler_cooling_amplitude_866",
+                    "DopplerCooling.doppler_cooling_att_866",
+                    "DopplerCooling.doppler_cooling_frequency_397",
+                    "DopplerCooling.doppler_cooling_amplitude_397",
+                    "DopplerCooling.doppler_cooling_att_397"
+                }
+                all_accessed_params = self.accessed_params | scanned_params | repump_dc_params
                 self.kernel_invariants = set()
                 for mode_name, frequency in self.p.TrapFrequencies.items():
                     self.kernel_invariants.update({mode_name})
                     setattr(self, mode_name, frequency)
-                abs_freqs = True if self.rcg_tabs[seq_name] in absolute_frequency_plots else False
+                abs_freqs = True if self.rcg_tabs[seq_name][self.selected_scan[seq_name]] in absolute_frequency_plots else False
                 self.abs_freqs = abs_freqs
                 self.seq_name = seq_name
                 self.current_x_value = 9898989898.9898989898
@@ -341,6 +354,7 @@ class PulseSequence(EnvExperiment):
                 self.selected_scan_name = selected_scan.replace(".", "_")
                 if not self.is_ndim:
                     scan_iterable = sorted(list(scan_dict[selected_scan]))
+                    self.scan_iterable = scan_iterable
                     ndim_iterable = [[0]]
                 else:
                     ms_list = [list(x) for x in scan_dict.values()]
@@ -428,6 +442,7 @@ class PulseSequence(EnvExperiment):
         self.core.reset()
         self.camera_ttl.off()
         trigger_time = -1
+        
         while True:
             with parallel:
                 t_gate = self.linetrigger_ttl.gate_rising(1000*us)
@@ -444,6 +459,19 @@ class PulseSequence(EnvExperiment):
                is_ndim, scan_names, ndim_iterable, start1, start2, use_camera, 
                set_subsequence):
         self.turn_off_all()
+        self.dds_854.set(self.RepumpD_5_2_repump_d_duration, 
+                         amplitude=self.RepumpD_5_2_repump_d_amplitude_854)
+        self.dds_854.set_att(self.RepumpD_5_2_repump_d_att_854)
+        self.dds_866.set(self.DopplerCooling_doppler_cooling_frequency_866, 
+                         amplitude=self.DopplerCooling_doppler_cooling_amplitude_866)
+        self.dds_866.set_att(self.DopplerCooling_doppler_cooling_att_866)
+        self.dds_397.set(self.DopplerCooling_doppler_cooling_frequency_397, 
+                         amplitude=self.DopplerCooling_doppler_cooling_amplitude_397)
+        self.dds_397.set_att(self.DopplerCooling_doppler_cooling_att_397)
+        with parallel:
+            self.dds_854.sw.on()
+            self.dds_866.sw.on()
+            self.dds_397.sw.on()
         if is_ndim:
             for i in list(range(len(ndim_iterable)))[start1:]:
                 if self.scheduler.check_pause():
@@ -474,7 +502,7 @@ class PulseSequence(EnvExperiment):
                 self.set_run_looper_off()
             return
 
-        i = 0  # For compiler, always needs a defined value (even when iterable empty)
+        i = 0
         for i in list(range(len(scan_iterable)))[start1:]:
             if self.scheduler.check_pause():
                 self.set_start_point(1, i)
@@ -488,7 +516,13 @@ class PulseSequence(EnvExperiment):
             for j in range(reps):
                 if linetrigger:
                     self.line_trigger(linetrigger_offset)
+                    delay(10*us)
+                    with parallel:
+                        self.dds_854.sw.off()
+                        self.dds_397.sw.off()
+                        self.dds_866.sw.off()
                 else:
+                    delay(self.RepumpD_5_2_repump_d_duration)
                     self.core.break_realtime()
                 sequence()
                 if not use_camera:
@@ -508,9 +542,9 @@ class PulseSequence(EnvExperiment):
                         self.dds_866.sw.on()
                     self.core.wait_until_mu(now_mu())
                     delay(readout_duration)
-                    self.dds_397.sw.off()
-                    delay(100*us)
-                    self.dds_866.sw.off()
+                    delay(10*us)
+                    self.dds_854.sw.on()
+                    delay(200*us)
             if not use_camera:
                 self.update_raw_data(seq_name, i)
                 if readout_mode == "pmt":
@@ -687,7 +721,7 @@ class PulseSequence(EnvExperiment):
             self.filename[seq_name] = self.timestamp[seq_name] + ".h5"
             with h5.File(self.filename[seq_name], "w") as f:
                 datagrp = f.create_group("scan_data")
-                datagrp.attrs["plot_show"] = self.rcg_tabs[seq_name]
+                datagrp.attrs["plot_show"] = self.rcg_tabs[seq_name][self.selected_scan[seq_name]]
                 params = f.create_group("parameters")
                 for collection in self.p.keys():
                     collectiongrp = params.create_group(collection)
@@ -713,24 +747,40 @@ class PulseSequence(EnvExperiment):
                 title = self.timestamp[seq_name] + " - " + name + " ({})".format(seq_name)
             else:
                 title = self.timestamp[seq_name] + " - " + name
-            self.rcg.plot(x, y, tab_name=self.rcg_tabs[seq_name],
+            self.rcg.plot(x, y, tab_name=self.rcg_tabs[seq_name][self.selected_scan[seq_name]],
                           plot_title=title, append=True,
                           file_=os.path.join(os.getcwd(), self.filename[seq_name]), range_guess=range_guess)
-        except Exception as e:
-            print("exception: ", e)
+        except:
             return
+
+    def manual_save(self, x, y, name=None, plot_window="Current",
+                    xlabel="x", ylabel="y"):
+        # convenience function
+        if name is None:
+            name = datetime.now().strftime("%H%M_%S")
+        with h5.File(name + ".h5", "w") as f:
+            datagrp = f.create_group("scan_data")
+            datagrp.attrs["plot_show"] = plot_window
+            datagrp = f["scan_data"]
+            try:
+                del datagrp[xlabel]
+            except:
+                pass
+            try:
+                del datagrp[ylabel]
+            except:
+                pass
+            xdata = datagrp.create_dataset(xlabel, data=x)
+            xdata.attrs["x-axis"] = True
+            datagrp.create_dataset(ylabel, data=y)
 
     @kernel
     def get_variable_parameter(self, name) -> TFloat:
         value = 0.
         for i in list(range(len(self.variable_parameter_names))):
             if name == self.variable_parameter_names[i]:
-                # if name == self.selected_scan_name:
                 value = self.variable_parameter_values[i]
                 break
-                # else:
-                #     value = self.variable_parameter_values[0]
-                #     break
         else:
             exc = name + " is not a scannable parameter."
             self.host_exception(exc)  
@@ -802,7 +852,10 @@ class PulseSequence(EnvExperiment):
         else:
             data = getattr(self, name)
             dataset = name
-            self.data[seq_name]["y"] = data  # This will fail for ndim scans
+            try:
+                self.data[seq_name]["y"][k] = data
+            except:
+                self.data[seq_name]["y"].append(data)  # This will fail for ndim scans
         with h5.File(self.filename[seq_name], "a") as f:
             datagrp = f["scan_data"]
             try:
@@ -860,7 +913,12 @@ class PulseSequence(EnvExperiment):
                     self.append_result(self.seq_name + "-raw_x_data", abs_freq)
                     break
         return 220*MHz - freq
-    
+
+    @kernel
+    def bind_param(self, name, value):
+        if self.selected_scan_name == name:
+            self.append_result(self.seq_name + "-raw_x_data", value)
+            
     # @rpc(flags={"async"})  Can't use async call if function returns non-None value
     def update_carriers(self) -> TList(TFloat):
         current_lines = self.sd_tracker.get_current_lines(dt_config.client_name)
@@ -981,13 +1039,15 @@ class PulseSequence(EnvExperiment):
         return subsequence
 
     def update_scan_params(self, scan_params, iteration=None):
-        for seq_name, (rcg_tab, scan_list) in scan_params.items():
+        for seq_name, scan_list in scan_params.items():
             if iteration is not None:
                 seq_name += str(iteration)
-            self.rcg_tabs[seq_name] = rcg_tab
+            self.rcg_tabs[seq_name] = odict()
             self.multi_scannables[seq_name] = odict()
             scan_names = list()
-            for scan_param in scan_list:
+            for scan_descr in scan_list:
+                rcg_tab, scan_param = scan_descr
+                self.rcg_tabs[seq_name][scan_param[0]] = rcg_tab
                 scan_names.append(scan_param[0])
                 scan_name = seq_name + ":" + scan_param[0]
                 if len(scan_param) == 4:
