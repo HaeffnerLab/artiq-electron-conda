@@ -235,6 +235,8 @@ class graphWindow(QtWidgets.QWidget):
         colors_action.setMenu(colors_menu)
         self.tw.addAction(colors_action)
         cycle_colors_action = QtWidgets.QAction("Cycle Colors", self.tw)
+        cycle_colors_action.setShortcut("Ctrl+N")
+        cycle_colors_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
         cycle_colors_action.triggered.connect(self.cycle_colors)
         colors_menu.addAction(cycle_colors_action)
         change_color_action = QtWidgets.QAction("Change Color", self.tw)
