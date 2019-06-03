@@ -190,16 +190,22 @@ class graphWindow(QtWidgets.QWidget):
 
         self.tw.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
         uncheck_action = QtWidgets.QAction("Uncheck", self.tw)
-        uncheck_action.setShortcut("ENTER")
+        uncheck_action.setShortcut("U")
         uncheck_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
         uncheck_action.triggered.connect(self.uncheck)
         self.tw.addAction(uncheck_action)
 
         uncheck_all_action = QtWidgets.QAction("Uncheck All", self.tw)
-        uncheck_all_action.setShortcut("SHIFT+ENTER")
+        uncheck_all_action.setShortcut("SHIFT+U")
         uncheck_all_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
         uncheck_all_action.triggered.connect(self.uncheck_all)
         self.tw.addAction(uncheck_all_action)
+
+        select_all_action = QtWidgets.QAction("Select All", self.tw)
+        select_all_action.setShortcut("A")
+        select_all_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
+        select_all_action.triggered.connect(lambda: self.tw.selectAll())
+        self.tw.addAction(select_all_action)
 
         fit_menu = QtWidgets.QMenu()
         fit_curve_action = QtWidgets.QAction("Fit", self.tw)
