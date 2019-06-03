@@ -418,13 +418,13 @@ class PMTControlDock(QtWidgets.QDockWidget):
             sender.setText("Off")
             self.expid_ttl.update({"arguments": {"device": "blue_PIs",
                                                  "state": True}})
-            yield self.bb.connect()
-            yield self.bb.set_current(self.autoLoadCurrentSpin.value())
-            yield self.bb.on()
             if not hasattr(self, "check_pmt_timer"):
                 self.check_pmt_timer = QtCore.QTimer()
                 self.check_pmt_timer.timeout.connect(self.check_pmt_counts)
             self.check_pmt_timer.start(100)
+            yield self.bb.connect()
+            yield self.bb.set_current(self.autoLoadCurrentSpin.value())
+            yield self.bb.on()
         else:
             sender.setText("On")
             if not hasattr(self, "check_pmt_timer"):
@@ -433,7 +433,6 @@ class PMTControlDock(QtWidgets.QDockWidget):
             self.expid_ttl.update({"arguments": {"device": "blue_PIs",
                                                  "state": False}})
             yield self.bb.off()
-            yield self.bb.disconnect()
         self.scheduler.submit("main", self.expid_ttl, priority=1)
 
     def check_pmt_counts(self):
