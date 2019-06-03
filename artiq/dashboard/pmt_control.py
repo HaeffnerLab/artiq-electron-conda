@@ -20,6 +20,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
                          QtWidgets.QDockWidget.DockWidgetFloatable)
         self.pv = None
         self.pm = None
+        self.bb = None
         self.acxn = acxn
         self.setup_listeners()
 
@@ -112,6 +113,9 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.autoLoadButton.clicked[bool].connect(self.toggle_autoload)
         self.autoLoadSpin = QtWidgets.QSpinBox()
         self.autoLoadSpin.setMaximum(1e6)
+        self.autoLoadSpin.setSuffix(" A")
+        self.autoLoadCurrentSpin = QtWidgets.QDoubleSpinBox()
+        self.autoLoadCurrentSpin.setRange(0, 10)
         self.countDisplay = QtWidgets.QLCDNumber()
         self.countDisplay.setSegmentStyle(2)
         self.countDisplay.display(0)
@@ -156,12 +160,14 @@ class PMTControlDock(QtWidgets.QDockWidget):
         layout.addWidget(QtWidgets.QLabel("Autoload: "), 4, 0)
         layout.addWidget(self.autoLoadButton, 4, 1)
         layout.addWidget(self.autoLoadSpin, 4, 2)
+        layout.addWidget(QtWidgets.QLabel("Current: "), 5, 0)
+        layout.addWidget(self.autoLoadCurrentSpin, 5, 1)
         dcLabel = QtWidgets.QLabel("Set Doppler cooling and state readout: ")
-        layout.addWidget(dcLabel, 5, 0, 1, 2)
-        layout.addWidget(self.setDCButton, 5, 2)
+        layout.addWidget(dcLabel, 6, 0, 1, 2)
+        layout.addWidget(self.setDCButton, 6, 2)
         clearLabel = QtWidgets.QLabel("Reset PMT plot: ")
-        layout.addWidget(clearLabel, 6, 0)
-        layout.addWidget(self.clearPMTPlotButton, 6, 1, 1, 2)
+        layout.addWidget(clearLabel, 7, 0)
+        layout.addWidget(self.clearPMTPlotButton, 7, 1, 1, 2)
         frame.setLayout(layout)
         return frame
 
@@ -399,7 +405,8 @@ class PMTControlDock(QtWidgets.QDockWidget):
         move = current_pos - last_pos
         yield self.pm.relative_move(piezo, move)
 
-    def toggle_autoload(self):
+    @inlineCallbacks
+    def toggle_autoload(self, *args):
         sender = self.autoLoadButton
         flag = sender.isChecked()
         if flag:
@@ -411,6 +418,9 @@ class PMTControlDock(QtWidgets.QDockWidget):
             sender.setText("Off")
             self.expid_ttl.update({"arguments": {"device": "blue_PIs",
                                                  "state": True}})
+            yield self.bb.connect()
+            yield self.bb.set_current(self.autoLoadCurrentSpin.value())
+            yield self.bb.on()
             if not hasattr(self, "check_pmt_timer"):
                 self.check_pmt_timer = QtCore.QTimer()
                 self.check_pmt_timer.timeout.connect(self.check_pmt_counts)
@@ -422,6 +432,8 @@ class PMTControlDock(QtWidgets.QDockWidget):
             self.check_pmt_timer.stop()
             self.expid_ttl.update({"arguments": {"device": "blue_PIs",
                                                  "state": False}})
+            yield self.bb.off()
+            yield self.bb.disconnect()
         self.scheduler.submit("main", self.expid_ttl, priority=1)
 
     def check_pmt_counts(self):
@@ -441,7 +453,8 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 "offset":  self.linetriggerLineEdit.text(),
                 "autoload": self.autoLoadSpin.value(),
                 "mode": self.setMode.currentText(),
-                "ltrigger": self.linetriggerButton.isChecked()}
+                "ltrigger": self.linetriggerButton.isChecked(),
+                "current": self.autoLoadCurrentSpin.value()}
 
     def restore_state(self, state):
         for ctl, value in state["ctl"].items():
@@ -453,12 +466,15 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.linetriggerButton.setChecked(state["ltrigger"])
         d = {False: "On", True: "Off"}
         self.linetriggerButton.setText(d[state["ltrigger"]])
+        self.autoLoadCurrentSpin.setValue(state["current"])
 
     def setup_listeners(self):
         self.acxn.add_on_connect("ParameterVault", self.parameter_vault_connect)
         self.acxn.add_on_disconnect("ParameterVault", self.parameter_vault_disconnect)
         self.acxn.add_on_connect("picomotorserver", self.picomotor_connect)
         self.acxn.add_on_disconnect("picomotorserver", self.picomotor_disconnect)
+        self.acxn.add_on_connect("barebonese3663a", self.barebones_connect)
+        self.acxn.add_on_disconnect("barebonese3663a", self.barebones_disconnect)
 
     def parameter_vault_connect(self):
         self.duration.setDisabled(False)
@@ -478,6 +494,12 @@ class PMTControlDock(QtWidgets.QDockWidget):
         for spinbox in self.piezoCurrentPos.values():
             spinbox.setDisabled(True)
 
+    def barebones_connect(self):
+        self.autoLoadCurrentSpin.setDisabled(False)
+
+    def barebones_disconnect(self):
+        self.autoLoadCurrentSpin.setDisabled(True)
+
     @inlineCallbacks
     def connect_servers(self):
         if self.pv is None:
@@ -490,6 +512,11 @@ class PMTControlDock(QtWidgets.QDockWidget):
                 self.pm = yield self.acxn.get_server("picomotorserver")
             except:
                 self.picomotor_disconnect()
+        if self.bb is None:
+            try:
+                self.bb = yield self.acxn.get_server("barebonese3663a")
+            except:
+                self.barebones_disconnect()
 
 
 class ddsControlWidget(QtWidgets.QFrame):
