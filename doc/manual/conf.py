@@ -26,6 +26,7 @@ from sphinx.ext import autodoc
 autodoc.repr = str
 
 
+# we cannot use autodoc_mock_imports (does not help with argparse)
 mock_modules = ["artiq.gui.waitingspinnerwidget",
                 "artiq.gui.flowlayout",
                 "artiq.compiler.module",
@@ -37,6 +38,14 @@ mock_modules = ["artiq.gui.waitingspinnerwidget",
 
 for module in mock_modules:
     sys.modules[module] = Mock()
+
+
+# https://stackoverflow.com/questions/29992444/sphinx-autodoc-skips-classes-inherited-from-mock
+class MockApplets:
+    class AppletsDock:
+        pass
+
+sys.modules["artiq.gui.applets"] = MockApplets
 
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -62,6 +71,8 @@ extensions = [
     'sphinxarg.ext',
     'sphinxcontrib.wavedrom',  # see also below for config
 ]
+
+mathjax_path = "https://m-labs.hk/MathJax/MathJax.js?config=TeX-AMS-MML_HTMLorMML.js"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

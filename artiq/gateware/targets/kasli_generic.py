@@ -20,9 +20,14 @@ def peripheral_dio(module, peripheral):
     }
     if len(peripheral["ports"]) != 1:
         raise ValueError("wrong number of ports")
+    if peripheral.get("edge_counter", False):
+        edge_counter_cls = edge_counter.SimpleEdgeCounter
+    else:
+        edge_counter_cls = None
     eem.DIO.add_std(module, peripheral["ports"][0],
         ttl_classes[peripheral["bank_direction_low"]],
-        ttl_classes[peripheral["bank_direction_high"]])
+        ttl_classes[peripheral["bank_direction_high"]],
+        edge_counter_cls=edge_counter_cls)
 
 
 def peripheral_urukul(module, peripheral):
@@ -88,6 +93,10 @@ class GenericStandalone(StandaloneBase):
 
         self.config["SI5324_AS_SYNTHESIZER"] = None
         self.config["RTIO_FREQUENCY"] = "{:.1f}".format(description.get("rtio_frequency", 125e6)/1e6)
+        if "ext_ref_frequency" in description:
+            self.config["SI5324_EXT_REF"] = None
+            self.config["EXT_REF_FREQUENCY"] = "{:.1f}".format(
+                description["ext_ref_frequency"]/1e6)
         if hw_rev == "v1.0":
             # EEM clock fan-out from Si5324, not MMCX
             self.comb += self.platform.request("clk_sel").eq(1)

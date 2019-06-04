@@ -54,7 +54,7 @@ Prerequisites:
                         help="SSH host to jump through")
     parser.add_argument("-t", "--target", default="kasli",
                         help="target board, default: %(default)s, one of: "
-                             "kasli sayma kc705")
+                             "kasli sayma metlino kc705")
     parser.add_argument("-V", "--variant", default=None,
                         help="board variant. Autodetected if only one is installed.")
     parser.add_argument("-I", "--preinit-command", default=[], action="append",
@@ -260,6 +260,39 @@ class ProgrammerSayma(Programmer):
         add_commands(self._script, "xcu_program xcu.tap")
 
 
+class ProgrammerMetlino(Programmer):
+    _sector_size = 0x10000
+
+    def __init__(self, client, preinit_script):
+        Programmer.__init__(self, client, preinit_script)
+
+        add_commands(self._board_script,
+            "source {}".format(self._transfer_script("fpga/xilinx-xadc.cfg")),
+
+            "interface ftdi",
+            "ftdi_device_desc \"Quad RS232-HS\"",
+            "ftdi_vid_pid 0x0403 0x6011",
+            "ftdi_channel 0",
+            # EN_USB_JTAG on ADBUS7: out, high
+            # nTRST on ADBUS4: out, high, but R46 is DNP
+            "ftdi_layout_init 0x0098 0x008b",
+            "reset_config none",
+            "adapter_khz 5000",
+            "transport select jtag",
+            "set CHIP XCKU040",
+            "source {}".format(self._transfer_script("cpld/xilinx-xcu.cfg")))
+        self.add_flash_bank("spi0", "xcu", index=0)
+        self.add_flash_bank("spi1", "xcu", index=1)
+
+        add_commands(self._script, "echo \"AMC FPGA XADC:\"", "xadc_report xcu.tap")
+
+    def load_proxy(self):
+        self.load(find_proxy_bitfile("bscan_spi_xcku040-sayma.bit"), pld=0)
+
+    def start(self):
+        add_commands(self._script, "xcu_program xcu.tap")
+
+
 def main():
     args = get_argparser().parse_args()
     init_logger(args)
@@ -280,6 +313,13 @@ def main():
             "firmware":     ("spi1", 0x050000),
             "rtm_gateware": ("spi1", 0x200000),
         },
+        "metlino": {
+            "programmer":   ProgrammerMetlino,
+            "gateware":     ("spi0", 0x000000),
+            "bootloader":   ("spi1", 0x000000),
+            "storage":      ("spi1", 0x040000),
+            "firmware":     ("spi1", 0x050000),
+        },
         "kc705": {
             "programmer":   partial(ProgrammerXC7, board="kc705", proxy="bscan_spi_xc7k325t.bit"),
             "gateware":     ("spi0", 0x000000),
@@ -293,8 +333,10 @@ def main():
     if bin_dir is None:
         bin_dir = os.path.join(artiq_dir, "board-support")
 
+    needs_artifacts = any(action in args.action
+                          for action in ["gateware", "bootloader", "firmware", "load"])
     variant = args.variant
-    if variant is None:
+    if needs_artifacts and variant is None:
         variants = []
         if args.srcbuild:
             for entry in os.scandir(bin_dir):
@@ -317,10 +359,11 @@ def main():
         else:
             raise ValueError("more than one variant found for selected board, specify -V. "
                 "Found variants: {}".format(" ".join(sorted(variants))))
-    if args.srcbuild:
-        variant_dir = variant
-    else:
-        variant_dir = args.target + "-" + variant
+    if needs_artifacts:
+        if args.srcbuild:
+            variant_dir = variant
+        else:
+            variant_dir = args.target + "-" + variant
 
     if args.host is None:
         client = LocalClient()
@@ -391,7 +434,7 @@ def main():
         elif action == "start":
             programmer.start()
         elif action == "erase":
-            if args.target == "sayma":
+            if args.target == "sayma" or args.target == "metlino":
                 programmer.erase_flash("spi0")
                 programmer.erase_flash("spi1")
             else:
