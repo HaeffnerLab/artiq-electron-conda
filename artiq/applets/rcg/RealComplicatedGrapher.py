@@ -195,12 +195,6 @@ class graphWindow(QtWidgets.QWidget):
         uncheck_action.triggered.connect(self.uncheck)
         self.tw.addAction(uncheck_action)
 
-        uncheck_all_action = QtWidgets.QAction("Uncheck All", self.tw)
-        uncheck_all_action.setShortcut("SHIFT+U")
-        uncheck_all_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
-        uncheck_all_action.triggered.connect(self.uncheck_all)
-        self.tw.addAction(uncheck_all_action)
-
         select_all_action = QtWidgets.QAction("Select All", self.tw)
         select_all_action.setShortcut("A")
         select_all_action.setShortcutContext(QtCore.Qt.WidgetShortcut)
@@ -392,10 +386,6 @@ class graphWindow(QtWidgets.QWidget):
             (item.parent() or root).removeChild(item)
             removed_item = self.items.pop(item.text(0))
             del removed_item
-
-    def uncheck_all(self):
-        for widget in self.items.values():
-            widget.setCheckState(0, 0)
 
     def cycle_colors(self):
         for item in self.tw.selectedItems():
