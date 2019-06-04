@@ -88,6 +88,10 @@ class PulseSequence(EnvExperiment):
                         continue
         self.dds_729 = self.get_device("729G")
         self.dds_729_SP = self.get_device("SP_729G")
+        self.dds_729_SP_bichro = self.get_device("SP_729G_bichro")
+        self.dds_7291 = self.get_device("729G")
+        self.dds_729_SP1 = self.get_device("SP_729G")
+        self.dds_729_SP_bichro1 = self.get_device("SP_729G_bichro")
         self.cpld_list = [self.get_device("urukul{}_cpld".format(i)) for i in range(3)]
 
     def prepare(self):
@@ -433,7 +437,8 @@ class PulseSequence(EnvExperiment):
         self.dds_397.sw.off()
         delay(self.StateReadout_doppler_cooling_repump_additional)
         self.dds_866.sw.off()
-        self.core.wait_until_mu(now_mu())
+        # delay(10*us)
+        # self.core.wait_until_mu(now_mu())
         return self.pmt.count(t_count)
             
     @kernel
@@ -687,26 +692,34 @@ class PulseSequence(EnvExperiment):
             if seq_name not in self.range_guess.keys():
                 self.range_guess[seq_name] = x[0], x[-1]
             x = x[:i + 1]
-        # For some reason, when using master scans, xdata for consecutive runs is appended.
-        # Need to figure out why, but for now this will do.
-        if len(x) != len(dataset[:i + 1]):
-            x = x[-len(dataset[:i + 1]):]
         if readout_mode == "camera":
             name = seq_name + "-ion number:{}"
             for k in range(self.n_ions):
+                # For some reason, when using master scans, xdata for consecutive runs is appended.
+                # Need to figure out why, but for now this will do.
                 dataset = getattr(self, name.format(k))
+                if len(x) != len(dataset[:i + 1]):
+                    x = x[-len(dataset[:i + 1]):]
                 dataset[i] = ion_state[k]
                 self.save_and_send_to_rcg(x, dataset[:i + 1],
                     name.split("-")[-1].format(k), seq_name, is_multi, self.range_guess[seq_name])
         elif readout_mode == "camera_states" or readout_mode == "camera_parity":
             name = seq_name + "-{}"
             for k, state in enumerate(self.camera_states_repr(self.n_ions)):
-                dataset = getattr(self, name.format(state))
+                # For some reason, when using master scans, xdata for consecutive runs is appended.
+                # Need to figure out why, but for now this will do.
+                dataset = getattr(self, name.format(k))
+                if len(x) != len(dataset[:i + 1]):
+                    x = x[-len(dataset[:i + 1]):]
                 dataset[i] = ion_state[k]
                 self.save_and_send_to_rcg(x, dataset[:i + 1],
                     name.split("-")[-1].format(state), seq_name, is_multi, self.range_guess[seq_name])
             if readout_mode == "camera_parity":
-                dataset = getattr(self, seq_name + "-parity")
+                # For some reason, when using master scans, xdata for consecutive runs is appended.
+                # Need to figure out why, but for now this will do.
+                dataset = getattr(self, name.format(k))
+                if len(x) != len(dataset[:i + 1]):
+                    x = x[-len(dataset[:i + 1]):]
                 dataset[i] = ion_state[-1]
                 self.save_and_send_to_rcg(x, dataset[:i + 1], "parity", 
                                           seq_name, is_multi, self.range_guess[seq_name])
@@ -914,6 +927,15 @@ class PulseSequence(EnvExperiment):
                     break
         return 220*MHz - freq
 
+    @portable
+    def get_trap_frequency(self, name) -> TFloat:
+        freq = 0.
+        for i in range(len(self.trap_frequency_names)):
+            if self.trap_frequency_names[i] == name:
+                freq = self.trap_frequency_values[i]
+                return freq
+        return 0.
+
     @kernel
     def bind_param(self, name, value):
         if self.selected_scan_name == name:
@@ -938,19 +960,34 @@ class PulseSequence(EnvExperiment):
             self.carrier_values[i] = new_carrier_values[i]
 
     @kernel
-    def get_729_dds(self, name):
-        if name == "729L1":
-            self.dds_729 = self.dds_729L1
-            self.dds_729_SP = self.dds_SP_729L1
-        elif name == "729L2":
-            self.dds_729 = self.dds_729L2
-            self.dds_729_SP = self.dds_SP_729L2
-        elif name == "729G":
-            self.dds_729 = self.dds_729G
-            self.dds_729_SP = self.dds_SP_729G
-        else:
-            self.dds_729 = self.dds_729G
-            self.dds_729_SP = self.dds_SP_729G
+    def get_729_dds(self, name, i=0):
+        # Need to find a better way to do this
+        if i == 0:
+            if name == "729L1":
+                self.dds_729 = self.dds_729L1
+                self.dds_729_SP = self.dds_SP_729L1
+                self.dds_729_SP_bichro = self.dds_SP_729L1_bichro
+            elif name == "729L2":
+                self.dds_729 = self.dds_729L2
+                self.dds_729_SP = self.dds_SP_729L2
+                self.dds_729_SP_bichro = self.dds_SP_729L2_bichro
+            elif name == "729G":
+                self.dds_729 = self.dds_729G
+                self.dds_729_SP = self.dds_SP_729G
+                self.dds_729_SP_bichro = self.dds_SP_729G_bichro
+        if i == 1:
+            if name == "729L1":
+                self.dds_7291 = self.dds_729L1
+                self.dds_729_SP1 = self.dds_SP_729L1
+                self.dds_729_SP_bichro1 = self.dds_SP_729L1_bichro
+            elif name == "729L2":
+                self.dds_7291 = self.dds_729L2
+                self.dds_729_SP1 = self.dds_SP_729L2
+                self.dds_729_SP_bichro1 = self.dds_SP_729L2_bichro
+            elif name == "729G":
+                self.dds_7291 = self.dds_729G
+                self.dds_729_SP1 = self.dds_SP_729G
+                self.dds_729_SP_bichro1 = self.dds_SP_729G_bichro
 
     def prepare_camera(self):
         self.camera.abort_acquisition()
