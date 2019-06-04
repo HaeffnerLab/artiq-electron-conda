@@ -111,7 +111,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.autoLoadButton = QtWidgets.QPushButton("On")
         self.autoLoadButton.setCheckable(True)
         self.autoLoadButton.clicked[bool].connect(self.toggle_autoload)
-        self.autoLoadSpin.setMaximum(1e6)
+        self.autoLoadSpin = customIntSpinBox(0, (0, 1000000))
         self.autoLoadCurrentSpin = customSpinBox(0, (0, 10), " A")
         self.countDisplay = QtWidgets.QLCDNumber()
         self.countDisplay.setSegmentStyle(2)
@@ -137,9 +137,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.duration.returnPressed.connect(self.duration_changed)
         self.duration.setStyleSheet("QLineEdit { background-color:  #c4df9b}" )
         self.modeLabel = QtWidgets.QLabel("Mode: ")
-        self.setMode = QtWidgets.QComboBox()
-        self.setMode.addItem("continuous")
-        self.setMode.addItem("pulsed")
+        self.setMode = customComboBox(["continuous", "pulsed"])
         self.setMode.currentIndexChanged.connect(self.set_mode)
         layout = QtWidgets.QGridLayout()
         frame = QtWidgets.QFrame()
@@ -612,7 +610,7 @@ class boldLabel(QtWidgets.QLabel):
 
 
 class customSpinBox(QtWidgets.QDoubleSpinBox):
-    def __init__(self, value, range_, suffix):
+    def __init__(self, value, range_, suffix=""):
         QtWidgets.QDoubleSpinBox.__init__(self)
         self.setValue(value)
         self.setRange(*range_)
@@ -632,5 +630,48 @@ class customSpinBox(QtWidgets.QDoubleSpinBox):
     def wheelEvent(self, event):
         if self.hasFocus():
             return super(customSpinBox, self).wheelEvent(event)
+        else:
+            event.ignore()
+
+
+class customIntSpinBox(QtWidgets.QSpinBox):
+    def __init__(self, value, range_):
+        QtWidgets.QSpinBox.__init__(self)
+        self.setValue(value)
+        self.setRange(*range_)
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+
+    def focusInEvent(self, event):
+        self.setFocusPolicy(QtCore.Qt.WheelFocus)
+        super(customIntSpinBox, self).focusInEvent(event)
+
+    def focusOutEvent(self, event):
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+        super(customIntSpinBox, self).focusOutEvent(event)
+
+    def wheelEvent(self, event):
+        if self.hasFocus():
+            return super(customIntSpinBox, self).wheelEvent(event)
+        else:
+            event.ignore()
+
+
+class customComboBox(QtWidgets.QComboBox):
+    def __init__(self, items):
+        QtWidgets.QComboBox.__init__(self)
+        for item in items:
+            self.addItem(item)
+
+    def focusInEvent(self, event):
+        self.setFocusPolicy(QtCore.Qt.WheelFocus)
+        super(customComboBox, self).focusInEvent(event)
+
+    def focusOutEvent(self, event):
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+        super(customComboBox, self).focusOutEvent(event)
+
+    def wheelEvent(self, event):
+        if self.hasFocus():
+            return super(customComboBox, self).wheelEvent(event)
         else:
             event.ignore()
