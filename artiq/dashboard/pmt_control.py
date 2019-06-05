@@ -70,7 +70,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
             "file": "misc/set_dopplercooling_and_statereadout.py",
             "log_level": 30,
             "repo_rev": None,
-            "priority": 2 
+            "priority": 2
         }
 
         frame = QtWidgets.QFrame()
@@ -389,7 +389,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
         self.piezoCurrentPos[ctl].setSingleStep(step)
 
     @inlineCallbacks
-    def piezo_changed(self):
+    def piezo_changed(self, *args):
         if self.pm is None:
             yield print("not connected to picomotor")
         sender = self.sender()
