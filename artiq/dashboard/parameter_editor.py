@@ -15,15 +15,7 @@ from twisted.internet.defer import inlineCallbacks
 
 logger = logging.getLogger(__name__)
 
-commonly_used_parameters = {
-    "AO_calibration.delay_time",
-    "Excitation_729.channel_729",
-    "StatePreparation.channel_729",
-    "StatePreparation.optical_pumping_enable",
-    "StatePreparation.sideband_cooling_enable",
-    "StateReadout.threshold_list",
-    "StateReadout.amplitude",
-    }
+commonly_used_parameters = {}
 
 parameterchangedID = 612512
 types = ["parameter",
