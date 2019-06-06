@@ -444,27 +444,30 @@ class graphWindow(QtWidgets.QWidget):
     def snap_to_view(self):
         globalymin, globalymax, globalxmin, globalxmax = None, None, None, None
         for item in self.items.values():
-            ymin, ymax = item.plot_item.dataBounds(1)
-            xmin, xmax = item.plot_item.dataBounds(0)
+            try:
+                ymin, ymax = item.plot_item.dataBounds(1)
+                xmin, xmax = item.plot_item.dataBounds(0)
+            except AttributeError:
+                continue
             if globalymin is None:
-                globalymin = ymin 
+                globalymin = ymin
             elif globalymin > ymin:
                 globalymin = ymin
             elif globalymax < ymax:
                 globalymax = ymax
             if globalymax is None:
-                globalymax = ymax 
+                globalymax = ymax
             if globalxmin is None:
-                globalxmin = xmin 
+                globalxmin = xmin
             if globalxmax is None:
-                globalxmax = xmax 
+                globalxmax = xmax
             elif globalxmin > xmin:
-                globalxmin = xmin 
+                globalxmin = xmin
             elif globalxmax < xmax:
-                globalxmax = xmax 
+                globalxmax = xmax
         self.pg.setXRange(globalxmin, globalxmax)
         self.pg.setYRange(globalymin, globalymax)
-    
+
     def add_plot_item(self, name, x, y, over_ride_show_points=None,
                       append=False, file_=None, range_guess=None):
         if name in self.items.keys() and not append:
@@ -579,11 +582,11 @@ def main():
             self.setWindowIcon(icon)
             self.exit_request = asyncio.Event()
             self.setWindowTitle("Real Complicated Grapher")
-        
+
         def closeEvent(self, event):
             event.ignore()
             self.exit_request.set()
-        
+
     main_window = mainWindow()
     dock = rcgDock(main_window)
     dock.setFloating(False)
