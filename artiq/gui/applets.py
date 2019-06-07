@@ -230,6 +230,7 @@ _templates = [
              "--with_866_off pmt_counts_866_off "
              "--diff_counts diff_counts "
              "--pulsed pulsed "
+             "--clear_pmt_plot "
              "--title 'PMT'")
 ]
 
