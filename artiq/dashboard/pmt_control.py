@@ -160,9 +160,9 @@ class PMTControlDock(QtWidgets.QDockWidget):
         dcLabel = QtWidgets.QLabel("Set Doppler cooling and state readout: ")
         layout.addWidget(dcLabel, 6, 0, 1, 2)
         layout.addWidget(self.setDCButton, 6, 2)
-        clearLabel = QtWidgets.QLabel("Reset PMT plot: ")
-        layout.addWidget(clearLabel, 7, 0)
-        layout.addWidget(self.clearPMTPlotButton, 7, 1, 1, 2)
+        # clearLabel = QtWidgets.QLabel("Reset PMT plot: ")
+        # layout.addWidget(clearLabel, 7, 0)
+        # layout.addWidget(self.clearPMTPlotButton, 7, 1, 1, 2)
         frame.setLayout(layout)
         return frame
 
