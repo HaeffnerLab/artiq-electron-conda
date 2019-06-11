@@ -425,6 +425,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
             widget2.setContentsMargins(0, 0, 0, 0)
             top_widget.addWidget(widget1)
             top_widget.addWidget(widget2)
+            top_widget.setStretchFactor(2, 1)
 
     def schedule_periodic(self, state):
         if state:

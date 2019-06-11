@@ -200,7 +200,7 @@ class PMTControlDock(QtWidgets.QDockWidget):
         layout.addWidget(piezoLabel, 0, 0, 1, 3)
         for i, ctl in enumerate(ctls):
             layout.addWidget(QtWidgets.QLabel(ctl + ": "), i + 1, 0)
-            self.piezoStepSize[ctl] = QtWidgets.QSpinBox()
+            self.piezoStepSize[ctl] = customIntSpinBox(0, (0, 300))
             self.piezoStepSize[ctl].setToolTip("Set step size.")
             self.piezoStepSize[ctl].setObjectName(ctl)
             self.piezoStepSize[ctl].setKeyboardTracking(False)
