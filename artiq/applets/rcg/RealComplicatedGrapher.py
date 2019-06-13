@@ -478,7 +478,7 @@ class graphWindow(QtWidgets.QWidget):
             show_points = self.show_points
         if append and name in self.items.keys():
             item = self.items[name]
-            item.plot_item.setData(x, y)
+            item.plot_item.setData(sorted(x), [i for _, i in sorted(zip(x, y))])
         else:
             color = next(self.color_chooser)
             try:
