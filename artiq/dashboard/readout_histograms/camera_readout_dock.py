@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import labrad
-import lmfit 
+import lmfit
 import numpy as np
 from PyQt5 import QtCore, QtWidgets, QtGui
 from matplotlib.backends.backend_qt5agg import (NavigationToolbar2QT,
@@ -40,7 +40,7 @@ class CameraReadoutDock(QtWidgets.QDockWidget):
         self.asyncio_server = Server({"camera_reference_image": self.RemotePlotting(self)}, None, True)
         self.task = self.loop.create_task(self.asyncio_server.start("::1", 3288))
 
-    
+
     class RemotePlotting:
         def __init__(self, plt):
             self.plt = plt
@@ -59,7 +59,7 @@ class CameraReadoutDock(QtWidgets.QDockWidget):
             x_axis = np.arange(image_region[2], image_region[3] + 1, image_region[0])
             y_axis = np.arange(image_region[4], image_region[5] + 1, image_region[1])
             xx, yy = np.meshgrid(x_axis, y_axis)
-                
+
             fitter = ion_state_detector(N)
             result, params = fitter.guess_parameters_and_fit(xx, yy, image)
             p.set_parameter("IonsOnCamera","fit_background_level", params["background_level"].value)
@@ -73,7 +73,7 @@ class CameraReadoutDock(QtWidgets.QDockWidget):
             self.plt.ax.clear()
             with suppress(Exception):
                 self.plt.cb.remove()
-            I = self.plt.ax.imshow(image, cmap="cividis", interpolation="spline16", 
+            I = self.plt.ax.imshow(image, cmap="cividis", interpolation="spline16",
                                extent=[x_axis.min(), x_axis.max(), y_axis.max(), y_axis.min()])
             self.plt.cb = self.plt.fig.colorbar(I, fraction=0.046, pad=0.04)
             x_axis_fit = np.linspace(x_axis.min(), x_axis.max(), x_axis.size * 10)
@@ -81,7 +81,7 @@ class CameraReadoutDock(QtWidgets.QDockWidget):
             xx, yy = np.meshgrid(x_axis_fit, y_axis_fit)
             fit = fitter.ion_model(params, xx, yy)
             self.plt.ax.contour(x_axis_fit, y_axis_fit, fit, 3, colors=[(1., .49, 0., .75)])
-            
+
             if result is not None:
                 # print(lmfit.fit_report(result, show_correl=False))
                 results_text = lmfit.fit_report(result, show_correl=False)
@@ -96,15 +96,15 @@ class CameraReadoutDock(QtWidgets.QDockWidget):
                         param_result[2] = param_result[2][:3]
                     except IndexError:
                         pass
-                    param_result = ".".join(param_result) 
+                    param_result = ".".join(param_result)
                     param_result += ")"
                     param_results[i] = param_result
                 results_text = "\n".join(param_results)
                 results_text += "\n    chi_red = {:.2f}".format(result.redchi)
                 results_text += "\n    runtime = " + str(self.run_time)
-                self.plt.ax.annotate(results_text, (0.5, 0.75), xycoords="axes fraction", 
+                self.plt.ax.annotate(results_text, (0.5, 0.75), xycoords="axes fraction",
                                      color=(1., .49, 0., 1.))
-            
+
             self.plt.canvas.draw()
             self.plt.ax.relim()
             self.plt.ax.autoscale(enable=True, axis="both")
@@ -131,7 +131,7 @@ class CameraReadoutDock(QtWidgets.QDockWidget):
         self.ax = self.fig.add_subplot(111)
         self.ax.set_facecolor((.97,.96,.96))
         self.ax.tick_params(
-                top=False, bottom=False, left=False, right=False, 
+                top=False, bottom=False, left=False, right=False,
                 labeltop=True, labelbottom=True, labelleft=True, labelright=False
             )
         self.mpl_toolbar = NavigationToolbar2QT(self.canvas, self)
@@ -143,13 +143,13 @@ class CameraReadoutDock(QtWidgets.QDockWidget):
         try:
             cxn = labrad.connect()
             p = cxn.parametervault
-        except: 
+        except:
             pass
         accessed_params = set()
         parameters = p.get_parameter_names("IonsOnCamera")
         for parameter in parameters:
             accessed_params.update({"IonsOnCamera." + parameter})
-        
+
         d_accessed_parameter_editor = ParameterEditorDock(
                 acxn=None,
                 name="Camera Options",
@@ -158,7 +158,7 @@ class CameraReadoutDock(QtWidgets.QDockWidget):
         d_accessed_parameter_editor.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
         d_accessed_parameter_editor.setTitleBarWidget(QtGui.QWidget())
         d_accessed_parameter_editor.table.setMaximumWidth(390)
-        
+
         layout.addWidget(self.mpl_toolbar, 0, 0, 1, 1)
         layout.addWidget(self.reference_image_button, 0, 2, 1, 1)
         layout.addWidget(d_accessed_parameter_editor, 1, 0, 1, 1)
@@ -177,8 +177,8 @@ class CameraReadoutDock(QtWidgets.QDockWidget):
                  "file": "misc/reference_image.py",
                  "log_level": 30,
                  "repo_rev": None,
-                 "priority": 1}
-        self.scheduler.submit("main", expid, 1)
+                 "priority": 2}
+        self.scheduler.submit("main", expid, 2)
 
     def save_state(self):
         return {"image": self.image,
