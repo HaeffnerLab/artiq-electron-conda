@@ -385,6 +385,7 @@ class PulseSequence(EnvExperiment):
                                 self.rm, readout_duration, seq_name, is_multi, self.n_ions, self.is_ndim, scan_names, 
                                 ndim_iterable, self.start_point1, self.start_point2, self.use_camera, set_subsequence)
                     except RTIOUnderflow:
+                        logger.error("RTIOUnderflow", exc_info=True)
                         continue
                     if self.scheduler.check_pause():
                         try:
@@ -555,14 +556,17 @@ class PulseSequence(EnvExperiment):
                 delay(10*us)
                 if not use_camera:
                     pmt_count = self.pmt.count(self.pmt.gate_rising(readout_duration))
-                    delay(readout_duration + 10*us)
+                    delay(readout_duration)
                     self.record_result("raw_run_data", j, pmt_count)
                 else:
                     self.camera_ttl.pulse(100*us)
                     self.core.wait_until_mu(now_mu())
-                    delay(readout_duration + 10*us)
+                    delay(readout_duration)
+                
+                self.core.wait_until_mu(now_mu())
+                delay(5*us)
                 self.dds_854.sw.on()
-                delay(150*us)
+                delay(300*us)
             if not use_camera:
                 self.update_raw_data(seq_name, i)
                 if readout_mode == "pmt":
@@ -636,7 +640,7 @@ class PulseSequence(EnvExperiment):
 
     @rpc(flags={"async"})
     def update_pmt(self, seq_name, i, is_multi, with_parity=False):
-        data = self.get_dataset(seq_name + "-raw_data")[i]#sorted(self.get_dataset(seq_name + "-raw_data")[i])
+        data = sorted(self.get_dataset(seq_name + "-raw_data")[i])
         thresholds = self.p.StateReadout.threshold_list
         name = seq_name + "-dark_ions:{}"
         idxs = [0]
@@ -681,7 +685,7 @@ class PulseSequence(EnvExperiment):
             dataset[i] = parity
             self.save_and_send_to_rcg(x, dataset[:i + 1], "parity", seq_name, is_multi, self.range_guess[seq_name])
 
-    # Need this to be a blocking call
+    # Need this to be a blocking call #
     def update_camera(self, seq_name, i, is_multi, readout_mode):
         done = self.camera.wait_for_kinetic()
         if not done:
@@ -730,7 +734,7 @@ class PulseSequence(EnvExperiment):
             if readout_mode == "camera_parity":
                 # For some reason, when using master scans, xdata for consecutive runs is appended.
                 # Need to figure out why, but for now this will do.
-                dataset = getattr(self, name.format(k))
+                dataset = getattr(self, name.format("parity"))
                 if len(x) != len(dataset[:i + 1]):
                     x = x[-len(dataset[:i + 1]):]
                 dataset[i] = ion_state[-1]
@@ -973,6 +977,15 @@ class PulseSequence(EnvExperiment):
             self.carrier_values[i] = new_carrier_values[i]
 
     @kernel
+    def get_offset_frequency(self, name) -> TFloat:
+        offset_frequency = 0.
+        for i in range(len(self.dds_names)):
+            if self.dds_names[i] == name: 
+                offset_frequency = self.dds_offsets[i]*MHz
+                break
+        return offset_frequency
+
+    @kernel
     def get_729_dds(self, name, i=0):
         # Need to find a better way to do this
         if i == 0:
@@ -1121,7 +1134,6 @@ class PulseSequence(EnvExperiment):
 
     def run_finally(self):
         pass
-
 
 class FitError(Exception):
     pass
