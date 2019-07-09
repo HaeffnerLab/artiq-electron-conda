@@ -986,34 +986,16 @@ class PulseSequence(EnvExperiment):
         return offset_frequency
 
     @kernel
-    def get_729_dds(self, name, i=0):
+    def get_729_dds(self, name, id=0):
         # Need to find a better way to do this
-        if i == 0:
-            if name == "729L1":
-                self.dds_729 = self.dds_729L1
-                self.dds_729_SP = self.dds_SP_729L1
-                self.dds_729_SP_bichro = self.dds_SP_729L1_bichro
-            elif name == "729L2":
-                self.dds_729 = self.dds_729L2
-                self.dds_729_SP = self.dds_SP_729L2
-                self.dds_729_SP_bichro = self.dds_SP_729L2_bichro
-            elif name == "729G":
-                self.dds_729 = self.dds_729G
-                self.dds_729_SP = self.dds_SP_729G
-                self.dds_729_SP_bichro = self.dds_SP_729G_bichro
-        if i == 1:
-            if name == "729L1":
-                self.dds_7291 = self.dds_729L1
-                self.dds_729_SP1 = self.dds_SP_729L1
-                self.dds_729_SP_bichro1 = self.dds_SP_729L1_bichro
-            elif name == "729L2":
-                self.dds_7291 = self.dds_729L2
-                self.dds_729_SP1 = self.dds_SP_729L2
-                self.dds_729_SP_bichro1 = self.dds_SP_729L2_bichro
-            elif name == "729G":
-                self.dds_7291 = self.dds_729G
-                self.dds_729_SP1 = self.dds_SP_729G
-                self.dds_729_SP_bichro1 = self.dds_SP_729G_bichro
+        if id == 0:
+            self.dds_729 =           self.dds_729G if name == "729G" else self.dds_729L1 if name == "729L1" else self.dds_729L2
+            self.dds_729_SP =        self.dds_SP_729G if name == "729G" else self.dds_SP_729L1 if name == "729L1" else self.dds_SP_729L2
+            self.dds_729_SP_bichro = self.dds_SP_729G_bichro if name == "729G" else self.dds_SP_729L1_bichro if name == "729L1" else self.dds_SP_729L2_bichro
+        elif id == 1:
+            self.dds_7291 =           self.dds_729G if name == "729G" else self.dds_729L1 if name == "729L1" else self.dds_729L2
+            self.dds_729_SP1 =        self.dds_SP_729G if name == "729G" else self.dds_SP_729L1 if name == "729L1" else self.dds_SP_729L2
+            self.dds_729_SP_bichro1 = self.dds_SP_729G_bichro if name == "729G" else self.dds_SP_729L1_bichro if name == "729L1" else self.dds_SP_729L2_bichro
 
     def prepare_camera(self):
         self.camera.abort_acquisition()
