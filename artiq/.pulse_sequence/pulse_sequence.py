@@ -1094,6 +1094,8 @@ class PulseSequence(EnvExperiment):
                     c, v = value.split(".")
                 except AttributeError:
                     continue
+                except ValueError:
+                    continue
                 try:
                     pv_value = self.p[c][v]
                 except KeyError:
@@ -1109,6 +1111,10 @@ class PulseSequence(EnvExperiment):
     def add_subsequence(self, subsequence):
         self._set_subsequence_defaults(subsequence)
         subsequence.run = kernel(subsequence.subsequence)
+        try:
+            subsequence.add_child_subsequences(self)
+        except AttributeError:
+            pass
         return subsequence
 
     def update_scan_params(self, scan_params, iteration=None):
