@@ -1099,6 +1099,8 @@ class PulseSequence(EnvExperiment):
                 try:
                     pv_value = self.p[c][v]
                 except KeyError:
+                    #TODO Ryan fix this - throw if a parameter isn't found
+                    #raise Exception("Failed to find parameter: " + value)
                     continue
                 try:
                     pv_value = float(pv_value)
