@@ -85,8 +85,9 @@ class KasliTester(EnvExperiment):
                 module, cls = desc["module"], desc["class"]
                 if ((module, cls) == ("artiq.coredevice.ad9910", "AD9910")
                     or (module, cls) == ("artiq.coredevice.ad9912", "AD9912")):
-                    sw_device = desc["arguments"]["sw_device"]
-                    del self.ttl_outs[sw_device]
+                    if "sw_device" in desc["arguments"]:
+                        sw_device = desc["arguments"]["sw_device"]
+                        del self.ttl_outs[sw_device]
                 elif (module, cls) == ("artiq.coredevice.urukul", "CPLD"):
                     io_update_device = desc["arguments"]["io_update_device"]
                     del self.ttl_outs[io_update_device]
@@ -103,7 +104,7 @@ class KasliTester(EnvExperiment):
         self.leds = sorted(self.leds.items(), key=lambda x: x[1].channel)
         self.ttl_outs = sorted(self.ttl_outs.items(), key=lambda x: x[1].channel)
         self.ttl_ins = sorted(self.ttl_ins.items(), key=lambda x: x[1].channel)
-        self.urukuls = sorted(self.urukuls.items(), key=lambda x: x[1].sw.channel)
+        self.urukuls = sorted(self.urukuls.items(), key=lambda x: (x[1].cpld.bus.channel, x[1].chip_select))
         self.samplers = sorted(self.samplers.items(), key=lambda x: x[1].cnv.channel)
         self.zotinos = sorted(self.zotinos.items(), key=lambda x: x[1].bus.channel)
         self.grabbers = sorted(self.grabbers.items(), key=lambda x: x[1].channel_base)
@@ -204,8 +205,13 @@ class KasliTester(EnvExperiment):
         self.core.break_realtime()
         channel.init()
         channel.set(frequency*MHz)
-        channel.sw.on()
+        channel.cfg_sw(1)
         channel.set_att(6.)
+
+    @kernel
+    def cfg_sw_off_urukul(self, channel):
+        self.core.break_realtime()
+        channel.cfg_sw(0)
 
     @kernel
     def rf_switch_wave(self, channels):
@@ -256,8 +262,12 @@ class KasliTester(EnvExperiment):
         print("Press ENTER when done.")
         input()
 
-        print("Testing RF switch control. Press ENTER when done.")
-        self.rf_switch_wave([channel_dev.sw for channel_name, channel_dev in self.urukuls])
+        sw = [channel_dev for channel_name, channel_dev in self.urukuls if hasattr(channel_dev, "sw")]
+        if sw:
+            print("Testing RF switch control. Press ENTER when done.")
+            for swi in sw:
+                self.cfg_sw_off_urukul(swi)
+            self.rf_switch_wave([swi.sw for swi in sw])
 
     @kernel
     def get_sampler_voltages(self, sampler, cb):
@@ -313,15 +323,14 @@ class KasliTester(EnvExperiment):
         zotino.load()
 
     def test_zotinos(self):
-        if self.zotinos:
-            print("*** Testing Zotino DACs.")
-            print("Voltages:")
-            for card_n, (card_name, card_dev) in enumerate(self.zotinos):
-                voltages = [2*card_n + (-1)**i*0.1*(i//2+1) for i in range(32)]
-                print(card_name, " ".join(["{:.1f}".format(x) for x in voltages]))
-                self.set_zotino_voltages(card_dev, voltages)
-            print("Press ENTER when done.")
-            input()
+        print("*** Testing Zotino DACs.")
+        print("Voltages:")
+        for card_n, (card_name, card_dev) in enumerate(self.zotinos):
+            voltages = [2*card_n + (-1)**i*0.1*(i//2+1) for i in range(32)]
+            print(card_name, " ".join(["{:.1f}".format(x) for x in voltages]))
+            self.set_zotino_voltages(card_dev, voltages)
+        print("Press ENTER when done.")
+        input()
 
     @kernel
     def grabber_capture(self, card_dev, rois):
@@ -344,28 +353,34 @@ class KasliTester(EnvExperiment):
         print("ROI sums:", n)
 
     def test_grabbers(self):
-        if self.grabbers:
-            print("*** Testing Grabber Frame Grabbers.")
-            print("Activate the camera's frame grabber output, type 'g', press "
-                  "ENTER, and trigger the camera.")
-            print("Just press ENTER to skip the test.")
-            if input().strip().lower() != "g":
-                print("skipping...")
-                return
-            rois = [[0, 0, 0, 2, 2], [1, 0, 0, 2048, 2048]]
-            print("ROIs:", rois)
-            for card_n, (card_name, card_dev) in enumerate(self.grabbers):
-                print(card_name)
-                self.grabber_capture(card_dev, rois)
+        print("*** Testing Grabber Frame Grabbers.")
+        print("Activate the camera's frame grabber output, type 'g', press "
+              "ENTER, and trigger the camera.")
+        print("Just press ENTER to skip the test.")
+        if input().strip().lower() != "g":
+            print("skipping...")
+            return
+        rois = [[0, 0, 0, 2, 2], [1, 0, 0, 2048, 2048]]
+        print("ROIs:", rois)
+        for card_n, (card_name, card_dev) in enumerate(self.grabbers):
+            print(card_name)
+            self.grabber_capture(card_dev, rois)
 
     def run(self):
         print("****** Kasli system tester ******")
         print("")
         self.core.reset()
-        self.test_leds()
-        self.test_ttl_outs()
-        self.test_ttl_ins()
-        self.test_urukuls()
-        self.test_samplers()
-        self.test_zotinos()
-        self.test_grabbers()
+        if self.leds:
+            self.test_leds()
+        if self.ttl_outs:
+            self.test_ttl_outs()
+        if self.ttl_ins:
+            self.test_ttl_ins()
+        if self.urukuls:
+            self.test_urukuls()
+        if self.samplers:
+            self.test_samplers()
+        if self.zotinos:
+            self.test_zotinos()
+        if self.grabbers:
+            self.test_grabbers()

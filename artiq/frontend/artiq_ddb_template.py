@@ -112,7 +112,6 @@ class PeripheralManager:
                         channel=rtio_offset+next(channel))
         return next(channel)
 
-    # TODO: support 1-EEM mode
     def process_urukul(self, rtio_offset, peripheral):
         urukul_name = self.get_name("urukul")
         synchronization = peripheral.get("synchronization", False)
@@ -123,7 +122,7 @@ class PeripheralManager:
                 "module": "artiq.coredevice.kasli_i2c",
                 "class": "KasliEEPROM",
                 "arguments": {{"port": "EEM{eem}"}}
-            }},
+            }}
 
             device_db["spi_{name}"]={{
                 "type": "local",
@@ -153,17 +152,18 @@ class PeripheralManager:
             }}""",
             name=urukul_name,
             channel=rtio_offset+next(channel))
-        for i in range(4):
-            self.gen("""
-                device_db["ttl_{name}_sw{uchn}"] = {{
-                    "type": "local",
-                    "module": "artiq.coredevice.ttl",
-                    "class": "TTLOut",
-                    "arguments": {{"channel": 0x{channel:06x}}}
-                }}""",
-                name=urukul_name,
-                uchn=i,
-                channel=rtio_offset+next(channel))
+        if len(peripheral["ports"]) > 1:
+            for i in range(4):
+                self.gen("""
+                    device_db["ttl_{name}_sw{uchn}"] = {{
+                        "type": "local",
+                        "module": "artiq.coredevice.ttl",
+                        "class": "TTLOut",
+                        "arguments": {{"channel": 0x{channel:06x}}}
+                    }}""",
+                    name=urukul_name,
+                    uchn=i,
+                    channel=rtio_offset+next(channel))
         self.gen("""
             device_db["{name}_cpld"] = {{
                 "type": "local",
@@ -191,16 +191,17 @@ class PeripheralManager:
                         "module": "artiq.coredevice.ad9910",
                         "class": "AD9910",
                         "arguments": {{
-                            "pll_n": 32,
+                            "pll_n": {pll_n},
                             "chip_select": {chip_select},
-                            "cpld_device": "{name}_cpld",
-                            "sw_device": "ttl_{name}_sw{uchn}"{pll_vco}{sync_delay_seed}{io_update_delay}
+                            "cpld_device": "{name}_cpld"{sw}{pll_vco}{sync_delay_seed}{io_update_delay}
                         }}
                     }}""",
                     name=urukul_name,
                     chip_select=4 + i,
                     uchn=i,
+                    sw=",\n        \"sw_device\": \"ttl_{name}_sw{uchn}\"".format(name=urukul_name, uchn=i) if len(peripheral["ports"]) > 1 else "",
                     pll_vco=",\n        \"pll_vco\": {}".format(pll_vco) if pll_vco is not None else "",
+                    pll_n=peripheral.get("pll_n", 32),
                     sync_delay_seed=",\n        \"sync_delay_seed\": \"eeprom_{}:{}\"".format(urukul_name, 64 + 4*i) if synchronization else "",
                     io_update_delay=",\n        \"io_update_delay\": \"eeprom_{}:{}\"".format(urukul_name, 64 + 4*i) if synchronization else "")
             elif dds == "ad9912":
@@ -210,16 +211,17 @@ class PeripheralManager:
                         "module": "artiq.coredevice.ad9912",
                         "class": "AD9912",
                         "arguments": {{
-                            "pll_n": 8,
+                            "pll_n": {pll_n},
                             "chip_select": {chip_select},
-                            "cpld_device": "{name}_cpld",
-                            "sw_device": "ttl_{name}_sw{uchn}"{pll_vco}
+                            "cpld_device": "{name}_cpld"{sw}{pll_vco}
                         }}
                     }}""",
                     name=urukul_name,
                     chip_select=4 + i,
                     uchn=i,
-                    pll_vco=",\n        \"pll_vco\": {}".format(pll_vco) if pll_vco is not None else "")
+                    sw=",\n        \"sw_device\": \"ttl_{name}_sw{uchn}\"".format(name=urukul_name, uchn=i) if len(peripheral["ports"]) > 1 else "",
+                    pll_vco=",\n        \"pll_vco\": {}".format(pll_vco) if pll_vco is not None else "",
+                    pll_n=peripheral.get("pll_n", 8))
             else:
                 raise ValueError
         return next(channel)

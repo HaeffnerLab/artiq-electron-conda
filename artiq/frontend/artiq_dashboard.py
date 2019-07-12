@@ -283,6 +283,10 @@ def main():
         # QDockWidgets fail to be embedded.
         main_window.show()
 
+    # work around for https://github.com/m-labs/artiq/issues/1307
+    d_ttl_dds.ttl_dock.show()
+    d_ttl_dds.dds_dock.show()
+
     # create first log dock if not already in state
     d_log0 = logmgr.first_log_dock()
     if d_log0 is not None:
