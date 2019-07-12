@@ -15,7 +15,43 @@ from twisted.internet.defer import inlineCallbacks
 
 logger = logging.getLogger(__name__)
 
-commonly_used_parameters = {}
+
+# Read all .py files under artiq-work and add their attributes to a list
+# of commonly_used_parameters.
+# Note that this only gets parameters used by subsequences. 
+# Parameters in accessed_params lists will not appear in this list
+# (since those are presumably specific to a particular experiment).
+commonly_used_parameters = []
+
+import os
+import imp
+import importlib
+import ast
+work_folder = os.path.join(os.path.expanduser("~"), "artiq-work")
+for path, subdirs, files in os.walk(work_folder):
+    for filename in files:
+        if filename.endswith(".py"):
+            experiment_file = os.path.join(path, filename)
+            classes = []
+            try:
+                with open(experiment_file) as f:
+                    node = ast.parse(f.read())
+                    classes = [n for n in node.body if isinstance(n, ast.ClassDef)]
+                    experiment_source = imp.load_source('', experiment_file, f)
+                    for class_ in classes:
+                        sequence_class = getattr(experiment_source, class_.name)
+                        d = sequence_class.__dict__
+                        for key, value in d.items():
+                            if type(value) == str:
+                                try:
+                                    c, v = value.split(".")
+                                except AttributeError:
+                                    continue
+                                except ValueError:
+                                    continue
+                                commonly_used_parameters.append(value)
+            except:
+                continue
 
 parameterchangedID = 612512
 types = ["parameter",
@@ -161,7 +197,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                     self.collection_widget_items[0][collection] = collection_item
         else:
             # set up top-level items for all parameters and common parameters
-            region_common_params_item = self.make_region_item("Commonly Used Parameters")
+            region_common_params_item = self.make_region_item("Actively Used Parameters")
             region_all_params_item = self.make_region_item("All Parameters")
 
             # common parameters list
@@ -169,10 +205,15 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                 param_split = param.split(".")
                 collection = param_split[0]
                 param_name = param_split[1]
+                param_value = ""
+                try:
+                    r.cd("", "Servers", "Parameter Vault", collection)
+                    param_value = r.get(param_name)
+                except:
+                    continue
                 if not collection in common_params_registry.keys():
                     common_params_registry[collection] = dict()
-                r.cd("", "Servers", "Parameter Vault", collection)
-                common_params_registry[collection][param_name] = r.get(param_name)
+                common_params_registry[collection][param_name] = param_value
             for collection in sorted(common_params_registry.keys()):
                 collection_item = self.make_collection_item(common_params_registry, collection, region_index=0)
                 if collection_item:
