@@ -10,6 +10,8 @@ import logging
 from artiq.language import scan
 from artiq.language.core import TerminationRequested
 from artiq.experiment import *
+from artiq.coredevice.ad9910 import PHASE_MODE_ABSOLUTE, PHASE_MODE_CONTINUOUS, PHASE_MODE_TRACKING
+from artiq.coredevice.ad9910 import RAM_MODE_BIDIR_RAMP, RAM_MODE_CONT_BIDIR_RAMP, RAM_MODE_CONT_RAMPUP, RAM_MODE_RAMPUP, RAM_DEST_ASF, RAM_DEST_FTW, RAM_MODE_DIRECTSWITCH
 from artiq.protocols.pc_rpc import Client
 from artiq.dashboard.drift_tracker import client_config as dt_config
 from artiq.readout_analysis import readouts
@@ -48,6 +50,7 @@ class PulseSequence(EnvExperiment):
         self.setattr_device("camera_ttl")
         self.setattr_device("core_dma")
         self.setattr_device("mod397")
+        self.camera = None
         self.multi_scannables = dict()
         self.rcg_tabs = dict()
         self.selected_scan = dict()
@@ -387,6 +390,10 @@ class PulseSequence(EnvExperiment):
                     except RTIOUnderflow:
                         logger.error("RTIOUnderflow", exc_info=True)
                         continue
+                    except:
+                        self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list,
+                                            self.state_list, self.att_list)
+                        raise
                     if self.scheduler.check_pause():
                         try:
                             self.core.comm.close()
@@ -413,6 +420,13 @@ class PulseSequence(EnvExperiment):
         self.set_dataset("raw_run_data", None, archive=False)
         self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list, self.state_list, self.att_list)
 
+        if self.rm in ["camera", "camera_states", "camera_parity"]:
+            self.camera.abort_acquisition()
+            self.camera.set_trigger_mode(self.initial_trigger_mode)
+            self.camera.set_exposure_time(self.initial_exposure)
+            self.camera.set_image_region(1, 1, 1, 658, 1, 496)
+            self.camera.start_live_display()
+
     @kernel
     def turn_off_all(self):
         self.core.reset()
@@ -421,8 +435,206 @@ class PulseSequence(EnvExperiment):
         for device in self.dds_device_list:
             device.init()
             device.sw.off()
-            # device.set_phase_mode(0)
-    
+            device.set_phase_mode(PHASE_MODE_TRACKING)
+
+    @kernel
+    def pulse_with_amplitude_ramp(
+        self, pulse_duration, ramp_duration,
+        dds1_name="", dds1_amp=0., dds1_freq=220*MHz, dds1_phase=0.,
+        dds2_name="", dds2_amp=0., dds2_freq=220*MHz, dds2_phase=0.):
+        # Pulses the provided DDS channel (or both channels, if two are provided)
+        # with a linear amplitude ramp. The amplitude begins at 0, ramps up to
+        # the specified amplitude over the time given by ramp_duration, waits,
+        # and then ramps down to zero amplitude.
+        #
+        # The total pulse time, including the ramps, will be pulse_duration.
+        #
+        # If pulse_duration is less than twice the ramp_duration, the ramp will
+        # not reach the full amplitude, but instead will ramp up for half of
+        # pulse_duration, and then immediately ramp down for half of pulse_duration.
+
+        # Get the DDS channels.
+        dds1 = self.dds_729  #self.get_device(dds1_name)
+        dds2 = self.dds_729  #self.get_device(dds2_name)
+        use_dds2 = False #if dds2_name == "" else True
+
+        delay_time = 2*ms  # to avoid RTIO underflow
+
+        # Start by disabling ramping and resetting to profile 0.
+        dds1.set_cfr1(ram_enable=0)
+        dds1.cpld.io_update.pulse(1*us)
+        delay(delay_time)
+        dds1.cpld.set_profile(0)
+        dds1.cpld.io_update.pulse(1*us)
+        delay(delay_time)
+        if use_dds2:
+            dds2.set_cfr1(ram_enable=0)
+            dds2.cpld.io_update.pulse(1*us)
+            delay(delay_time)
+            dds2.cpld.set_profile(0)
+            dds2.cpld.io_update.pulse(1*us)
+            delay(delay_time)
+
+        # Calculate the ramp duration, wait duration, and
+        # maximum amplitudes for each channel.
+        clock_cycles_per_step = 20  # 4
+        original_ramp_duration = ramp_duration
+        ramp_duration = min(original_ramp_duration, pulse_duration/2.)
+        wait_duration = pulse_duration - 2.*ramp_duration
+        dds1_max_amp = dds1_amp * (ramp_duration/original_ramp_duration)
+        dds2_max_amp = dds2_amp * (ramp_duration/original_ramp_duration)
+
+        # Create the list of amplitudes for each ramp. We need four ramps:
+        # ramp up and ramp down for each of dds1 and dds2.
+        n_steps = min(100, np.int32(round(ramp_duration/(clock_cycles_per_step*4*ns))))
+        dds1_ramp_up = [dds1_max_amp/n_steps * (float(n_steps)-i) for i in range(n_steps+1)]
+        dds2_ramp_up = [dds2_max_amp/n_steps * (float(n_steps)-i) for i in range(n_steps+1)]
+        dds1_ramp_up_data = [0]*(n_steps+1)
+        dds2_ramp_up_data = [0]*(n_steps+1)
+        dds1_ramp_down_data = [0]*(n_steps+1)
+        dds2_ramp_down_data = [0]*(n_steps+1)
+        # NOTE: The built-in amplitude_to_ram() method does not
+        #       comply with the AD9910 specification. Doing this
+        #       manually instead, until amplitude_to_ram() is fixed.
+        # dds1.amplitude_to_ram(dds1_ramp_up, dds1_ramp_up_data)
+        # if use_dds2:
+        #   dds2.amplitude_to_ram(dds2_ramp_up, dds2_ramp_up_data)
+        for i in range(len(dds1_ramp_up)):
+            dds1_ramp_up_data[i] = (np.int32(round(dds1_ramp_up[i]*0x3fff)) << 18)
+            dds2_ramp_up_data[i] = (np.int32(round(dds2_ramp_up[i]*0x3fff)) << 18)
+        for i in range(len(dds1_ramp_up_data)):
+            dds1_ramp_down_data[i] = dds1_ramp_up_data[len(dds1_ramp_up_data)-i-1]
+            dds2_ramp_down_data[i] = dds2_ramp_up_data[len(dds2_ramp_up_data)-i-1]
+
+        # Print stuff
+        # print("ramp_duration:", ramp_duration)
+        # print("n_steps:", n_steps)
+        # print("wait_duration:", wait_duration)
+        # print("dds1_max_amp:", dds1_max_amp)
+        # print("dds1_ramp_up:", dds1_ramp_up)
+        # print("dds1_ramp_up:", dds1_ramp_up_data)
+        # print("dds1_ramp_down:", dds1_ramp_down_data)
+        # self.core.break_realtime()
+        delay(delay_time)
+
+        # Program the RAM with each waveform.
+        dds1_ramp_up_profile = 1
+        start_address = 0
+        delay(delay_time)
+        dds1.set_profile_ram(start=start_address, end=start_address+n_steps,
+            step=clock_cycles_per_step, profile=dds1_ramp_up_profile, mode=RAM_MODE_RAMPUP)
+        delay(delay_time)
+        dds1.cpld.set_profile(dds1_ramp_up_profile)
+        dds1.cpld.io_update.pulse(1*us)
+        delay(delay_time)
+        dds1.write_ram(dds1_ramp_up_data)
+        
+        dds1_ramp_down_profile = 2
+        start_address += n_steps+1
+        delay(delay_time)
+        dds1.set_profile_ram(start=start_address, end=start_address+n_steps,
+            step=clock_cycles_per_step, profile=dds1_ramp_down_profile, mode=RAM_MODE_RAMPUP)
+        delay(delay_time)
+        dds1.cpld.set_profile(dds1_ramp_down_profile)
+        dds1.cpld.io_update.pulse(1*us)
+        delay(delay_time)
+        dds1.write_ram(dds1_ramp_down_data)
+        
+        dds2_ramp_up_profile = 3
+        dds2_ramp_down_profile = 4
+        if use_dds2:
+            start_address += n_steps+1
+            delay(delay_time)
+            dds2.set_profile_ram(start=start_address, end=start_address+n_steps,
+                step=clock_cycles_per_step, profile=dds2_ramp_up_profile, mode=RAM_MODE_RAMPUP)
+            delay(delay_time)
+            dds2.cpld.set_profile(dds2_ramp_up_profile)
+            dds2.cpld.io_update.pulse(1*us)
+            delay(delay_time)
+            dds2.write_ram(dds2_ramp_up_data)
+            
+            start_address += n_steps+1
+            delay(delay_time)
+            dds2.set_profile_ram(start=start_address, end=start_address+n_steps,
+                step=clock_cycles_per_step, profile=dds2_ramp_down_profile, mode=RAM_MODE_RAMPUP)
+            delay(delay_time)
+            dds2.cpld.set_profile(dds2_ramp_down_profile)
+            dds2.cpld.io_update.pulse(1*us)
+            delay(delay_time)
+            dds2.write_ram(dds2_ramp_down_data)
+        
+        # Set the desired initial parameters and turn on each DDS.
+        delay(delay_time)
+        dds1.set_frequency(dds1_freq)
+        dds1.set_amplitude(0.)
+        dds1.set_phase(dds1_phase)
+        dds1.sw.on()
+        if use_dds2:
+            delay(delay_time)
+            dds2.set_frequency(dds2_freq)
+            dds2.set_amplitude(0.)
+            dds2.set_phase(dds2_phase)
+            dds2.sw.on()
+
+        # Set the current profile to the ramp-up profile constructed above.
+        dds1.cpld.set_profile(dds1_ramp_up_profile)
+        dds1.cpld.io_update.pulse(1*us)
+        delay(delay_time)
+        if use_dds2:
+            dds2.cpld.set_profile(dds2_ramp_up_profile)
+            dds2.cpld.io_update.pulse(1*us)
+            delay(delay_time)
+
+        # Enable the ramping, which immediately starts playing the ramp waveform.
+        dds1.set_cfr1(ram_enable=1, ram_destination=RAM_DEST_ASF)
+        if use_dds2:
+            dds2.set_cfr1(ram_enable=1, ram_destination=RAM_DEST_ASF)
+            with parallel:
+                dds1.cpld.io_update.pulse(1*us)
+                dds2.cpld.io_update.pulse(1*us)
+        else:
+            dds1.cpld.io_update.pulse(1*us)
+
+        # Wait for the ramp to finish.
+        delay(ramp_duration)
+
+        # Wait for the desired time.
+        delay(wait_duration)
+
+        # Activate the ramp-down profiles, which immediately begins the ramp down.
+        dds1.cpld.set_profile(dds1_ramp_down_profile)
+        if use_dds2:
+            dds2.cpld.set_profile(dds2_ramp_down_profile)
+            with parallel:
+                dds1.cpld.io_update.pulse(1*us)
+                dds2.cpld.io_update.pulse(1*us)
+        else:
+            dds1.cpld.io_update.pulse(1*us)
+
+        # Wait for the ramp to finish, plus some extra time to be safe.
+        delay(ramp_duration + 10*us)
+        
+        # Turn off the DDS outputs.
+        dds1.sw.off()
+        if use_dds2:
+            dds2.sw.off()
+        
+        # Disable ramping so we don't affect the next experiment.
+        # Also reset to profile 0.
+        dds1.set_cfr1(ram_enable=0)
+        dds1.cpld.io_update.pulse(1*us)
+        delay(delay_time)
+        dds1.cpld.set_profile(0)
+        dds1.cpld.io_update.pulse(1*us)
+        delay(delay_time)
+        if use_dds2:
+            dds2.set_cfr1(ram_enable=0)
+            dds2.cpld.io_update.pulse(1*us)
+            delay(delay_time)
+            dds2.cpld.set_profile(0)
+            dds2.cpld.io_update.pulse(1*us)
+            delay(delay_time)
+
     # @kernel
     # def pmt_readout(self, duration) -> TInt32:
     #     delay(1*ms)
@@ -1031,23 +1243,24 @@ class PulseSequence(EnvExperiment):
         self.camera.start_acquisition()
 
     def initialize_camera(self):
-        camera = self.cxn.andor_server
-        camera.abort_acquisition()
-        self.initial_exposure = camera.get_exposure_time()
+        if not self.camera:
+            self.camera = self.cxn.andor_server
+
+        self.camera.abort_acquisition()
+        self.initial_exposure = self.camera.get_exposure_time()
         exposure = self.p.StateReadout.camera_readout_duration
         p = self.p.IonsOnCamera
-        camera.set_exposure_time(exposure)
+        self.camera.set_exposure_time(exposure)
         self.image_region = [int(p.horizontal_bin),
                              int(p.vertical_bin),
                              int(p.horizontal_min),
                              int(p.horizontal_max),
                              int(p.vertical_min),
                              int(p.vertical_max)]
-        camera.set_image_region(*self.image_region)
-        camera.set_acquisition_mode("Kinetics")
-        self.initial_trigger_mode = camera.get_trigger_mode()
-        camera.set_trigger_mode("External")
-        self.camera = camera
+        self.camera.set_image_region(*self.image_region)
+        self.camera.set_acquisition_mode("Kinetics")
+        self.initial_trigger_mode = self.camera.get_trigger_mode()
+        self.camera.set_trigger_mode("External")
 
     def camera_states_repr(self, N):
         str_repr = []
@@ -1066,12 +1279,6 @@ class PulseSequence(EnvExperiment):
             logger.error("Final fit failed.", exc_info=True)
         except:
             pass
-        if self.rm in ["camera", "camera_states", "camera_parity"]:
-            self.camera.abort_acquisition()
-            self.camera.set_trigger_mode(self.initial_trigger_mode)
-            self.camera.set_exposure_time(self.initial_exposure)
-            self.camera.set_image_region(1, 1, 1, 658, 1, 496)
-            self.camera.start_live_display()
         self.cxn.disconnect()
         self.global_cxn.disconnect()
         try:
