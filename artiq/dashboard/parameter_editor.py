@@ -197,7 +197,7 @@ class ParameterEditorDock(QtWidgets.QDockWidget):
                     self.collection_widget_items[0][collection] = collection_item
         else:
             # set up top-level items for all parameters and common parameters
-            region_common_params_item = self.make_region_item("Actively Used Parameters")
+            region_common_params_item = self.make_region_item("Commonly Used Parameters")
             region_all_params_item = self.make_region_item("All Parameters")
 
             # common parameters list
