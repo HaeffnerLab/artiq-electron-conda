@@ -97,6 +97,14 @@ class PulseSequence(EnvExperiment):
         self.dds_729_SP_bichro1 = self.get_device("SP_729G_bichro")
         self.cpld_list = [self.get_device("urukul{}_cpld".format(i)) for i in range(3)]
 
+        # Initialize variables used for ramping
+        self.ramp_slope_duration = 0*us
+        self.ramp_wait_duration = 0*us
+        self.dds1_ramp_up_profile = 2
+        self.dds1_ramp_down_profile = 3 # must differ by exactly one binary digit from ramp-up
+        self.dds2_ramp_up_profile = 4
+        self.dds2_ramp_down_profile = 5  # must differ by exactly one binary digit from ramp-up
+
     def prepare(self):
         # Grab parametervault params:
         G = globals().copy()
@@ -393,6 +401,7 @@ class PulseSequence(EnvExperiment):
                     except:
                         self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list,
                                             self.state_list, self.att_list)
+                        self.reset_camera_settings()
                         raise
                     if self.scheduler.check_pause():
                         try:
@@ -406,6 +415,7 @@ class PulseSequence(EnvExperiment):
                                 self.set_dataset("raw_run_data", None, archive=False)
                                 self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list,
                                                     self.state_list, self.att_list)
+                                self.reset_camera_settings()
                                 return
                 try:
                     self.run_after[seq_name]()
@@ -419,7 +429,9 @@ class PulseSequence(EnvExperiment):
                     continue
         self.set_dataset("raw_run_data", None, archive=False)
         self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list, self.state_list, self.att_list)
+        self.reset_camera_settings()
 
+    def reset_camera_settings(self):
         if self.rm in ["camera", "camera_states", "camera_parity"]:
             self.camera.abort_acquisition()
             self.camera.set_trigger_mode(self.initial_trigger_mode)
@@ -438,10 +450,16 @@ class PulseSequence(EnvExperiment):
             device.set_phase_mode(PHASE_MODE_TRACKING)
 
     @kernel
-    def pulse_with_amplitude_ramp(
-        self, pulse_duration, ramp_duration,
-        dds1_name="", dds1_amp=0., dds1_freq=220*MHz, dds1_phase=0.,
-        dds2_name="", dds2_amp=0., dds2_freq=220*MHz, dds2_phase=0.):
+    def prepare_pulse_with_amplitude_ramp(
+        self, pulse_duration, ramp_duration, dds1_amp=0., use_dds2=False, dds2_amp=0.):
+        #
+        # To be used in combination with execute_pulse_with_amplitude_ramp:
+        # - prepare_pulse_with_amplitude_ramp (this function) programs the desired
+        #   waveform into the AD9910. This should be run once per data point (i.e.,
+        #   once per 100 shots).
+        # - execute_pulse_with_amplitude_ramp (the following function) actually
+        #   performs the ramp-up, wait, and ramp-down as described below.
+        #
         # Pulses the provided DDS channel (or both channels, if two are provided)
         # with a linear amplitude ramp. The amplitude begins at 0, ramps up to
         # the specified amplitude over the time given by ramp_duration, waits,
@@ -452,53 +470,47 @@ class PulseSequence(EnvExperiment):
         # If pulse_duration is less than twice the ramp_duration, the ramp will
         # not reach the full amplitude, but instead will ramp up for half of
         # pulse_duration, and then immediately ramp down for half of pulse_duration.
+        #
 
         # Get the DDS channels.
-        dds1 = self.dds_729  #self.get_device(dds1_name)
-        dds2 = self.dds_729  #self.get_device(dds2_name)
-        use_dds2 = False #if dds2_name == "" else True
+        ramp_dds1 = self.dds_729
+        ramp_dds2 = self.dds_7291
 
-        delay_time = 2*ms  # to avoid RTIO underflow
+        # Re-initialize the Urukul and AD9910 for these channels.
+        # ramp_dds1.cpld.init()
+        # ramp_dds1.init()
+        # if use_dds2:
+        #     ramp_dds2.cpld.init()
+        #     ramp_dds2.init()
 
-        # Start by disabling ramping and resetting to profile 0.
-        dds1.set_cfr1(ram_enable=0)
-        dds1.cpld.io_update.pulse(1*us)
-        delay(delay_time)
-        dds1.cpld.set_profile(0)
-        dds1.cpld.io_update.pulse(1*us)
-        delay(delay_time)
-        if use_dds2:
-            dds2.set_cfr1(ram_enable=0)
-            dds2.cpld.io_update.pulse(1*us)
-            delay(delay_time)
-            dds2.cpld.set_profile(0)
-            dds2.cpld.io_update.pulse(1*us)
-            delay(delay_time)
+        # Break and delay to avoid RTIO underflow
+        self.core.break_realtime()
+        delay(6*ms)
 
         # Calculate the ramp duration, wait duration, and
         # maximum amplitudes for each channel.
-        clock_cycles_per_step = 20  # 4
-        original_ramp_duration = ramp_duration
-        ramp_duration = min(original_ramp_duration, pulse_duration/2.)
-        wait_duration = pulse_duration - 2.*ramp_duration
-        dds1_max_amp = dds1_amp * (ramp_duration/original_ramp_duration)
-        dds2_max_amp = dds2_amp * (ramp_duration/original_ramp_duration)
+        clock_cycles_per_step = 4
+        original_ramp_slope_duration = ramp_duration
+        self.ramp_slope_duration = min(original_ramp_slope_duration, pulse_duration/2.)
+        self.ramp_wait_duration = pulse_duration - 2.*self.ramp_slope_duration
+        dds1_max_amp = dds1_amp * (self.ramp_slope_duration/original_ramp_slope_duration)
+        dds2_max_amp = dds2_amp * (self.ramp_slope_duration/original_ramp_slope_duration)
 
         # Create the list of amplitudes for each ramp. We need four ramps:
         # ramp up and ramp down for each of dds1 and dds2.
-        n_steps = min(100, np.int32(round(ramp_duration/(clock_cycles_per_step*4*ns))))
-        dds1_ramp_up = [dds1_max_amp/n_steps * (float(n_steps)-i) for i in range(n_steps+1)]
-        dds2_ramp_up = [dds2_max_amp/n_steps * (float(n_steps)-i) for i in range(n_steps+1)]
-        dds1_ramp_up_data = [0]*(n_steps+1)
-        dds2_ramp_up_data = [0]*(n_steps+1)
-        dds1_ramp_down_data = [0]*(n_steps+1)
-        dds2_ramp_down_data = [0]*(n_steps+1)
+        n_steps = min(100, np.int32(round(self.ramp_slope_duration/(clock_cycles_per_step*4*ns)))) + 1
+        dds1_ramp_up = [dds1_max_amp/n_steps * (float(n_steps-1)-i) for i in range(n_steps)]
+        dds2_ramp_up = [dds2_max_amp/n_steps * (float(n_steps-1)-i) for i in range(n_steps)]
+        dds1_ramp_up_data = [0]*(n_steps)
+        dds2_ramp_up_data = [0]*(n_steps)
+        dds1_ramp_down_data = [0]*(n_steps)
+        dds2_ramp_down_data = [0]*(n_steps)
         # NOTE: The built-in amplitude_to_ram() method does not
         #       comply with the AD9910 specification. Doing this
         #       manually instead, until amplitude_to_ram() is fixed.
-        # dds1.amplitude_to_ram(dds1_ramp_up, dds1_ramp_up_data)
-        # if use_dds2:
-        #   dds2.amplitude_to_ram(dds2_ramp_up, dds2_ramp_up_data)
+        ##### ramp_dds1.amplitude_to_ram(dds1_ramp_up, dds1_ramp_up_data)
+        ##### if use_dds2:
+        #####   ramp_dds2.amplitude_to_ram(dds2_ramp_up, dds2_ramp_up_data)
         for i in range(len(dds1_ramp_up)):
             dds1_ramp_up_data[i] = (np.int32(round(dds1_ramp_up[i]*0x3fff)) << 18)
             dds2_ramp_up_data[i] = (np.int32(round(dds2_ramp_up[i]*0x3fff)) << 18)
@@ -507,133 +519,146 @@ class PulseSequence(EnvExperiment):
             dds2_ramp_down_data[i] = dds2_ramp_up_data[len(dds2_ramp_up_data)-i-1]
 
         # Print stuff
-        # print("ramp_duration:", ramp_duration)
+        # print("ramp_slope_duration:", self.ramp_slope_duration)
         # print("n_steps:", n_steps)
-        # print("wait_duration:", wait_duration)
+        # print("ramp_wait_duration:", self.ramp_wait_duration)
         # print("dds1_max_amp:", dds1_max_amp)
         # print("dds1_ramp_up:", dds1_ramp_up)
-        # print("dds1_ramp_up:", dds1_ramp_up_data)
-        # print("dds1_ramp_down:", dds1_ramp_down_data)
+        # print("dds1_ramp_up_data:", dds1_ramp_up_data)
+        # print("dds1_ramp_down_data:", dds1_ramp_down_data)
         # self.core.break_realtime()
-        delay(delay_time)
 
         # Program the RAM with each waveform.
-        dds1_ramp_up_profile = 1
         start_address = 0
-        delay(delay_time)
-        dds1.set_profile_ram(start=start_address, end=start_address+n_steps,
-            step=clock_cycles_per_step, profile=dds1_ramp_up_profile, mode=RAM_MODE_RAMPUP)
-        delay(delay_time)
-        dds1.cpld.set_profile(dds1_ramp_up_profile)
-        dds1.cpld.io_update.pulse(1*us)
-        delay(delay_time)
-        dds1.write_ram(dds1_ramp_up_data)
+        ramp_dds1.set_profile_ram(start=start_address, end=start_address+n_steps-1,
+            step=clock_cycles_per_step, profile=self.dds1_ramp_up_profile, mode=RAM_MODE_RAMPUP)
+        ramp_dds1.cpld.set_profile(self.dds1_ramp_up_profile)
+        ramp_dds1.cpld.io_update.pulse_mu(8)
+        ramp_dds1.write_ram(dds1_ramp_up_data)
         
-        dds1_ramp_down_profile = 2
-        start_address += n_steps+1
-        delay(delay_time)
-        dds1.set_profile_ram(start=start_address, end=start_address+n_steps,
-            step=clock_cycles_per_step, profile=dds1_ramp_down_profile, mode=RAM_MODE_RAMPUP)
-        delay(delay_time)
-        dds1.cpld.set_profile(dds1_ramp_down_profile)
-        dds1.cpld.io_update.pulse(1*us)
-        delay(delay_time)
-        dds1.write_ram(dds1_ramp_down_data)
+        start_address += n_steps
+        ramp_dds1.set_profile_ram(start=start_address, end=start_address+n_steps-1,
+            step=clock_cycles_per_step, profile=self.dds1_ramp_down_profile, mode=RAM_MODE_RAMPUP)
+        ramp_dds1.cpld.set_profile(self.dds1_ramp_down_profile)
+        ramp_dds1.cpld.io_update.pulse_mu(8)
+        ramp_dds1.write_ram(dds1_ramp_down_data)
         
-        dds2_ramp_up_profile = 3
-        dds2_ramp_down_profile = 4
         if use_dds2:
-            start_address += n_steps+1
-            delay(delay_time)
-            dds2.set_profile_ram(start=start_address, end=start_address+n_steps,
-                step=clock_cycles_per_step, profile=dds2_ramp_up_profile, mode=RAM_MODE_RAMPUP)
-            delay(delay_time)
-            dds2.cpld.set_profile(dds2_ramp_up_profile)
-            dds2.cpld.io_update.pulse(1*us)
-            delay(delay_time)
-            dds2.write_ram(dds2_ramp_up_data)
+            start_address += n_steps
+            ramp_dds2.set_profile_ram(start=start_address, end=start_address+n_steps-1,
+                step=clock_cycles_per_step, profile=self.dds2_ramp_up_profile, mode=RAM_MODE_RAMPUP)
+            ramp_dds2.cpld.set_profile(self.dds2_ramp_up_profile)
+            ramp_dds2.cpld.io_update.pulse_mu(8)
+            ramp_dds2.write_ram(dds2_ramp_up_data)
             
-            start_address += n_steps+1
-            delay(delay_time)
-            dds2.set_profile_ram(start=start_address, end=start_address+n_steps,
-                step=clock_cycles_per_step, profile=dds2_ramp_down_profile, mode=RAM_MODE_RAMPUP)
-            delay(delay_time)
-            dds2.cpld.set_profile(dds2_ramp_down_profile)
-            dds2.cpld.io_update.pulse(1*us)
-            delay(delay_time)
-            dds2.write_ram(dds2_ramp_down_data)
+            start_address += n_steps
+            ramp_dds2.set_profile_ram(start=start_address, end=start_address+n_steps-1,
+                step=clock_cycles_per_step, profile=self.dds2_ramp_down_profile, mode=RAM_MODE_RAMPUP)
+            ramp_dds2.cpld.set_profile(self.dds2_ramp_down_profile)
+            ramp_dds2.cpld.io_update.pulse_mu(8)
+            ramp_dds2.write_ram(dds2_ramp_down_data)
         
-        # Set the desired initial parameters and turn on each DDS.
-        delay(delay_time)
-        dds1.set_frequency(dds1_freq)
-        dds1.set_amplitude(0.)
-        dds1.set_phase(dds1_phase)
-        dds1.sw.on()
+        # Reset to profile 0 so we don't affect the next experiment.
+        ramp_dds1.cpld.set_profile(0)
+        ramp_dds1.cpld.io_update.pulse_mu(8)
         if use_dds2:
-            delay(delay_time)
-            dds2.set_frequency(dds2_freq)
-            dds2.set_amplitude(0.)
-            dds2.set_phase(dds2_phase)
-            dds2.sw.on()
+            ramp_dds2.cpld.set_profile(0)
+            ramp_dds2.cpld.io_update.pulse_mu(8)
+
+    @kernel
+    def execute_pulse_with_amplitude_ramp(
+        self, dds1_att=8*dB, dds1_freq=220*MHz, dds1_phase=0.,
+        use_dds2=False, dds2_att=8*dB, dds2_freq=220*MHz, dds2_phase=0.):
+        #
+        # To be used in combination with prepare_pulse_with_amplitude_ramp.
+        # See the comments in that function for details.
+        #
+
+        # Get the DDS channels.
+        ramp_dds1 = self.dds_729
+        ramp_dds2 = self.dds_7291
+
+        # Print stuff
+        #print("ramp_slope_duration:", self.ramp_slope_duration)
+        #print("ramp_wait_duration:", self.ramp_wait_duration)
+        #self.core.break_realtime()
+
+        # Start by disabling ramping and resetting to profile 0.
+        ramp_dds1.set_cfr1(ram_enable=0)
+        ramp_dds1.cpld.io_update.pulse_mu(8)
+        ramp_dds1.cpld.set_profile(0)
+        ramp_dds1.cpld.io_update.pulse_mu(8)
+        if use_dds2:
+            ramp_dds2.set_cfr1(ram_enable=0)
+            ramp_dds2.cpld.io_update.pulse_mu(8)
+            ramp_dds2.cpld.set_profile(0)
+            ramp_dds2.cpld.io_update.pulse_mu(8)
+
+        # Set the desired initial parameters and turn on each DDS.
+        ramp_dds1.set_frequency(dds1_freq)
+        ramp_dds1.set_amplitude(0.)
+        ramp_dds1.set_att(dds1_att)
+        #ramp_dds1.set_phase(dds1_phase)
+        ramp_dds1.sw.on()
+        if use_dds2:
+            ramp_dds2.set_frequency(dds2_freq)
+            ramp_dds2.set_amplitude(0.)
+            ramp_dds2.set_att(dds2_att)
+            #ramp_dds2.set_phase(dds2_phase)
+            ramp_dds2.sw.on()
 
         # Set the current profile to the ramp-up profile constructed above.
-        dds1.cpld.set_profile(dds1_ramp_up_profile)
-        dds1.cpld.io_update.pulse(1*us)
-        delay(delay_time)
+        ramp_dds1.cpld.set_profile(self.dds1_ramp_up_profile)
+        ramp_dds1.cpld.io_update.pulse_mu(8)
         if use_dds2:
-            dds2.cpld.set_profile(dds2_ramp_up_profile)
-            dds2.cpld.io_update.pulse(1*us)
-            delay(delay_time)
+            ramp_dds2.cpld.set_profile(self.dds2_ramp_up_profile)
+            ramp_dds2.cpld.io_update.pulse_mu(8)
 
         # Enable the ramping, which immediately starts playing the ramp waveform.
-        dds1.set_cfr1(ram_enable=1, ram_destination=RAM_DEST_ASF)
+        ramp_dds1.set_cfr1(ram_enable=1, ram_destination=RAM_DEST_ASF)
         if use_dds2:
-            dds2.set_cfr1(ram_enable=1, ram_destination=RAM_DEST_ASF)
+            ramp_dds2.set_cfr1(ram_enable=1, ram_destination=RAM_DEST_ASF)
             with parallel:
-                dds1.cpld.io_update.pulse(1*us)
-                dds2.cpld.io_update.pulse(1*us)
+                ramp_dds1.cpld.io_update.pulse_mu(8)
+                ramp_dds2.cpld.io_update.pulse_mu(8)
         else:
-            dds1.cpld.io_update.pulse(1*us)
+            ramp_dds1.cpld.io_update.pulse_mu(8)
 
         # Wait for the ramp to finish.
-        delay(ramp_duration)
+        delay(self.ramp_slope_duration)
 
         # Wait for the desired time.
-        delay(wait_duration)
+        delay(self.ramp_wait_duration)
 
         # Activate the ramp-down profiles, which immediately begins the ramp down.
-        dds1.cpld.set_profile(dds1_ramp_down_profile)
+        ramp_dds1.cpld.set_profile(self.dds1_ramp_down_profile)
         if use_dds2:
-            dds2.cpld.set_profile(dds2_ramp_down_profile)
+            ramp_dds2.cpld.set_profile(self.dds2_ramp_down_profile)
             with parallel:
-                dds1.cpld.io_update.pulse(1*us)
-                dds2.cpld.io_update.pulse(1*us)
+                ramp_dds1.cpld.io_update.pulse_mu(8)
+                ramp_dds2.cpld.io_update.pulse_mu(8)
         else:
-            dds1.cpld.io_update.pulse(1*us)
+            ramp_dds1.cpld.io_update.pulse_mu(8)
 
         # Wait for the ramp to finish, plus some extra time to be safe.
-        delay(ramp_duration + 10*us)
+        delay(2*self.ramp_slope_duration)
         
         # Turn off the DDS outputs.
-        dds1.sw.off()
+        ramp_dds1.sw.off()
         if use_dds2:
-            dds2.sw.off()
+           ramp_dds2.sw.off()
         
         # Disable ramping so we don't affect the next experiment.
         # Also reset to profile 0.
-        dds1.set_cfr1(ram_enable=0)
-        dds1.cpld.io_update.pulse(1*us)
-        delay(delay_time)
-        dds1.cpld.set_profile(0)
-        dds1.cpld.io_update.pulse(1*us)
-        delay(delay_time)
+        ramp_dds1.set_cfr1(ram_enable=0)
+        ramp_dds1.cpld.io_update.pulse_mu(8)
+        ramp_dds1.cpld.set_profile(0)
+        ramp_dds1.cpld.io_update.pulse_mu(8)
         if use_dds2:
-            dds2.set_cfr1(ram_enable=0)
-            dds2.cpld.io_update.pulse(1*us)
-            delay(delay_time)
-            dds2.cpld.set_profile(0)
-            dds2.cpld.io_update.pulse(1*us)
-            delay(delay_time)
+            ramp_dds2.set_cfr1(ram_enable=0)
+            ramp_dds2.cpld.io_update.pulse_mu(8)
+            ramp_dds2.cpld.set_profile(0)
+            ramp_dds2.cpld.io_update.pulse_mu(8)
 
     # @kernel
     # def pmt_readout(self, duration) -> TInt32:
