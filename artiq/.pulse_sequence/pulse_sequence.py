@@ -104,6 +104,10 @@ class PulseSequence(EnvExperiment):
         self.dds1_ramp_down_profile = 3 # must differ by exactly one binary digit from ramp-up
         self.dds2_ramp_up_profile = 4
         self.dds2_ramp_down_profile = 5  # must differ by exactly one binary digit from ramp-up
+        self.noise_profile = 6
+        self.noise_waveform = [0.0]
+        self.noise_n_steps = 500
+        self.current_noise_index = 0
 
     def prepare(self):
         # Grab parametervault params:
@@ -147,7 +151,6 @@ class PulseSequence(EnvExperiment):
             collection, param = item[0].split(".")
             D[collection].update({param: item[1]})
         self.p = edict(D)
-        self.run_initially()
         self.cxn = cxn
 
         # Grab cw parameters:
@@ -179,6 +182,9 @@ class PulseSequence(EnvExperiment):
         # Make scan object for repeating the experiment
         N = int(self.p.StateReadout.repeat_each_measurement)
         self.N = N
+
+        # Call run_initially method of sequence
+        self.run_initially()
 
         # Create datasets and setup readout
         self.x_label = dict()
@@ -364,6 +370,12 @@ class PulseSequence(EnvExperiment):
                         self.parameter_values.append(param)
                         self.kernel_invariants.update({new_param_name})
                         setattr(self, new_param_name, param)
+                    # Clean this up later
+                    #if param_name in repump_dc_params:
+                    #    self.parameter_names.append(param_name)
+                    #    self.parameter_values.append(param)
+                    #    self.kernel_invariants.update({new_param_name})
+                    #    setattr(self, new_param_name, param)
                 current_sequence = getattr(self, seq_name)
                 selected_scan = self.selected_scan[seq_name]
                 self.selected_scan_name = selected_scan.replace(".", "_")
@@ -390,6 +402,7 @@ class PulseSequence(EnvExperiment):
                     readout_duration = self.p.StateReadout.camera_readout_duration
                 else:
                     readout_duration = self.p.StateReadout.pmt_readout_duration
+
                 while self.run_looper:
                     try:
                         self.looper(current_sequence, self.N, linetrigger, linetrigger_offset, scan_iterable,
@@ -449,6 +462,190 @@ class PulseSequence(EnvExperiment):
             device.sw.off()
             device.set_phase_mode(PHASE_MODE_TRACKING)
 
+    def make_random_amplitudes(self, n, mean, std) -> TList(TFloat):
+        #
+        # Returns a list of n amplitudes pulled from a Gaussian distribution
+        # with the given mean and standard deviation, in the range [0,1].
+        #
+        amps = (std * np.random.randn(n) + mean).tolist()
+        for i in range(len(amps)):
+            # make sure the amplitudes are between 0.0 and 1.0
+            amps[i] = max(0.0, amps[i])
+            amps[i] = min(1.0, amps[i])
+        return amps
+
+    def make_random_frequencies(self, n, mean, std) -> TList(TFloat):
+        #
+        # Returns a list of n amplitudes pulled from a Gaussian distribution
+        # with the given mean and standard deviation, in the range [0,1].
+        #
+        freqs = (std * np.random.randn(n) + mean).tolist()
+        for i in range(len(freqs)):
+            # make sure the frequencies are non-negative
+            freqs[i] = max(0.0, freqs[i])
+        return freqs
+
+    def generate_single_pass_noise_waveform(self, mean, std, freq_noise=False):
+        #
+        # Generates noise waveform for a full datapoint (N shots).
+        #
+        if std > 0.0:
+            n_steps = self.noise_n_steps * self.N
+            if freq_noise:
+                self.noise_waveform = self.make_random_frequencies(n_steps, mean, std)
+            else:
+                self.noise_waveform = self.make_random_amplitudes(n_steps, mean, std)
+
+    @kernel
+    def prepare_noisy_single_pass(self, freq_noise=False, id=0):
+        #
+        # Programs the noise waveform into the RAM for the single-pass DDS.
+        # Must have already called generate_single_pass_noise_waveform.
+        #
+
+        # Get the DDS channel.
+        noisy_dds = self.dds_729_SP
+        if id == 1:
+            noisy_dds = self.dds_729_SP1
+
+        # Start by disabling ramping and resetting to profile 0.
+        noisy_dds.set_cfr1(ram_enable=0)
+        noisy_dds.cpld.io_update.pulse_mu(8)
+        noisy_dds.cpld.set_profile(0)
+        noisy_dds.cpld.io_update.pulse_mu(8)
+
+        # If we have no noise waveform, do nothing.
+        if len(self.noise_waveform) <= 1:
+            return
+
+        # Delay to avoid RTIO underflow.
+        delay(20*ms)
+
+        # Define the waveform
+        start_index = self.current_noise_index
+        end_index = start_index + self.noise_n_steps
+        noise_waveform = self.noise_waveform[start_index:end_index]
+        self.current_noise_index = end_index % len(self.noise_waveform)
+        n_steps = len(noise_waveform)
+        noise_waveform_data = [0]*(n_steps)
+        if freq_noise:
+            noisy_dds.frequency_to_ram(noise_waveform, noise_waveform_data)
+        else:
+            # NOTE: The built-in amplitude_to_ram() method does not
+            #       comply with the AD9910 specification. Doing this
+            #       manually instead, until amplitude_to_ram() is fixed.
+            ##### noisy_dds.amplitude_to_ram(noise_waveform, noise_waveform_data)
+            for i in range(len(noise_waveform)):
+                noise_waveform_data[i] = (np.int32(round(noise_waveform[i]*0x3fff)) << 18)
+
+        # Print stuff
+        #print("n_steps", n_steps)
+        #print("noise_waveform", noise_waveform)
+        #self.core.break_realtime()
+
+        clock_cycles_per_step = 10 # each clock cycle is about 4 ns
+        start_address = 512
+        noisy_dds.set_profile_ram(start=start_address, end=start_address+n_steps-1,
+            step=clock_cycles_per_step, profile=self.noise_profile, mode=RAM_MODE_CONT_RAMPUP)
+        noisy_dds.cpld.set_profile(self.noise_profile)
+        noisy_dds.cpld.io_update.pulse_mu(8)
+        noisy_dds.write_ram(noise_waveform_data)
+
+        # Disable ramping and reset to profile 0 so we don't
+        # affect the next experiment.
+        noisy_dds.cpld.set_profile(0)
+        noisy_dds.cpld.io_update.pulse_mu(8)
+
+    @kernel
+    def start_noisy_single_pass(self, phase_ref_time, freq_noise=False,
+        freq_sp=80*MHz, amp_sp=1.0, att_sp=8*dB,
+        use_bichro=False, freq_sp_bichro=80*MHz, amp_sp_bichro=1.0, att_sp_bichro=8*dB,
+        id=0):
+        #
+        # Turns on the two single-pass channels with the specified parameters.
+        # Must have already called prepare_noisy_single_pass to program the noise waveform.
+        #
+
+        # Get the DDS channels.
+        noisy_dds = self.dds_729_SP
+        noisy_dds_bichro = self.dds_729_SP_bichro
+        if id == 1:
+            noisy_dds = self.dds_729_SP1
+            noisy_dds_bichro = self.dds_729_SP_bichro1
+
+        # If we have no noise waveform, turn on the DDS channels
+        # using the default profiles and parameters, and return.
+        if len(self.noise_waveform) <= 1:
+            noisy_dds.set(freq_sp, amp_sp, ref_time_mu=phase_ref_time)
+            noisy_dds.set_att(att_sp)
+            if use_bichro:
+                noisy_dds_bichro.set(freq_sp_bichro, amp_sp_bichro, ref_time_mu=phase_ref_time)
+                noisy_dds_bichro.set_att(att_sp_bichro)
+                with parallel:
+                    noisy_dds.sw.on()
+                    noisy_dds_bichro.sw.on()
+            else:
+                noisy_dds.sw.on()
+            return
+
+        # Start by disabling ramping and resetting to profile 0.
+        noisy_dds.set_cfr1(ram_enable=0)
+        noisy_dds.cpld.io_update.pulse_mu(8)
+        noisy_dds.cpld.set_profile(0)
+        noisy_dds.cpld.io_update.pulse_mu(8)
+
+        # Set the desired initial parameters and turn on each DDS.
+        noisy_dds.set_frequency(freq_sp)
+        noisy_dds.set_amplitude(amp_sp)
+        noisy_dds.set_att(att_sp)
+        if use_bichro:
+            noisy_dds_bichro.set(freq_sp_bichro, amplitude=amp_sp_bichro,
+                profile=self.noise_profile, ref_time_mu=phase_ref_time)
+            noisy_dds_bichro.set_att(att_sp_bichro)
+            with parallel:
+                noisy_dds.sw.on()
+                noisy_dds_bichro.sw.on()
+        else:
+            noisy_dds.sw.on()
+
+        # Set the current profile to the ramp-up profile constructed above.
+        noisy_dds.cpld.set_profile(self.noise_profile)
+        noisy_dds.cpld.io_update.pulse_mu(8)
+
+        # Enable the ramping on noisy_dds, which immediately starts playing the ramp waveform.
+        ram_destination = RAM_DEST_FTW if freq_noise else RAM_DEST_ASF
+        noisy_dds.set_cfr1(ram_enable=1, ram_destination=ram_destination)
+        noisy_dds.cpld.io_update.pulse_mu(8)
+
+    @kernel
+    def stop_noisy_single_pass(self, use_bichro=False, id=0):
+        #
+        # Turns off the two single-pass channels, disables ramping, and
+        # resets to the default profile.
+        #
+
+        # Get the DDS channels.
+        noisy_dds = self.dds_729_SP
+        noisy_dds_bichro = self.dds_729_SP_bichro
+        if id == 1:
+            noisy_dds = self.dds_729_SP1
+            noisy_dds_bichro = self.dds_729_SP_bichro1
+        
+        # Turn off the DDS outputs.
+        if use_bichro:
+            with parallel:
+                noisy_dds.sw.off()
+                noisy_dds_bichro.sw.off()
+        else:
+            noisy_dds.sw.off()
+        
+        # Disable ramping so we don't affect the next experiment.
+        # Also reset to profile 0.
+        noisy_dds.set_cfr1(ram_enable=0)
+        noisy_dds.cpld.io_update.pulse_mu(8)
+        noisy_dds.cpld.set_profile(0)
+        noisy_dds.cpld.io_update.pulse_mu(8)
+
     @kernel
     def prepare_pulse_with_amplitude_ramp(
         self, pulse_duration, ramp_duration, dds1_amp=0., use_dds2=False, dds2_amp=0.):
@@ -476,29 +673,28 @@ class PulseSequence(EnvExperiment):
         ramp_dds1 = self.dds_729
         ramp_dds2 = self.dds_7291
 
-        # Re-initialize the Urukul and AD9910 for these channels.
-        # ramp_dds1.cpld.init()
-        # ramp_dds1.init()
-        # if use_dds2:
-        #     ramp_dds2.cpld.init()
-        #     ramp_dds2.init()
-
         # Break and delay to avoid RTIO underflow
         self.core.break_realtime()
-        delay(6*ms)
+        delay(12*ms)
 
         # Calculate the ramp duration, wait duration, and
         # maximum amplitudes for each channel.
         clock_cycles_per_step = 4
         original_ramp_slope_duration = ramp_duration
-        self.ramp_slope_duration = min(original_ramp_slope_duration, pulse_duration/2.)
-        self.ramp_wait_duration = pulse_duration - 2.*self.ramp_slope_duration
+        self.ramp_slope_duration = min(original_ramp_slope_duration, pulse_duration)
+        # Note: We want the area of this pulse to be equal to the area of a pulse
+        # without ramping. The area of both ramp periods is equivalent to the area
+        # of a single ramp period at full amplitude. So the wait duration should
+        # be the pulse duration minus one ramp duration.
+        # Also, empirically (on the scope) we observe that the wait duration is 500 ns too long,
+        # so we subtract 500 ns from the wait duration (also ensuring it remains non-negative).
+        self.ramp_wait_duration = max(0.0, pulse_duration - self.ramp_slope_duration - 500*ns)
         dds1_max_amp = dds1_amp * (self.ramp_slope_duration/original_ramp_slope_duration)
         dds2_max_amp = dds2_amp * (self.ramp_slope_duration/original_ramp_slope_duration)
 
         # Create the list of amplitudes for each ramp. We need four ramps:
         # ramp up and ramp down for each of dds1 and dds2.
-        n_steps = min(100, np.int32(round(self.ramp_slope_duration/(clock_cycles_per_step*4*ns)))) + 1
+        n_steps = min(100, np.int32(round(self.ramp_slope_duration/(clock_cycles_per_step*5*ns)))) + 1
         dds1_ramp_up = [dds1_max_amp/n_steps * (float(n_steps-1)-i) for i in range(n_steps)]
         dds2_ramp_up = [dds2_max_amp/n_steps * (float(n_steps-1)-i) for i in range(n_steps)]
         dds1_ramp_up_data = [0]*(n_steps)
@@ -567,8 +763,8 @@ class PulseSequence(EnvExperiment):
 
     @kernel
     def execute_pulse_with_amplitude_ramp(
-        self, dds1_att=8*dB, dds1_freq=220*MHz, dds1_phase=0.,
-        use_dds2=False, dds2_att=8*dB, dds2_freq=220*MHz, dds2_phase=0.):
+        self, dds1_att=8*dB, dds1_freq=220*MHz,
+        use_dds2=False, dds2_att=8*dB, dds2_freq=220*MHz):
         #
         # To be used in combination with prepare_pulse_with_amplitude_ramp.
         # See the comments in that function for details.
@@ -598,13 +794,11 @@ class PulseSequence(EnvExperiment):
         ramp_dds1.set_frequency(dds1_freq)
         ramp_dds1.set_amplitude(0.)
         ramp_dds1.set_att(dds1_att)
-        #ramp_dds1.set_phase(dds1_phase)
         ramp_dds1.sw.on()
         if use_dds2:
             ramp_dds2.set_frequency(dds2_freq)
             ramp_dds2.set_amplitude(0.)
             ramp_dds2.set_att(dds2_att)
-            #ramp_dds2.set_phase(dds2_phase)
             ramp_dds2.sw.on()
 
         # Set the current profile to the ramp-up profile constructed above.
