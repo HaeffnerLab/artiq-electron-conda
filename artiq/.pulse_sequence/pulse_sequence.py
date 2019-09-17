@@ -558,8 +558,8 @@ class PulseSequence(EnvExperiment):
 
     @kernel
     def start_noisy_single_pass(self, phase_ref_time, freq_noise=False,
-        freq_sp=80*MHz, amp_sp=1.0, att_sp=8*dB,
-        use_bichro=False, freq_sp_bichro=80*MHz, amp_sp_bichro=1.0, att_sp_bichro=8*dB,
+        freq_sp=80*MHz, amp_sp=1.0, att_sp=8*dB,, phase_sp=0.,
+        use_bichro=False, freq_sp_bichro=80*MHz, amp_sp_bichro=1.0, att_sp_bichro=8*dB, phase_sp_bichro=0.,
         id=0):
         #
         # Turns on the two single-pass channels with the specified parameters.
@@ -576,10 +576,10 @@ class PulseSequence(EnvExperiment):
         # If we have no noise waveform, turn on the DDS channels
         # using the default profiles and parameters, and return.
         if len(self.noise_waveform) <= 1:
-            noisy_dds.set(freq_sp, amp_sp, ref_time_mu=phase_ref_time)
+            noisy_dds.set(freq_sp, amp_sp, phase=phase_sp, ref_time_mu=phase_ref_time)
             noisy_dds.set_att(att_sp)
             if use_bichro:
-                noisy_dds_bichro.set(freq_sp_bichro, amp_sp_bichro, ref_time_mu=phase_ref_time)
+                noisy_dds_bichro.set(freq_sp_bichro, amp_sp_bichro, phase=phase_sp_bichro, ref_time_mu=phase_ref_time)
                 noisy_dds_bichro.set_att(att_sp_bichro)
                 with parallel:
                     noisy_dds.sw.on()
@@ -598,8 +598,9 @@ class PulseSequence(EnvExperiment):
         noisy_dds.set_frequency(freq_sp)
         noisy_dds.set_amplitude(amp_sp)
         noisy_dds.set_att(att_sp)
+        noisy_dds.set_phase(phase_sp)
         if use_bichro:
-            noisy_dds_bichro.set(freq_sp_bichro, amplitude=amp_sp_bichro,
+            noisy_dds_bichro.set(freq_sp_bichro, amplitude=amp_sp_bichro, phase=phase_sp_bichro,
                 profile=self.noise_profile, ref_time_mu=phase_ref_time)
             noisy_dds_bichro.set_att(att_sp_bichro)
             with parallel:
