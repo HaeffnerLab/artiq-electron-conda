@@ -558,7 +558,7 @@ class PulseSequence(EnvExperiment):
 
     @kernel
     def start_noisy_single_pass(self, phase_ref_time, freq_noise=False,
-        freq_sp=80*MHz, amp_sp=1.0, att_sp=8*dB,, phase_sp=0.,
+        freq_sp=80*MHz, amp_sp=1.0, att_sp=8*dB, phase_sp=0.,
         use_bichro=False, freq_sp_bichro=80*MHz, amp_sp_bichro=1.0, att_sp_bichro=8*dB, phase_sp_bichro=0.,
         id=0):
         #
