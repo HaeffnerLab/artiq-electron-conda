@@ -576,10 +576,10 @@ class PulseSequence(EnvExperiment):
         # If we have no noise waveform, turn on the DDS channels
         # using the default profiles and parameters, and return.
         if len(self.noise_waveform) <= 1:
-            noisy_dds.set(freq_sp, amp_sp, phase=phase_sp, ref_time_mu=phase_ref_time)
+            noisy_dds.set(freq_sp, amplitude=amp_sp, phase=phase_sp, ref_time_mu=phase_ref_time)
             noisy_dds.set_att(att_sp)
             if use_bichro:
-                noisy_dds_bichro.set(freq_sp_bichro, amp_sp_bichro, phase=phase_sp_bichro, ref_time_mu=phase_ref_time)
+                noisy_dds_bichro.set(freq_sp_bichro, amplitude=amp_sp_bichro, phase=phase_sp_bichro, ref_time_mu=phase_ref_time)
                 noisy_dds_bichro.set_att(att_sp_bichro)
                 with parallel:
                     noisy_dds.sw.on()
