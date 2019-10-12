@@ -469,28 +469,33 @@ class PulseSequence(EnvExperiment):
             device.sw.off()
             device.set_phase_mode(PHASE_MODE_TRACKING)
 
+    def make_random_list(self, n, mean, std, min=None, max=None) -> TList(TFloat):
+        #
+        # Returns a list of n values pulled from a Gaussian distribution
+        # with the given mean and standard deviation, in the range [min, max].
+        #
+        values = (std * np.random.randn(n) + mean).tolist()
+        for i in range(len(values)):
+            # make sure the values are between min and max
+            if min:
+                values[i] = max(min, amps[i])
+            if max:
+                values[i] = min(max, amps[i])
+        return atts
+
     def make_random_amplitudes(self, n, mean, std) -> TList(TFloat):
         #
         # Returns a list of n amplitudes pulled from a Gaussian distribution
         # with the given mean and standard deviation, in the range [0,1].
         #
-        amps = (std * np.random.randn(n) + mean).tolist()
-        for i in range(len(amps)):
-            # make sure the amplitudes are between 0.0 and 1.0
-            amps[i] = max(0.0, amps[i])
-            amps[i] = min(1.0, amps[i])
-        return amps
+        return self.make_random_list(n, mean, std, min=0.0, max=1.0)
 
     def make_random_frequencies(self, n, mean, std) -> TList(TFloat):
         #
-        # Returns a list of n amplitudes pulled from a Gaussian distribution
-        # with the given mean and standard deviation, in the range [0,1].
+        # Returns a list of n frequencies pulled from a Gaussian distribution
+        # with the given mean and standard deviation, in the range [0,].
         #
-        freqs = (std * np.random.randn(n) + mean).tolist()
-        for i in range(len(freqs)):
-            # make sure the frequencies are non-negative
-            freqs[i] = max(0.0, freqs[i])
-        return freqs
+        return self.make_random_list(n, mean, std, min=0.0)
 
     def generate_single_pass_noise_waveform(self, mean, std, freq_noise=False):
         #
