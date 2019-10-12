@@ -203,7 +203,7 @@ class PulseSequence(EnvExperiment):
         self.set_dataset("raw_run_data", np.full(N, np.nan))
 
         self.camera_string_states = []
-        if self.rm in ["pmt", "pmt_parity"]:
+        if self.rm in ["pmt", "pmt_parity", "pmtMLE"]:
             self.use_camera = False
             self.n_ions = len(self.p.StateReadout.threshold_list)
             for seq_name, dims in scan_specs.items():
@@ -222,8 +222,15 @@ class PulseSequence(EnvExperiment):
                     raise NotImplementedError("Ndim scans with PMT not implemented yet")
                     # self.x_label[seq_name] = [element[0] for element in self.scan_params[seq_name][0]]
                     # dims = [mul(*dims), len(dims)]
-                dims.append(N)
-                self.set_dataset("{}-raw_data".format(seq_name), np.full(dims, np.nan), broadcast=True)
+                if self.rm != "pmtMLE":
+                    dims.append(N)
+                    self.set_dataset("{}-raw_data".format(seq_name), np.full(dims, np.nan), broadcast=True)
+                else:
+                    M = int(self.p.StateReadout.pmt_readout_duration // 1e-5)
+                    dims.append(M)
+                    dims.append(N)
+                    self.set_dataset("mledata", np.full(M, np.nan), broadcast=True)
+                    self.set_dataset("{}-raw_data".format(seq_name), np.full(dims, np.nan), broadcast=True)
                 self.timestamp[seq_name] = None
 
         elif self.rm in ["camera", "camera_states", "camera_parity"]:
@@ -987,9 +994,16 @@ class PulseSequence(EnvExperiment):
                 self.core.wait_until_mu(now_mu())
                 delay(10*us)
                 if not use_camera:
-                    pmt_count = self.pmt.count(self.pmt.gate_rising(readout_duration))
-                    delay(readout_duration)
-                    self.record_result("raw_run_data", j, pmt_count)
+                    if readout_mode == "pmtMLE":
+                        nbins = int(readout_duration // 1e-5)
+                        for l in range(nbins):
+                            pmt_count = self.pmt.count(self.pmt.gate_rising(0*us))
+                            delay(20*us)
+                            self.record_result("mledata", l, pmt_count)
+                    else:
+                        pmt_count = self.pmt.count(self.pmt.gate_rising(readout_duration))
+                        delay(readout_duration)
+                        self.record_result("raw_run_data", j, pmt_count)
                 else:
                     self.camera_ttl.pulse(100*us)
                     self.core.wait_until_mu(now_mu())
@@ -1002,6 +1016,8 @@ class PulseSequence(EnvExperiment):
             if not use_camera:
                 self.update_raw_data(seq_name, i)
                 if readout_mode == "pmt":
+                    self.update_pmt(seq_name, i, is_multi)
+                elif readout_mode == "pmtMLE":
                     self.update_pmt(seq_name, i, is_multi)
                 elif readout_mode == "pmt_parity":
                     self.update_pmt(seq_name, i, is_multi, with_parity=True)
