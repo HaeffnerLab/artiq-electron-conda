@@ -961,11 +961,11 @@ class PulseSequence(EnvExperiment):
                 self.set_variable_parameter(
                     self.variable_parameter_names[l], scan_iterable[i])
             set_subsequence()
-            for j in range(reps):
-                if linetrigger:
-                    self.line_trigger(linetrigger_offset)
-                else:
-                    self.core.break_realtime()
+
+            # Record the pulse sequence. This doesn't actually execute it, just
+            # programs it into memory for later execution.
+            trace_name = "PulseSequence"
+            with self.core_dma.record(trace_name):
                 delay(20*us)
                 self.dds_397.sw.off()
                 delay(20*us)
@@ -993,6 +993,21 @@ class PulseSequence(EnvExperiment):
                     self.dds_866.sw.on()
                 self.core.wait_until_mu(now_mu())
                 delay(10*us)
+            
+            pulse_sequence_handle = self.core_dma.get_handle(trace_name)
+            self.core.break_realtime()
+
+            for j in range(reps):
+                # Line trigger, if necessary.
+                if linetrigger:
+                    self.line_trigger(linetrigger_offset)
+                else:
+                    self.core.break_realtime()
+
+                # This executes the full pre-recorded pulse sequence.
+                self.core_dma.playback_handle(pulse_sequence_handle)
+                
+                # Readout.
                 if not use_camera:
                     if readout_mode == "pmtMLE":
                         nbins = int(readout_duration // 1e-5)
@@ -1009,10 +1024,14 @@ class PulseSequence(EnvExperiment):
                     self.core.wait_until_mu(now_mu())
                     delay(readout_duration)
                 
+                # Wait for readout to complete.
                 self.core.wait_until_mu(now_mu())
                 delay(5*us)
                 self.dds_854.sw.on()
                 delay(300*us)
+            
+            # Process readout data now that all repetitions of the pulse sequence
+            # have been completed.
             if not use_camera:
                 self.update_raw_data(seq_name, i)
                 if readout_mode == "pmt":
