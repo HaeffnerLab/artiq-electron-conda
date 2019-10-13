@@ -1034,7 +1034,11 @@ class PulseSequence(EnvExperiment):
                 delay(5*us)
                 self.dds_854.sw.on()
                 delay(300*us)
-            
+
+            # Pulse sequence repetitions are complete, so free up the DMA memory.
+            self.core_dma.erase(trace_name)
+            pulse_sequence_handle = None
+
             # Process readout data now that all repetitions of the pulse sequence
             # have been completed.
             if not use_camera:
