@@ -481,7 +481,7 @@ class PulseSequence(EnvExperiment):
                 values[i] = max(min, amps[i])
             if max:
                 values[i] = min(max, amps[i])
-        return atts
+        return values
 
     def make_random_amplitudes(self, n, mean, std) -> TList(TFloat):
         #
@@ -1037,7 +1037,6 @@ class PulseSequence(EnvExperiment):
 
             # Pulse sequence repetitions are complete, so free up the DMA memory.
             self.core_dma.erase(trace_name)
-            pulse_sequence_handle = None
 
             # Process readout data now that all repetitions of the pulse sequence
             # have been completed.
