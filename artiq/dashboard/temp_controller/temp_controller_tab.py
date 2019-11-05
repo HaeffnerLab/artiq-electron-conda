@@ -153,14 +153,17 @@ class TempControllerTab(QtWidgets.QDockWidget):
             self.time.append(datetime.now())
         except:
             return
-        if self.device1 is not None:
-            self.temp1.append(self.device1.get_temp())
-            self.ax.plot(self.time, self.temp1, color="C0")
-            self.canvas.draw()
-        if self.device2 is not None:
-            self.temp2.append(self.device2.get_temp())
-            self.ax2.plot(self.time, self.temp2, color="C0")
-            self.canvas2.draw()
+        try:
+            if self.device1 is not None:
+                self.temp1.append(self.device1.get_temp())
+                self.ax.plot(self.time, self.temp1, color="C0")
+                self.canvas.draw()
+            if self.device2 is not None:
+                self.temp2.append(self.device2.get_temp())
+                self.ax2.plot(self.time, self.temp2, color="C0")
+                self.canvas2.draw()
+        except:
+            pass
 
     def update_control(self):
         p = self.cxn.parametervault
@@ -171,34 +174,37 @@ class TempControllerTab(QtWidgets.QDockWidget):
                 self.set1.remove()
             except:
                 pass
-            self.set1 = self.ax.axhline(y=set_temp, color="C1", linestyle="--")
-            self.device1.set_Pgain(float(p.get_parameter("TempControl1", "P_bandwidth")))
-            self.device1.set_Igain(float(p.get_parameter("TempControl1", "I_gain")))
-            self.device1.set_Dgain(float(p.get_parameter("TempControl1", "D_gain")))
-            self.device1.set_alarm1_deadband(float(p.get_parameter("TempControl1", "alarm_deadband")))
-            self.device1.set_alarm1_high(int(p.get_parameter("TempControl1", "alarm_high")))
-            self.device1.set_alarm1_low(int(p.get_parameter("TempControl1", "alarm_low")))
-            self.device1.set_analog_multiplier(float(p.get_parameter("TempControl1", "analog_multiplier")))
-            self.device1.set_control_mode(p.get_parameter("TempControl1", "mode"))
-            self.device1.set_offset(int(p.get_parameter("TempControl1", "offset")))
-            self.device1.set_sensor_type(p.get_parameter("TempControl1", "sensor_type"))
-            if p.get_parameter("TempControl1", "output"):
-                output = "on"
-            else:
-                output = "off"
-            self.device1.set_output_enable(output)
-            if p.get_parameter("TempControl1", "alarm_latch"):
-                alarm = "on"
-                alarm_latch = 1
-            else:
-                alarm = "off"
-                alarm_latch = 0
-            self.device1.set_alarm_latch_function(alarm_latch)
-            self.device1.set_alarm1(alarm)
-            self.device1.set_alarm2("off")
-            poutput = float(self.device1.get_power_output())
-            if poutput >= 0 and poutput <= 1:
-                self.output1.display(poutput * 100)
+            try:
+                self.set1 = self.ax.axhline(y=set_temp, color="C1", linestyle="--")
+                self.device1.set_Pgain(float(p.get_parameter("TempControl1", "P_bandwidth")))
+                self.device1.set_Igain(float(p.get_parameter("TempControl1", "I_gain")))
+                self.device1.set_Dgain(float(p.get_parameter("TempControl1", "D_gain")))
+                self.device1.set_alarm1_deadband(float(p.get_parameter("TempControl1", "alarm_deadband")))
+                self.device1.set_alarm1_high(int(p.get_parameter("TempControl1", "alarm_high")))
+                self.device1.set_alarm1_low(int(p.get_parameter("TempControl1", "alarm_low")))
+                self.device1.set_analog_multiplier(float(p.get_parameter("TempControl1", "analog_multiplier")))
+                self.device1.set_control_mode(p.get_parameter("TempControl1", "mode"))
+                self.device1.set_offset(int(p.get_parameter("TempControl1", "offset")))
+                self.device1.set_sensor_type(p.get_parameter("TempControl1", "sensor_type"))
+                if p.get_parameter("TempControl1", "output"):
+                    output = "on"
+                else:
+                    output = "off"
+                self.device1.set_output_enable(output)
+                if p.get_parameter("TempControl1", "alarm_latch"):
+                    alarm = "on"
+                    alarm_latch = 1
+                else:
+                    alarm = "off"
+                    alarm_latch = 0
+                self.device1.set_alarm_latch_function(alarm_latch)
+                self.device1.set_alarm1(alarm)
+                self.device1.set_alarm2("off")
+                poutput = float(self.device1.get_power_output())
+                if poutput >= 0 and poutput <= 1:
+                    self.output1.display(poutput * 100)
+            except:
+                pass
         if self.device2 is not None:
             set_temp = float(p.get_parameter("TempControl2", "set_temp"))
             self.device2.set_set_temp(set_temp)
@@ -206,34 +212,37 @@ class TempControllerTab(QtWidgets.QDockWidget):
                 self.set2.remove()
             except:
                 pass
-            self.set2 = self.ax.axhline(y=set_temp, color="C1", linestyle="--")
-            self.device2.set_Pgain(float(p.get_parameter("TempControl2", "P_bandwidth")))
-            self.device2.set_Igain(float(p.get_parameter("TempControl2", "I_gain")))
-            self.device2.set_Dgain(float(p.get_parameter("TempControl2", "D_gain")))
-            self.device2.set_alarm1_deadband(float(p.get_parameter("TempControl2", "alarm_deadband")))
-            self.device2.set_alarm1_high(int(p.get_parameter("TempControl2", "alarm_high")))
-            self.device2.set_alarm1_low(int(p.get_parameter("TempControl2", "alarm_low")))
-            self.device2.set_analog_multiplier(float(p.get_parameter("TempControl2", "analog_multiplier")))
-            self.device2.set_control_mode(p.get_parameter("TempControl2", "mode"))
-            self.device2.set_offset(int(p.get_parameter("TempControl2", "offset")))
-            self.device2.set_sensor_type(p.get_parameter("TempControl2", "sensor_type"))
-            if p.get_parameter("TempControl2", "output"):
-                output = "on"
-            else:
-                output = "off"
-            self.device2.set_output_enable(output)
-            if p.get_parameter("TempControl2", "alarm_latch"):
-                alarm = "on"
-                alarm_latch = 1
-            else:
-                alarm = "off"
-                alarm_latch = 0
-            self.device2.set_alarm_latch_function(alarm_latch)
-            self.device2.set_alarm1(alarm)
-            self.device2.set_alarm2("off")
-            poutput = float(self.device2.get_power_output())
-            if poutput >= 0 and poutput <= 1:
-                self.output2.display(poutput * 100)
+            try:
+                self.set2 = self.ax.axhline(y=set_temp, color="C1", linestyle="--")
+                self.device2.set_Pgain(float(p.get_parameter("TempControl2", "P_bandwidth")))
+                self.device2.set_Igain(float(p.get_parameter("TempControl2", "I_gain")))
+                self.device2.set_Dgain(float(p.get_parameter("TempControl2", "D_gain")))
+                self.device2.set_alarm1_deadband(float(p.get_parameter("TempControl2", "alarm_deadband")))
+                self.device2.set_alarm1_high(int(p.get_parameter("TempControl2", "alarm_high")))
+                self.device2.set_alarm1_low(int(p.get_parameter("TempControl2", "alarm_low")))
+                self.device2.set_analog_multiplier(float(p.get_parameter("TempControl2", "analog_multiplier")))
+                self.device2.set_control_mode(p.get_parameter("TempControl2", "mode"))
+                self.device2.set_offset(int(p.get_parameter("TempControl2", "offset")))
+                self.device2.set_sensor_type(p.get_parameter("TempControl2", "sensor_type"))
+                if p.get_parameter("TempControl2", "output"):
+                    output = "on"
+                else:
+                    output = "off"
+                self.device2.set_output_enable(output)
+                if p.get_parameter("TempControl2", "alarm_latch"):
+                    alarm = "on"
+                    alarm_latch = 1
+                else:
+                    alarm = "off"
+                    alarm_latch = 0
+                self.device2.set_alarm_latch_function(alarm_latch)
+                self.device2.set_alarm1(alarm)
+                self.device2.set_alarm2("off")
+                poutput = float(self.device2.get_power_output())
+                if poutput >= 0 and poutput <= 1:
+                    self.output2.display(poutput * 100)
+            except:
+                pass
 
     def clear_plot1(self):
         self.time = []
