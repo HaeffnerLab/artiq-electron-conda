@@ -248,3 +248,9 @@ class TempControllerTab(QtWidgets.QDockWidget):
         self.ax2.plot([], [])
         self.ax2.axes.cla()
         self.canvas2.draw()
+
+    def save_state(self):
+        pass
+
+    def restore_state(self):
+        pass
