@@ -19,6 +19,7 @@ from artiq.dashboard import (experiments, shortcuts, explorer,
                              moninj, datasets, schedule, applets_ccb,
                              pmt_control, parameter_editor)
 from artiq.dashboard.laser_room.laser_room_tab import LaserRoomTab
+from artiq.dashboard.temp_controller.temp_controller_tab import TempControllerTab
 from artiq.dashboard.drift_tracker.drift_tracker import DriftTracker
 from artiq.dashboard.readout_histograms.readout_histograms import ReadoutHistograms
 import labrad
@@ -264,6 +265,9 @@ def main():
     laser_room_tab =  LaserRoomTab()
     smgr.register(laser_room_tab)
     tabs.addTab(laser_room_tab, "Laser Room")
+    temp_controller_tab = TempControllerTab()
+    smgr.register(temp_controller_tab)
+    tabs.addTab(temp_controller_tab, "Temperature Controller")
     histograms_tab = ReadoutHistograms(acxn, smgr)
     smgr.register(histograms_tab)
     needs_parameter_vault.append(histograms_tab)
