@@ -117,10 +117,10 @@ class device:
         buff = [0] * 13
         for b in bst:
             self.ser.write((b))
-            time.sleep(0.001)
+            #time.sleep(0.001)
         for b in range(0, 8):
             buff[b] = self.ser.read(1)
-            time.sleep(0.001)
+            #time.sleep(0.001)
         self.close()
         return buff
 
@@ -129,7 +129,7 @@ class device:
         bst = self.convert(s + val)
         for b in bst:
             self.ser.write((b))
-            time.sleep(0.001)
+            #time.sleep(0.001)
         self.close()
 
     def get_temp(self):
