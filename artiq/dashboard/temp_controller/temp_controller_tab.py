@@ -35,18 +35,20 @@ class TempControllerTab(QtWidgets.QDockWidget):
         except:
             logger.warning("Temp controller failed to connect to labrad.", exc_info=True)
             self.setDisabled(True)
+        self.time1 = []
+        self.time2 = []
+        self.temp1 = []
+        self.temp2 = []
         self.make_GUI()
         self.readout_timer = QtCore.QTimer()
         self.readout_timer.timeout.connect(self.update_readout)
-        self.readout_timer.start(1000)
+        self.readout_timer.start(2000)
         # Change to async at some point
-        self.control_timer = QtCore.QTimer()
-        self.control_timer.timeout.connect(self.update_control)
-        self.control_timer.start(1000)
-
-        self.time = []
-        self.temp1 = []
-        self.temp2 = []
+        # self.control_timer = QtCore.QTimer()
+        # self.control_timer.timeout.connect(self.update_control)
+        # self.control_timer.start(2000)
+        self.update_readout()
+        self.update_control()
 
     def make_GUI(self):
         layout = QtWidgets.QGridLayout()
@@ -131,42 +133,51 @@ class TempControllerTab(QtWidgets.QDockWidget):
         self.clear_button1.clicked[bool].connect(self.clear_plot1)
         layout.addWidget(self.clear_button1, 3, 1)
         layout.addWidget(d_accessed_parameter_editor, 4, 1, 6, 1)
+        self.update_control_button = QtWidgets.QPushButton("Update Controls")
+        self.update_control_button.clicked[bool].connect(self.update_control)
+        layout.addWidget(self.update_control_button, 10, 1)
         label4 = QtWidgets.QLabel("Output Power (Tempcontrol2)")
         label4.setFont(myFont)
         label4.setAlignment(Qt.Qt.AlignHCenter)
-        layout.addWidget(label4, 10, 1)
+        layout.addWidget(label4, 11, 1)
         self.output2 = QtWidgets.QLCDNumber()
         self.output2.setSegmentStyle(2)
         self.output2.display(0)
         self.output2.setDigitCount(4)
         self.output2.setStyleSheet("background-color: lightGray;"
                                         "color: green;")
-        layout.addWidget(self.output2, 11, 1)
+        layout.addWidget(self.output2, 12, 1)
         self.clear_button2 = QtWidgets.QPushButton("Clear Plot 2")
         self.clear_button2.clicked[bool].connect(self.clear_plot2)
-        layout.addWidget(self.clear_button2, 12, 1)
+        layout.addWidget(self.clear_button2, 13, 1)
         layout.setColumnStretch(1, 1)
         self.main_widget.setLayout(layout)
 
     def update_readout(self):
-        if len(self.time) > 100000:
+        if len(self.time1) > 10000:
             self.time = []
-        if len(self.temp1) > 100000:
+        if len(self.time2) > 10000:
+            self.time = []
+        if len(self.temp1) > 10000:
             self.temp1 = []
-        if len(self.temp2) > 100000:
+        if len(self.temp2) > 10000:
             self.temp2 = []
         try:
-            self.time.append(datetime.now())
+            self.time1.append(datetime.now())
+            self.time2.append(datetime.now())
         except:
             return
         try:
             if self.device1 is not None:
                 self.temp1.append(self.device1.get_temp())
-                self.ax.plot(self.time, self.temp1, color="C0")
+                self.ax.plot(self.time1, self.temp1, color="C0")
                 self.canvas.draw()
+        except:
+            pass
+        try:
             if self.device2 is not None:
                 self.temp2.append(self.device2.get_temp())
-                self.ax2.plot(self.time, self.temp2, color="C0")
+                self.ax2.plot(self.time2, self.temp2, color="C0")
                 self.canvas2.draw()
         except:
             pass
@@ -251,17 +262,28 @@ class TempControllerTab(QtWidgets.QDockWidget):
                 pass
 
     def clear_plot1(self):
-        self.time = []
+        self.time1 = []
         self.temp1 = []
         self.ax.plot([], [])
         self.ax.axes.cla()
+        set_temp = float(self.cxn.parametervault.get_parameter("TempControl1", "set_temp"))
+        try:
+            self.set1 = self.ax.axhline(y=set_temp, color="C1", linestyle="--")
+        except:
+            pass
         self.canvas.draw()
 
     def clear_plot2(self):
-        self.time = []
+        self.time2 = []
         self.temp2 = []
         self.ax2.plot([], [])
         self.ax2.axes.cla()
+        set_temp = float(self.cxn.parametervault.get_parameter("TempControl2", "set_temp"))
+        try:
+            self.set2 = self.ax.axhline(y=set_temp, color="C1", linestyle="--")
+        except:
+            pass
+        self.canvas.draw()
         self.canvas2.draw()
 
     def save_state(self):
