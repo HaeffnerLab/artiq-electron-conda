@@ -149,6 +149,12 @@ class TempControllerTab(QtWidgets.QDockWidget):
         self.main_widget.setLayout(layout)
 
     def update_readout(self):
+        if len(self.time) > 100000:
+            self.time = []
+        if len(self.temp1) > 100000:
+            self.temp1 = []
+        if len(self.temp2) > 100000:
+            self.temp2 = []
         try:
             self.time.append(datetime.now())
         except:
@@ -213,7 +219,7 @@ class TempControllerTab(QtWidgets.QDockWidget):
             except:
                 pass
             try:
-                self.set2 = self.ax.axhline(y=set_temp, color="C1", linestyle="--")
+                self.set2 = self.ax2.axhline(y=set_temp, color="C1", linestyle="--")
                 self.device2.set_Pgain(float(p.get_parameter("TempControl2", "P_bandwidth")))
                 self.device2.set_Igain(float(p.get_parameter("TempControl2", "I_gain")))
                 self.device2.set_Dgain(float(p.get_parameter("TempControl2", "D_gain")))
