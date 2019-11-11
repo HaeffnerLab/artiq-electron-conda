@@ -456,7 +456,7 @@ class PulseSequence(EnvExperiment):
             self.camera.abort_acquisition()
             self.camera.set_trigger_mode(self.initial_trigger_mode)
             self.camera.set_exposure_time(self.initial_exposure)
-            self.camera.set_image_region(1, 1, 1, 658, 1, 496)
+            self.camera.set_image_region(1, 1, 1, 512, 1, 512)
             self.camera.start_live_display()
 
     @kernel
@@ -1160,40 +1160,44 @@ class PulseSequence(EnvExperiment):
             dataset[i] = parity
             self.save_and_send_to_rcg(x, dataset[:i + 1], "parity", seq_name, is_multi, self.range_guess[seq_name])
 
+    def output_images_to_file(self, images):
+        image_region = [int(self.p.IonsOnCamera.horizontal_bin),
+                        int(self.p.IonsOnCamera.vertical_bin),
+                        int(self.p.IonsOnCamera.horizontal_min),
+                        int(self.p.IonsOnCamera.horizontal_max),
+                        int(self.p.IonsOnCamera.vertical_min),
+                        int(self.p.IonsOnCamera.vertical_max),
+                        ]
+        x_pixels = int( (image_region[3] - image_region[2] + 1.) / (image_region[0]) )
+        y_pixels = int( (image_region[5] - image_region[4] + 1.) / (image_region[1]) )
+        images = np.reshape(images, (self.N, y_pixels, x_pixels))
+        if seq_name not in self.timestamp.keys():
+            self.timestamp[seq_name] = None
+        if self.timestamp[seq_name] is None:
+            self.start_time = datetime.now()
+        with h5.File(self.start_time.strftime("%H%M_%S") + "_images.h5", "a") as f:
+            if "images" not in f.keys():
+                images_group = f.create_group("images")
+            else:
+                images_group = f["images"]
+            datapoint_group = images_group.create_group("datapoint" + str(i))
+            datapoint_group.attrs["image_count"] = len(images)
+            for image_idx, image in enumerate(images):
+                datapoint_group.create_dataset(str(image_idx), data=image)
+
     # Need this to be a blocking call #
     def update_camera(self, seq_name, i, is_multi, readout_mode):
-        done = self.camera.wait_for_kinetic()
-        if not done:
+        images = []
+        try:
+            timeout_in_seconds = 60
+            images = self.camera.get_acquired_data(timeout_in_seconds)
+        except Exception as e:
             self.analyze()
-            raise Exception("Failed to get all Kinetic images from the camera.")
-        images = self.camera.get_acquired_data(self.N)
+            logger.error(e)
+            raise Exception("Camera acquisition timed out")
 
-        # BEGIN - uncomment this code to write all of the camera images to an .h5 file
-        # image_region = [
-        #                         int(self.p.IonsOnCamera.horizontal_bin),
-        #                         int(self.p.IonsOnCamera.vertical_bin),
-        #                         int(self.p.IonsOnCamera.horizontal_min),
-        #                         int(self.p.IonsOnCamera.horizontal_max),
-        #                         int(self.p.IonsOnCamera.vertical_min),
-        #                         int(self.p.IonsOnCamera.vertical_max),
-        #                         ]
-        # x_pixels = int( (image_region[3] - image_region[2] + 1.) / (image_region[0]) )
-        # y_pixels = int( (image_region[5] - image_region[4] + 1.) / (image_region[1]) )
-        # images = np.reshape(images, (self.N, y_pixels, x_pixels))
-        # if seq_name not in self.timestamp.keys():
-        #     self.timestamp[seq_name] = None
-        # if self.timestamp[seq_name] is None:
-        #     self.start_time = datetime.now()
-        # with h5.File(self.start_time.strftime("%H%M_%S") + "_images.h5", "a") as f:
-        #     if "images" not in f.keys():
-        #         images_group = f.create_group("images")
-        #     else:
-        #         images_group = f["images"]
-        #     datapoint_group = images_group.create_group("datapoint" + str(i))
-        #     datapoint_group.attrs["image_count"] = len(images)
-        #     for image_idx, image in enumerate(images):
-        #         datapoint_group.create_dataset(str(image_idx), data=image)
-        # END - write images to file
+        # Uncomment this line to write all of the camera images to an .h5 file
+        # self.output_images_to_file(images)
 
         self.camera.abort_acquisition()
         ion_state, camera_readout, confidences = readouts.camera_ion_probabilities(images,
@@ -1502,12 +1506,12 @@ class PulseSequence(EnvExperiment):
 
     def prepare_camera(self):
         self.camera.abort_acquisition()
-        self.camera.set_number_kinetics(self.N)
+        self.camera.set_number_images_to_acquire(self.N)
         self.camera.start_acquisition()
 
     def initialize_camera(self):
         if not self.camera:
-            self.camera = self.cxn.andor_server
+            self.camera = self.cxn.nuvu_camera_server
 
         self.camera.abort_acquisition()
         self.initial_exposure = self.camera.get_exposure_time()
@@ -1522,7 +1526,7 @@ class PulseSequence(EnvExperiment):
         self.camera.set_image_region(*self.image_region)
         self.camera.set_exposure_time(exposure)
         self.initial_trigger_mode = self.camera.get_trigger_mode()
-        self.camera.set_trigger_mode("External")
+        self.camera.set_trigger_mode("EXT_LOW_HIGH")
 
     def camera_states_repr(self, N):
         str_repr = []
