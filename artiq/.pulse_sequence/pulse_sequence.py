@@ -1513,7 +1513,6 @@ class PulseSequence(EnvExperiment):
         self.initial_exposure = self.camera.get_exposure_time()
         exposure = self.p.StateReadout.camera_readout_duration
         p = self.p.IonsOnCamera
-        self.camera.set_exposure_time(exposure)
         self.image_region = [int(p.horizontal_bin),
                              int(p.vertical_bin),
                              int(p.horizontal_min),
@@ -1521,7 +1520,7 @@ class PulseSequence(EnvExperiment):
                              int(p.vertical_min),
                              int(p.vertical_max)]
         self.camera.set_image_region(*self.image_region)
-        self.camera.set_acquisition_mode("Kinetics")
+        self.camera.set_exposure_time(exposure)
         self.initial_trigger_mode = self.camera.get_trigger_mode()
         self.camera.set_trigger_mode("External")
 
