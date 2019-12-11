@@ -308,72 +308,75 @@ class graphWindow(QtWidgets.QWidget):
 
     def upload_curve(self, *args, file_=None, checked=True, startup=False):
         if file_ is None:
-            fname = QtWidgets.QFileDialog.getOpenFileName(self,
+            fdialog = QtWidgets.QFileDialog()
+
+            fname = QtWidgets.QFileDialog.getOpenFileNames(self,
                             self.tr("Upload Data"), conf.data_dir,
                             self.tr("HDF5 Files (*.h5 *.hdf5)"))[0]
         else:
-            fname = file_
-        try:
-            f = h5py.File(fname, "r")
-        except ValueError:
-            # User exited dialog without selecting file
-            return
-        except OSError:
-            if not startup:
-                self.warning_message("Can't open {}".format(fname))
-            return
-        try:
-            data = f["scan_data"]
-        except KeyError:
-            if not startup:
-                self.warning_message("HDF5 file does not contain a 'scan_data' group.")
-            return
-        try:
-            plot_name = data.attrs["plot_show"]
-            if plot_name != self.name:
-                if not startup:
-                    self.warning_message("Embeddding {} in {} window.".format(plot_name, self.name))
-                # return
-        except KeyError:
-            if not startup:
-                self.warning_message("Can't determine which plot to embed in.")
-            return
-        ylist = []
-        for key in data.keys():
+            fname = [file_]
+        for fnamesie in fname:
             try:
-                data[key].attrs["x-axis"]
-                x = key
-            except KeyError:
-                ylist.append(key)
-        try:
-            X = f["scan_data"][x].value
-        except:
-            if not startup:
-                self.warning_message("Can't determine which is x-axis.")
-            return
-
-        Ylist = []
-        txtlist = []
-        for y in ylist:
-            try:
-                Y = f["scan_data"][y].value
-                assert len(X) == len(Y)
-                Ylist.append(Y)
-                txt = fname.split(".")[0].split("/")[-1]  + " - " + y
-                if txt in self.items.keys():
-                    f.close()
-                    return
-                txtlist.append(txt)
-            except AssertionError:
+                f = h5py.File(fnamesie, "r")
+            except ValueError:
+                # User exited dialog without selecting file
                 continue
-        if len(Ylist) == 0:
-            return
-        for i in range(len(Ylist)):
-            item = self.add_plot_item(txtlist[i], X, Ylist[i], file_=fname)
-            self.pg.setXRange(X[0], X[-1])
-            if not checked:
-                item.setCheckState(0, 0)
-        f.close()
+            except OSError:
+                if not startup:
+                    self.warning_message("Can't open {}".format(fnamesie))
+                continue
+            try:
+                data = f["scan_data"]
+            except KeyError:
+                if not startup:
+                    self.warning_message("HDF5 file does not contain a 'scan_data' group.")
+                continue
+            try:
+                plot_name = data.attrs["plot_show"]
+                if plot_name != self.name:
+                    if not startup:
+                        self.warning_message("Embeddding {} in {} window.".format(plot_name, self.name))
+                    # return
+            except KeyError:
+                if not startup:
+                    self.warning_message("Can't determine which plot to embed in.")
+                continue
+            ylist = []
+            for key in data.keys():
+                try:
+                    data[key].attrs["x-axis"]
+                    x = key
+                except KeyError:
+                    ylist.append(key)
+            try:
+                X = f["scan_data"][x].value
+            except:
+                if not startup:
+                    self.warning_message("Can't determine which is x-axis.")
+                continue
+
+            Ylist = []
+            txtlist = []
+            for y in ylist:
+                try:
+                    Y = f["scan_data"][y].value
+                    assert len(X) == len(Y)
+                    Ylist.append(Y)
+                    txt = fnamesie.split(".")[0].split("/")[-1]  + " - " + y
+                    if txt in self.items.keys():
+                        f.close()
+                        break
+                    txtlist.append(txt)
+                except AssertionError:
+                    continue
+            if len(Ylist) == 0:
+                continue
+            for i in range(len(Ylist)):
+                item = self.add_plot_item(txtlist[i], X, Ylist[i], file_=fnamesie)
+                self.pg.setXRange(X[0], X[-1])
+                if not checked:
+                    item.setCheckState(0, 0)
+            f.close()
 
     def remove_curve(self, *args, curve=None):
         root = self.tw.invisibleRootItem()
