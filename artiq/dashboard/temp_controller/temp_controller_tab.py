@@ -40,15 +40,16 @@ class TempControllerTab(QtWidgets.QDockWidget):
         self.temp1 = []
         self.temp2 = []
         self.make_GUI()
-        self.readout_timer = QtCore.QTimer()
-        self.readout_timer.timeout.connect(self.update_readout)
-        self.readout_timer.start(2000)
-        # Change to async at some point
-        # self.control_timer = QtCore.QTimer()
-        # self.control_timer.timeout.connect(self.update_control)
-        # self.control_timer.start(2000)
-        self.update_readout()
-        self.update_control()
+        try:
+            self.device1.open()
+            self.device1.close()
+            self.readout_timer = QtCore.QTimer()
+            self.readout_timer.timeout.connect(self.update_readout)
+            self.readout_timer.start(2000)
+            self.update_readout()
+            self.update_control()
+        except:
+            pass
 
     def make_GUI(self):
         layout = QtWidgets.QGridLayout()
@@ -172,6 +173,9 @@ class TempControllerTab(QtWidgets.QDockWidget):
                 self.temp1.append(self.device1.get_temp())
                 self.ax.plot(self.time1, self.temp1, color="C0")
                 self.canvas.draw()
+                poutput = float(self.device1.get_power_output())
+                if poutput >= 0 and poutput <= 1:
+                    self.output1.display(poutput * 100)
         except:
             pass
         try:
@@ -179,6 +183,9 @@ class TempControllerTab(QtWidgets.QDockWidget):
                 self.temp2.append(self.device2.get_temp())
                 self.ax2.plot(self.time2, self.temp2, color="C0")
                 self.canvas2.draw()
+                poutput = float(self.device2.get_power_output())
+                if poutput >= 0 and poutput <= 1:
+                    self.output2.display(poutput * 100)
         except:
             pass
 
@@ -203,6 +210,7 @@ class TempControllerTab(QtWidgets.QDockWidget):
                 self.device1.set_control_mode(p.get_parameter("TempControl1", "mode"))
                 self.device1.set_offset(int(p.get_parameter("TempControl1", "offset")))
                 self.device1.set_sensor_type(p.get_parameter("TempControl1", "sensor_type"))
+                # self.device1.set_Pgain(p.get_parameter("TempControl1", "P_gain"))
                 if p.get_parameter("TempControl1", "output"):
                     output = "on"
                 else:
@@ -217,9 +225,6 @@ class TempControllerTab(QtWidgets.QDockWidget):
                 self.device1.set_alarm_latch_function(alarm_latch)
                 self.device1.set_alarm1(alarm)
                 self.device1.set_alarm2("off")
-                poutput = float(self.device1.get_power_output())
-                if poutput >= 0 and poutput <= 1:
-                    self.output1.display(poutput * 100)
             except:
                 pass
         if self.device2 is not None:
@@ -241,6 +246,7 @@ class TempControllerTab(QtWidgets.QDockWidget):
                 self.device2.set_control_mode(p.get_parameter("TempControl2", "mode"))
                 self.device2.set_offset(int(p.get_parameter("TempControl2", "offset")))
                 self.device2.set_sensor_type(p.get_parameter("TempControl2", "sensor_type"))
+                # self.device2.set_Pgain(p.get_parameter("TempControl2", "P_gain"))
                 if p.get_parameter("TempControl2", "output"):
                     output = "on"
                 else:
@@ -255,9 +261,6 @@ class TempControllerTab(QtWidgets.QDockWidget):
                 self.device2.set_alarm_latch_function(alarm_latch)
                 self.device2.set_alarm1(alarm)
                 self.device2.set_alarm2("off")
-                poutput = float(self.device2.get_power_output())
-                if poutput >= 0 and poutput <= 1:
-                    self.output2.display(poutput * 100)
             except:
                 pass
 

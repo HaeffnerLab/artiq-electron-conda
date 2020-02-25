@@ -78,11 +78,15 @@ class PulseSequence(EnvExperiment):
         self.dds_offsets = list()
         self.dds_dp_flags = list()
         self.dds_device_list = list()
+        self.dds_sp_list = list()
         for key, val in self.get_device_db().items():
             if isinstance(val, dict) and "class" in val:
                 if val["class"] == "AD9910" or val["class"] == "AD9912":
                     setattr(self, "dds_" + key, self.get_device(key))
-                    self.dds_device_list.append(getattr(self, "dds_" + key))
+                    if not "SP" in key:
+                        self.dds_device_list.append(getattr(self, "dds_" + key))
+                    else:
+                        self.dds_sp_list.append(getattr(self, "dds_" + key))
                     try:
                         self.dds_offsets.append(float(dds_config[key].offset))
                         self.dds_dp_flags.append(float(dds_config[key].double_pass))
@@ -95,6 +99,10 @@ class PulseSequence(EnvExperiment):
         self.dds_7291 = self.get_device("729G")
         self.dds_729_SP1 = self.get_device("SP_729G")
         self.dds_729_SP_bichro1 = self.get_device("SP_729G_bichro")
+        self.dds_729_SP_line1 = self.get_device("SP_729G")
+        self.dds_729_SP_line2 = self.get_device("SP_729G_bichro")
+        self.dds_729_SP_line1_bichro = self.get_device("SP_729L2")
+        self.dds_729_SP_line2_bichro = self.get_device("SP_729L2_bichro")
         self.cpld_list = [self.get_device("urukul{}_cpld".format(i)) for i in range(3)]
 
         # Initialize variables used for ramping
@@ -467,6 +475,10 @@ class PulseSequence(EnvExperiment):
         for device in self.dds_device_list:
             device.init()
             device.sw.off()
+            device.set_phase_mode(PHASE_MODE_TRACKING)
+        for device in self.dds_sp_list:
+            device.init()
+            device.sw.on()
             device.set_phase_mode(PHASE_MODE_TRACKING)
 
     def make_random_list(self, n, mean, std, min=None, max=None) -> TList(TFloat):
@@ -1025,7 +1037,7 @@ class PulseSequence(EnvExperiment):
                         delay(readout_duration)
                         self.record_result("raw_run_data", j, pmt_count)
                 else:
-                    self.camera_ttl.pulse(100*us)
+                    self.camera_ttl.pulse(500*us)
                     self.core.wait_until_mu(now_mu())
                     delay(readout_duration)
 
@@ -1493,7 +1505,7 @@ class PulseSequence(EnvExperiment):
         return offset_frequency
 
     @kernel
-    def get_729_dds(self, name, id=0):
+    def get_729_dds(self, name="729G", id=0):
         # Need to find a better way to do this
         if id == 0:
             self.dds_729 =           self.dds_729G if name == "729G" else self.dds_729L1 if name == "729L1" else self.dds_729L2
@@ -1503,6 +1515,12 @@ class PulseSequence(EnvExperiment):
             self.dds_7291 =           self.dds_729G if name == "729G" else self.dds_729L1 if name == "729L1" else self.dds_729L2
             self.dds_729_SP1 =        self.dds_SP_729G if name == "729G" else self.dds_SP_729L1 if name == "729L1" else self.dds_SP_729L2
             self.dds_729_SP_bichro1 = self.dds_SP_729G_bichro if name == "729G" else self.dds_SP_729L1_bichro if name == "729L1" else self.dds_SP_729L2_bichro
+        elif id == 2:
+            self.dds_729 =           self.dds_729G
+            self.dds_729_SP_line1 =        self.dds_SP_729G 
+            self.dds_729_SP_line1_bichro = self.dds_SP_729G_bichro 
+            self.dds_729_SP_line2 =        self.dds_SP_729L2 
+            self.dds_729_SP_line2_bichro = self.dds_SP_729L2_bichro 
 
     def prepare_camera(self):
         self.camera.abort_acquisition()

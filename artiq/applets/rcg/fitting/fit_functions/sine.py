@@ -5,7 +5,7 @@ name = "sine"
 Tex = r"A\cdot sin(2\pi\cdot freq[kHz]\cdot x+\phi) + B"
 
 def fit_function(x, A=1, freq=5, phi=0, B=0):
-    return A * np.sin(2 * np.pi * freq * 1e5 * x + phi) + B
+    return A * np.sin(2 * np.pi * freq * 1e3 * x + phi) + B
 
 def guess_parameters(xdata, ydata):
     B = np.min(ydata)
@@ -17,5 +17,5 @@ def guess_parameters(xdata, ydata):
     freq = abs(f[np.argmax(F[1:]) + 1])
     rel_diff = (ydata[0] - A / 2) / np.max(ydata)
     phase = - rel_diff * np.pi
-    return A, freq * 1e-5, phase, B
+    return A, freq * 1e-3, phase, B
 

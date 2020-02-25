@@ -64,4 +64,4 @@ tab_configs = [
 
 # Declare Fit Models
 fit_models_dir = "/home/lattice/artiq/artiq/applets/rcg/fitting"
-fit_models = ["sine", "sine^2", "linear", "Gaussian", "Lorentzian"]
+fit_models = ["sine", "sine^2", "linear", "Gaussian", "Lorentzian", "exponential_decay"]
