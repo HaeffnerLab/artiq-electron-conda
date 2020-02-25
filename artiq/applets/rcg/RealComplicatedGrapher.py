@@ -347,6 +347,7 @@ class graphWindow(QtWidgets.QWidget):
                     data[key].attrs["x-axis"]
                     x = key
                 except KeyError:
+                    print("whoops")
                     ylist.append(key)
             try:
                 X = f["scan_data"][x].value
@@ -365,7 +366,7 @@ class graphWindow(QtWidgets.QWidget):
                     txt = fnamesie.split(".")[0].split("/")[-1]  + " - " + y
                     if txt in self.items.keys():
                         f.close()
-                        break
+                        return
                     txtlist.append(txt)
                 except AssertionError:
                     continue

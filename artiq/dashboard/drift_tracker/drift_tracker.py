@@ -39,7 +39,7 @@ class DriftTracker(QtWidgets.QMainWindow):
         self.setup_background()
         self.add_docks()
         now = datetime.now()
-        self.path = (os.path.expanduser("~") + 
+        self.path = (os.path.expanduser("~") +
                      "/data/drift_tracker/" + now.strftime("%Y"))
         os.makedirs(self.path, exist_ok=True)
         self.subscribed = False
@@ -52,8 +52,8 @@ class DriftTracker(QtWidgets.QMainWindow):
             self.update_show.start(c.show_rate * 1e3)
         except:
             logger.error("failed in initialization", exc_info=True)
-            self.setDisabled(True) 
-        
+            self.setDisabled(True)
+
     def closeEvent(self, event):
         event.ignore()
         self.exit_request.set()
@@ -62,13 +62,13 @@ class DriftTracker(QtWidgets.QMainWindow):
         lcc = self.d_control
         return {"state": bytes(self.saveState()),
                 "geometry": bytes(self.saveGeometry()),
-                "remove_line_center": lcc.remove_line_center_count.value(), 
+                "remove_line_center": lcc.remove_line_center_count.value(),
                 "remove_b": lcc.remove_B_count.value(),
                 "b_input": lcc.Bfield_entry.value(),
                 "lc_input": lcc.linecenter_entry.value(),
                 "carrier1": lcc.entry_table.cellWidget(0, 1).value(),
                 "carrier2": lcc.entry_table.cellWidget(1, 1).value(),
-                "globlist": {client: lcc.client_checkbox[client].isChecked() 
+                "globlist": {client: lcc.client_checkbox[client].isChecked()
                             for client in cl.client_list},
                 "durationglob": lcc.track_global_line_center_duration.value(),
                 "durationloc": lcc.track_line_center_duration.value(),
@@ -94,7 +94,7 @@ class DriftTracker(QtWidgets.QMainWindow):
         lcc.track_global_line_center_duration.setValue(int(state["durationglob"]))
         lcc.track_line_center_duration.setValue(int(state["durationloc"]))
         lcc.track_B_duration.setValue(int(state["tracking_duration_b"]))
-        lcc.tabs.setCurrentIndex(int(state["current_tab"]))      
+        lcc.tabs.setCurrentIndex(int(state["current_tab"]))
 
     def setup_background(self):
         pass
@@ -103,10 +103,10 @@ class DriftTracker(QtWidgets.QMainWindow):
         # mdi_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
         # mdi_area.setMinimumSize(0, 0)  # doesn't work
         # self.setCentralWidget(mdi_area)
-    
+
     def add_docks(self):
         self.d_linecentertracker = LinecenterTracker()
-        self.addDockWidget(QtCore.Qt.TopDockWidgetArea, 
+        self.addDockWidget(QtCore.Qt.TopDockWidgetArea,
                            self.d_linecentertracker)
         self.d_spectrum = Spectrum()
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea,
@@ -119,7 +119,7 @@ class DriftTracker(QtWidgets.QMainWindow):
         lcc = self.d_control
         global global_address
         global password
-        with (labrad.connection(global_address, 
+        with (labrad.connection(global_address,
                                 password=password,
                                 tls_mode="off")) as cxn:
             try:
@@ -171,9 +171,9 @@ class DriftTracker(QtWidgets.QMainWindow):
                         lcc.client_checkbox[client].setChecked(False)
                         lcc.client_checkbox[client].blockSignals(False)
             self.on_new_fit(None, None)
-    
+
     def connect_dt_control_widget(self):
-        # Should probably just do all of this sort of stuff inside of the 
+        # Should probably just do all of this sort of stuff inside of the
         # individual dock's code.
         lcc = self.d_control
         lcc.remove_B_button.clicked.connect(self.on_remove_B)
@@ -249,7 +249,7 @@ class DriftTracker(QtWidgets.QMainWindow):
             yield server.set_measurements_with_one_line(with_units, cl.client_name)
         except:
             logger.warning("Issue entering line 2: ", exc_info=True)
-    
+
     @inlineCallbacks
     def on_entry_Bfield_and_center(self, *params):
         lcc = self.d_control
@@ -259,7 +259,7 @@ class DriftTracker(QtWidgets.QMainWindow):
         hlp1 = [("Bfield", B_with_units)]
         hlp2 = [("line_center", f_with_units)] # workaround, needs fixing
         try:
-            yield server.set_measurements_with_bfield_and_line_center(hlp1, hlp2, 
+            yield server.set_measurements_with_bfield_and_line_center(hlp1, hlp2,
                                                                       cl.client_name)
             # get the currently chosen lines
             hlp = yield server.get_lines_from_bfield_and_center(B_with_units, f_with_units)
@@ -269,7 +269,7 @@ class DriftTracker(QtWidgets.QMainWindow):
             for k in range(len(line_info)):
                 # get the current line from the server
                 new_freq = hlp[line_info[k][0]]
-                lcc.entry_table.cellWidget(k, 1).setValue(new_freq[new_freq.units])                
+                lcc.entry_table.cellWidget(k, 1).setValue(new_freq[new_freq.units])
         except:
             logger.warning("Issue entering linecenter and bfield: ", exc_info=True)
 
@@ -299,7 +299,7 @@ class DriftTracker(QtWidgets.QMainWindow):
         rate_B = U(value, "min")
         rate_line_center = U(self.d_control.track_line_center_duration.value(), "min")
         yield server.history_duration_local(cl.client_name, (rate_B, rate_line_center))
-    
+
     @inlineCallbacks
     def on_new_line_center_track_duration(self, value):
         server = yield self.acxn.get_server("SD Tracker Global")
@@ -311,7 +311,7 @@ class DriftTracker(QtWidgets.QMainWindow):
     def on_new_global_line_center_track_duration(self, value):
         server = yield self.acxn.get_server("SD Tracker Global")
         rate_global_line_center = U(value, "min")
-        yield server.history_duration_global_line_center(cl.client_name, 
+        yield server.history_duration_global_line_center(cl.client_name,
                                                          rate_global_line_center)
 
     @inlineCallbacks
@@ -329,11 +329,11 @@ class DriftTracker(QtWidgets.QMainWindow):
             date = time.strftime("%m/%d/%Y")
             d = dict(lines)
             text = (
-            "| {0} || {1:.4f} MHz || {2:.4f} MHz || {3:.4f} MHz ||" 
-              "{4:.4f} MHz || {5:.4f} G || comment").format(date, d["S+1/2D-3/2"]["MHz"], 
-                                                                  d["S-1/2D-5/2"]["MHz"], 
-                                                                  d["S-1/2D-1/2"]["MHz"], 
-                                                                  center_value["MHz"], 
+            "| {0} || {1:.4f} MHz || {2:.4f} MHz || {3:.4f} MHz ||"
+              "{4:.4f} MHz || {5:.4f} G || comment").format(date, d["S+1/2D-3/2"]["MHz"],
+                                                                  d["S-1/2D-5/2"]["MHz"],
+                                                                  d["S-1/2D-1/2"]["MHz"],
+                                                                  center_value["MHz"],
                                                                   b_value["gauss"])
             if self.clipboard is not None:
                 self.clipboard.setText(text)
@@ -389,7 +389,7 @@ class DriftTracker(QtWidgets.QMainWindow):
 
     def disconnectypoo(self, *args):
         self.setDisabled(True)
-            
+
     @inlineCallbacks
     def setup_listeners(self):
         try:
@@ -400,7 +400,7 @@ class DriftTracker(QtWidgets.QMainWindow):
             yield server.addListener(listener=self.on_new_save, source=None, ID=c.ID + 1)
         except:
             pass
-        
+
     def on_new_fit(self, x, y, *args):
         self.update_lines()
         self.update_fit()
@@ -442,7 +442,7 @@ class DriftTracker(QtWidgets.QMainWindow):
             self.signalpoo.emit([])
         else:
             self.signalpoo.emit(lines)
-    
+
     @inlineCallbacks
     def update_fit(self):
         try:
@@ -469,14 +469,14 @@ class DriftTracker(QtWidgets.QMainWindow):
             inunits_f = dict.fromkeys(cl.client_list)
             inunits_f_nofit = dict.fromkeys(cl.client_list)
             for client in cl.client_list:
-                inunits_f[client] = [(t["min"], freq["kHz"]) 
+                inunits_f[client] = [(t["min"], freq["kHz"])
                                         for (t, freq) in history_line_center[client]]
-                inunits_f_nofit[client] = [(t["min"], freq["kHz"]) 
+                inunits_f_nofit[client] = [(t["min"], freq["kHz"])
                                             for (t, freq) in excluded_line_center[client]]
-            yield self.update_track((inunits_f, inunits_f_nofit), 
+            yield self.update_track((inunits_f, inunits_f_nofit),
                                     lct.line_drift, lct.line_drift_lines)
-            yield self.update_track((inunits_b, inunits_b_nofit), 
-                                    lct.b_drift, lct.b_drift_lines)          
+            yield self.update_track((inunits_b, inunits_b_nofit),
+                                    lct.b_drift, lct.b_drift_lines)
             self.plot_fit_f(fit_f)
             self.plot_fit_b(fit_b)
 
@@ -488,6 +488,7 @@ class DriftTracker(QtWidgets.QMainWindow):
         else:
             listing = [(c.favorites.get(line, line), freq) for line,freq in lines]
             zeeman = self.calc_zeeman(listing)
+            print("Zeeman:", zeeman)
             listing.append(zeeman)
             lcc.copy_clipboard_button.setEnabled(True)
             lcc.frequency_table.fill_out_widget(listing)
@@ -507,11 +508,11 @@ class DriftTracker(QtWidgets.QMainWindow):
             for i, (linename, freq) in enumerate(srt):
                 line = lcs.spec.axvline(freq["MHz"], linewidth=1, ymin=0, ymax=1)
                 lcs.spectral_lines.append(line)
-                # check to see if linename in the favorites dictionary, 
+                # check to see if linename in the favorites dictionary,
                 # if not use the linename for display
                 display_name = c.favorites.get(linename, linename)
-                label = lcs.spec.annotate(display_name, xy=(freq["MHz"], 
-                                          .9 - i * .7 / num), xycoords="data", 
+                label = lcs.spec.annotate(display_name, xy=(freq["MHz"],
+                                          .9 - i * .7 / num), xycoords="data",
                                           fontsize=13)
                 lcs.spectral_lines.append(label)
                 try:
@@ -530,20 +531,20 @@ class DriftTracker(QtWidgets.QMainWindow):
             xmin, xmax = lct.b_drift.get_xlim()
             xmin -= 10
             xmax += 10
-            points = 1000        
-            x = np.linspace(xmin, xmax, points) 
+            points = 1000
+            x = np.linspace(xmin, xmax, points)
             y = 1000 * np.polyval(p, 60 * x)
             frequency_scale = 1.4  # KHz / mgauss
             l = lct.b_drift.plot(x, y, "-r")[0]
             twin = lct.b_drift_twin.plot(x, frequency_scale * y, alpha=0)[0]
             lct.b_drift_twin_lines.append(twin)
-            label = lct.b_drift.annotate("Slope {0:.1f} microgauss/sec".format(10**6 * p[-2]), 
-                                         xy=(.3, .8), xycoords="axes fraction", 
+            label = lct.b_drift.annotate("Slope {0:.1f} microgauss/sec".format(10**6 * p[-2]),
+                                         xy=(.3, .8), xycoords="axes fraction",
                                          fontsize=13)
             lct.b_drift_fit_line.append(label)
             lct.b_drift_fit_line.append(l)
         lct.drift_canvas.draw()
-    
+
     def plot_fit_f(self, p):
         lct = self.d_linecentertracker
         for _ in range(len(lct.line_drift_fit_line)):
@@ -553,11 +554,11 @@ class DriftTracker(QtWidgets.QMainWindow):
             xmin-= 10
             xmax+= 10
             points = 1000
-            x = np.linspace(xmin, xmax, points) 
+            x = np.linspace(xmin, xmax, points)
             y = 1000 * np.polyval(p, 60 * x)
             l = lct.line_drift.plot(x, y, "-r")[0]
-            label = lct.line_drift.annotate("Slope {0:.1f} Hz/sec".format(10**6 * p[-2]), 
-                                             xy=(.3, .8), xycoords="axes fraction", 
+            label = lct.line_drift.annotate("Slope {0:.1f} Hz/sec".format(10**6 * p[-2]),
+                                             xy=(.3, .8), xycoords="axes fraction",
                                              fontsize=13)
             lct.line_drift_fit_line.append(l)
             lct.line_drift_fit_line.append(label)
@@ -584,7 +585,7 @@ class DriftTracker(QtWidgets.QMainWindow):
         except:
             logger.warning("Failure in readout_update: ", exc_info=True)
             yield self.d_control.current_time.setText("Error")
-    
+
     @inlineCallbacks
     def update_track(self, meas, axes, lines):
         # clear all current lines
@@ -595,10 +596,10 @@ class DriftTracker(QtWidgets.QMainWindow):
         not_fitted = meas[1]
         lct = self.d_linecentertracker
         lcc = self.d_control
-        if ((type(fitted) and type(not_fitted)) != dict and 
+        if ((type(fitted) and type(not_fitted)) != dict and
             (type(fitted) and type(not_fitted)) != list):
             raise Exception("Data type should be dict or list")
-        
+
         if type(fitted) is dict:
             x_all = np.array([])
             y_all = np.array([])
@@ -618,7 +619,7 @@ class DriftTracker(QtWidgets.QMainWindow):
             except:
                 logger.warning("Issue in update_track", exc_info=True)
             else:
-                label = axes.annotate("Last Global Point: {0:.2f} {1}".format(last, axes.get_ylabel()), 
+                label = axes.annotate("Last Global Point: {0:.2f} {1}".format(last, axes.get_ylabel()),
                                       xy=(.3, .9), xycoords="axes fraction", fontsize=13)
                 lines.append(label)
             legend = axes.legend(loc=1)
@@ -673,11 +674,11 @@ class DriftTracker(QtWidgets.QMainWindow):
             except IndexError:
                 logger.warning("IndexError", exc_info=True)
             else:
-                label = axes.annotate("Last Point: {0:.2f} {1}".format(last, axes.get_ylabel()), xy=(.3, .9), 
+                label = axes.annotate("Last Point: {0:.2f} {1}".format(last, axes.get_ylabel()), xy=(.3, .9),
                                       xycoords="axes fraction", fontsize=13)
                 lines.append(label)
             line = axes.plot(x, y, "*", color=colors[cl.client_list.index(cl.client_name)], label=cl.client_name)[0]
-            line_nofit = axes.plot(xnofit, ynofit, "o", color=colors[cl.client_list.index(cl.client_name)], 
+            line_nofit = axes.plot(xnofit, ynofit, "o", color=colors[cl.client_list.index(cl.client_name)],
                                    label="{} (nofit)".format(cl.client_name))[0]
             legend = axes.legend()
             lines.append(line)

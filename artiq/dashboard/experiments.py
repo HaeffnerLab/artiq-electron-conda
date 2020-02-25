@@ -772,10 +772,12 @@ class ExperimentManager:
             self.open_experiment(expurl)
 
     def save_state(self):
+        dock = None
         for expurl, dock in self.open_experiments.items():
             self.dock_states[expurl] = dock.save_state()
-        for val in self.submission_scheduling.values():
-            val.update({"priority": dock.priority.value()})
+        if dock:
+            for val in self.submission_scheduling.values():
+                val.update({"priority": dock.priority.value()})
         return {
             "scheduling": self.submission_scheduling,
             "options": self.submission_options,
