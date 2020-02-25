@@ -479,6 +479,8 @@ class PulseSequence(EnvExperiment):
         for device in self.dds_sp_list:
             device.init()
             device.sw.on()
+            device.set(80*MHz, amplitude=1.0) 
+            device.set_att(5*dBm)
             device.set_phase_mode(PHASE_MODE_TRACKING)
 
     def make_random_list(self, n, mean, std, min=None, max=None) -> TList(TFloat):
