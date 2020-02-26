@@ -17,7 +17,6 @@ class fitMenu(QtWidgets.QWidget):
         self.fit_curve_drawn = False
         self.data_item = data_item
         self.graph = graph
-        print(fit_functions)
         for f in fit_functions:
             fit_function = globals()[f]
             try:
@@ -38,6 +37,7 @@ class fitMenu(QtWidgets.QWidget):
                 break
         else:
             return
+
         self.defaults = self.fit_function.__defaults__
         self.plot_item = None
         self.plot_active = False
@@ -122,7 +122,7 @@ class fitMenu(QtWidgets.QWidget):
                                     for i in range(self.tw.topLevelItemCount())]
 
         x = self.data_item.getData()[0]
-        delta = np.abs(x[-1] - x[0])
+        delta = 0#np.abs(x[-1] - x[0])
         xrange_ = np.linspace(x[0] - delta, x[-1] + delta, 10000)
         try:
             y = self.fit_function(xrange_, *self.p0)
@@ -153,9 +153,15 @@ class fitMenu(QtWidgets.QWidget):
                 params[self.args[i]].vary = False
         try:
             x, y = self.data_item.getData()
+            end = np.isnan(y).argmax()
+            y = y[:end]
+            x = x[:end]
             result = fitmodel.fit(y, params, x=x)
-        except:
-            return
+        except Exception as e:
+            print("x: ", x)
+            print("y: ", y)
+            print("params: ", params)
+            print(e)
         self.plot_active = True
         for i, (_, value) in enumerate(result.params.valuesdict().items()):
             self.tw.topLevelItem(i).setText(3, str(value))
