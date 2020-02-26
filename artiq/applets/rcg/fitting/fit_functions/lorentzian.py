@@ -1,6 +1,6 @@
 import numpy as np
 
-name = "Lorentzian"
+name = "lorentzian"
 
 Tex = r"\frac{A}{(x-x_0)^2 + \gamma^2/4}"
 

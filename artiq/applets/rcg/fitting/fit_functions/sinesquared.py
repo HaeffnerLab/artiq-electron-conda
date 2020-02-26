@@ -1,6 +1,6 @@
 import numpy as np
 
-name = "sine^2"
+name = "sinesquared"
 
 Tex = r"A sin^2[(2\pi / 4T_{\pi}) \cdot x + \phi] + B"
 

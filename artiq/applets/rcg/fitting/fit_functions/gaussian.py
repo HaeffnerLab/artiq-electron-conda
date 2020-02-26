@@ -1,6 +1,6 @@
 import numpy as np
 
-name = "Gaussian"
+name = "gaussian"
 
 Tex = r"A\cdot exp[-(x-x_0)^2/2\sigma^2]"
 
