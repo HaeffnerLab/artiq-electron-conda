@@ -1,6 +1,6 @@
 import numpy as np
 
-name = "decay_sine^2_exp"
+name = "exponential_decaied_sinesquare"
 
 Tex = r"A exp[- x / \tau] sin^2[(2\pi / 4T_{\pi}) \cdot x + \phi] + B"
 
