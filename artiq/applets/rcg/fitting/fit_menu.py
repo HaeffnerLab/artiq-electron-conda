@@ -17,6 +17,7 @@ class fitMenu(QtWidgets.QWidget):
         self.fit_curve_drawn = False
         self.data_item = data_item
         self.graph = graph
+        print(fit_functions)
         for f in fit_functions:
             fit_function = globals()[f]
             try:

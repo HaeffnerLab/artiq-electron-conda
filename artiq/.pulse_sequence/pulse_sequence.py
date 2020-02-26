@@ -78,15 +78,11 @@ class PulseSequence(EnvExperiment):
         self.dds_offsets = list()
         self.dds_dp_flags = list()
         self.dds_device_list = list()
-        self.dds_sp_list = list()
         for key, val in self.get_device_db().items():
             if isinstance(val, dict) and "class" in val:
                 if val["class"] == "AD9910" or val["class"] == "AD9912":
                     setattr(self, "dds_" + key, self.get_device(key))
-                    if not "SP" in key:
-                        self.dds_device_list.append(getattr(self, "dds_" + key))
-                    else:
-                        self.dds_sp_list.append(getattr(self, "dds_" + key))
+                    self.dds_device_list.append(getattr(self, "dds_" + key))
                     try:
                         self.dds_offsets.append(float(dds_config[key].offset))
                         self.dds_dp_flags.append(float(dds_config[key].double_pass))
@@ -290,7 +286,8 @@ class PulseSequence(EnvExperiment):
         self.carrier_dict = {"S+1/2D-3/2": 0,
                              "S-1/2D-5/2": 1,
                              "S+1/2D-1/2": 2,
-                             "S-1/2D-3/2": 3,
+                             "S-1/2D-3/2": 3,      # else:
+                    #     self.dds_sp_list.append(getattr(self, "dds_" + key))
                              "S+1/2D+1/2": 4,
                              "S-1/2D-1/2": 5,
                              "S+1/2D+3/2": 6,
@@ -476,12 +473,6 @@ class PulseSequence(EnvExperiment):
             device.init()
             device.sw.off()
             device.set_phase_mode(PHASE_MODE_TRACKING)
-        for device in self.dds_sp_list:
-            device.init()
-            device.sw.on()
-            device.set(80*MHz, amplitude=1.0) 
-            device.set_att(5*dBm)
-            device.set_phase_mode(PHASE_MODE_TRACKING)
 
     def make_random_list(self, n, mean, std, min=None, max=None) -> TList(TFloat):
         #
@@ -659,12 +650,12 @@ class PulseSequence(EnvExperiment):
             noisy_dds_bichro = self.dds_729_SP_bichro1
 
         # Turn off the DDS outputs.
-        if use_bichro:
-            with parallel:
-                noisy_dds.sw.off()
-                noisy_dds_bichro.sw.off()
-        else:
-            noisy_dds.sw.off()
+        # if use_bichro:
+        #     with parallel:
+        #         noisy_dds.sw.off()
+        #         noisy_dds_bichro.sw.off()
+        # else:
+        #     noisy_dds.sw.off()
 
         # Disable ramping so we don't affect the next experiment.
         # Also reset to profile 0.
@@ -865,9 +856,9 @@ class PulseSequence(EnvExperiment):
         delay(2*self.ramp_slope_duration)
 
         # Turn off the DDS outputs.
-        ramp_dds1.sw.off()
-        if use_dds2:
-           ramp_dds2.sw.off()
+        # ramp_dds1.sw.off()
+        # if use_dds2:
+        #    ramp_dds2.sw.off()
 
         # Disable ramping so we don't affect the next experiment.
         # Also reset to profile 0.

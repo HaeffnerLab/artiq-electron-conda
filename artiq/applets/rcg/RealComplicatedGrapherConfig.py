@@ -1,5 +1,6 @@
 import pickle
 from collections import namedtuple
+from artiq.applets.rcg.fitting.fit_functions import __all__ as fit_models
 
 
 # Host / port to run server on
@@ -64,4 +65,3 @@ tab_configs = [
 
 # Declare Fit Models
 fit_models_dir = "/home/lattice/artiq/artiq/applets/rcg/fitting"
-fit_models = ["sine", "sine^2", "linear", "Gaussian", "Lorentzian", "exponential_decay"]
