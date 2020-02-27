@@ -2,6 +2,7 @@ import inspect
 import numpy as np
 from PyQt5 import QtWidgets, QtGui, QtCore
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from artiq.applets.rcg.fitting.fit_functions import *
 from artiq.applets.rcg.fitting.fit_functions import __all__ as fit_functions
@@ -17,6 +18,7 @@ class fitMenu(QtWidgets.QWidget):
         self.fit_curve_drawn = False
         self.data_item = data_item
         self.graph = graph
+        self.params = None
         for f in fit_functions:
             fit_function = globals()[f]
             try:
@@ -96,9 +98,13 @@ class fitMenu(QtWidgets.QWidget):
         fit_button = QtWidgets.QPushButton("Fit")
         fit_button.released.connect(self.on_fit_button_released)
         fit_button.setCheckable(False)
+        save_plot_button = QtWidgets.QPushButton("Save")
+        save_plot_button.released.connect(self.on_save_plot_button_released)
+        save_plot_button.setCheckable(False)
         sublayout = QtWidgets.QHBoxLayout()
         sublayout.addWidget(manual_button)
         sublayout.addWidget(fit_button)
+        sublayout.addWidget(save_plot_button)
 
         layout.addWidget(model_label)
         layout.addWidget(self.tw)
@@ -158,16 +164,15 @@ class fitMenu(QtWidgets.QWidget):
             x = x[:end]
             result = fitmodel.fit(y, params, x=x)
         except Exception as e:
-            print("x: ", x)
-            print("y: ", y)
-            print("params: ", params)
             print(e)
         self.plot_active = True
+        self.params = []
         for i, (_, value) in enumerate(result.params.valuesdict().items()):
             self.tw.topLevelItem(i).setText(3, str(value))
             top_widget = self.tw.topLevelItem(i)
             self.tw.itemWidget(top_widget, 2).setValue(float(value))
             self.fit_function.__defaults__ = self.defaults
+            self.params.append(value)
         self.fit_curve_drawn = True
 
     def closeEvent(self, event):
@@ -205,3 +210,34 @@ class fitMenu(QtWidgets.QWidget):
         qpixmap = QtGui.QPixmap(qimage)
 
         return qpixmap
+
+    def on_save_plot_button_released(self):
+        if self.plot_item is None:
+            return
+        xfit = self.plot_item.x
+        yfit = self.plot_item.y
+        xdata = self.data_item.getData()[0]
+        ydata = self.data_item.getData()[1]
+        fig, ax = plt.subplots(figsize=(10,5))
+        ax.plot([x * 1e6 for x in xfit], yfit, color="k")
+        ax.plot([x * 1e6 for x in xdata], ydata, marker="o", lw=0, ms=4, color="C0")
+        ax.set_xlabel("Time [us]", fontsize=20)
+        ax.tick_params(width=0)
+        ax.grid(alpha=0.5)
+        for axis in ["top","bottom","left","right"]:
+            ax.spines[axis].set_linewidth(2.0)
+        plt.grid(True)
+        if self.params is None:
+            params = ""
+        else:
+            params = "\n["
+            for param in self.params:
+                params += "{:.3g}, ".format(param)
+            params = params.rstrip(",") 
+            params += "]"
+        plt.title(r"${}$".format(self.Tex) + params)
+        plt.tight_layout()
+        name = QtWidgets.QFileDialog.getSaveFileName(self, "Save File", "/home/lattice/Desktop", filter=".pdf")
+        plt.savefig("".join(name))
+        
+    
