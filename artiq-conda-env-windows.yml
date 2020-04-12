@@ -103,6 +103,7 @@ dependencies:
     - service-identity==18.1.0
     - twisted==19.2.0
     - urllib3==1.24.1
+    - visa==1.0.0
     - zope-interface==4.6.0
 prefix: C:\Users\Ryan\.conda\envs\artiq
 
