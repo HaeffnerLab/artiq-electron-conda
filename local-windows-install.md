@@ -13,7 +13,9 @@ Keep all the installation defaults, as some later parts of the setup depend on t
 
 1. Install Visual Studio Build Tools from:
 https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools&rel=16.
-During the setup, go to the `Individual Components` tab and choose to install the `MSVC v140 - VS 2015 C++ build tools (v14.00)` component. This is required while setting up the conda environments later.
+During the setup, go to the `Individual Components` tab and choose to install the following components:
+    - `MSVC v140 - VS 2015 C++ build tools (v14.00)`
+    - `Windows 10 SDK (10.0.18362.0)`
 
 1. Install VC++ Compiler for Python 2.7 from:
 https://www.microsoft.com/en-us/download/confirmation.aspx?id=44266.
