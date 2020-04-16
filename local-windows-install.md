@@ -67,6 +67,7 @@ After you've completed the above installation steps, here are the steps to get A
 load the "Haeffner Lab with Tunnels" profile, and click Open.
 You'll have to login with a valid lab username and password, either yours or lab-user. Just minimize the shell window after you have logged in.
 1. To start LabRAD and all necessary servers, run `C:\LabRAD\start_labrad.bat`. Wait a few seconds for this to complete.
+    - _Note:_ here and elsewhere below, if you get a Microsoft SmartScreen warning about the file being unsafe, click `More info` and then click `Run anyway`.
 1. To start the ARTIQ Master, run `C:\Users\<username>\artiq\artiq_master_start.bat`.
 1. To start the ARTIQ Dashboard, run `C:\Users\<username>\artiq\artiq_dashboard_start.bat`.
 
@@ -77,3 +78,11 @@ Troubleshooting Common Issues
 **Issue:** If your computer unexpectedly shuts down or crashes while ARTIQ is running, you may see a failure
 the next time you try to start ARTIQ Master, due to a corrupted `dataset_db.pyon` file.  
 **Fix:** Delete the file at `C:\Users\<username>\artiq-master\dataset_db.pyon`. It will be automatically recreated on the next run.
+
+**Issue:** Running ARTIQ Master and/or Dashboard gives a matplotlib error like:
+````
+  File "C:\Users\ryan\anaconda3\envs\artiq\lib\site-packages\matplotlib\font_manager.py", line 264, in findSystemFonts
+    fontfiles.update(win32InstalledFonts(fontext=fontext))
+TypeError: 'NoneType' object is not iterable
+````
+**Fix:** Open the file `%USERPROFILE%\anaconda3\envs\artiq\lib\site-packages\matplotlib\font_manager.py` and change line 210 from `return None` to `return []`. (Credit [here](https://github.com/matplotlib/matplotlib/issues/12439#issuecomment-427743646) for this hacky fix.)
