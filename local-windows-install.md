@@ -56,3 +56,9 @@ You'll have to login with a valid lab username and password, either yours or lab
 4. To start the ARTIQ Dashboard, run `C:\Users\<username>\artiq\artiq_dashboard_start.bat`.
 
 After a few seconds, the ARTIQ dashboard should load successfully.
+
+Troubleshooting Common Issues
+==============
+**Issue:** If your computer unexpectedly shuts down or crashes while ARTIQ is running, you may see a failure
+the next time you try to start ARTIQ Master, due to a corrupted `dataset_db.pyon` file.
+**Fix:** Delete the file at `C:\Users\<username>\artiq-master\dataset_db.pyon`. It will be automatically recreated on the next run.
