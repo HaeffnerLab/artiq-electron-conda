@@ -13,7 +13,7 @@ Keep all the installation defaults, as some later parts of the setup depend on t
 
 2. Install Visual Studio Build Tools from:
 https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools&rel=16.
-This is required while setting up the LabRAD environment.
+This is required while setting up the conda environments later.
 
 3. Download this complete package of all the LabRAD and ARTIQ stuff you will need: 
 
