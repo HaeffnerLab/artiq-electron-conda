@@ -21,6 +21,9 @@ During the setup, go to the `Individual Components` tab and choose to install th
 https://www.microsoft.com/en-us/download/confirmation.aspx?id=44266.
 This is also required while setting up the conda environments.
 
+1. Run the following command exactly to copy required files to their correct location:
+    - `copy "c:\Program Files (x86)\Windows Kits\10\bin\10.0.18362.0\x64\rc*" "c:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin"`
+
 1. Download this complete package of all the LabRAD and ARTIQ stuff you will need: 
 
     **[Lattice-LabRAD-ARTIQ-Windows-package](https://www.dropbox.com/sh/qe9fhxtldfolaqv/AADFkTKwL77O3U7sHsn5t9nIa?dl=1)**
