@@ -48,14 +48,14 @@ This adds a PuTTy configuration file with tunnels that allow communication with 
 Running Lattice's LabRAD + ARTIQ locally on Windows
 ==============
 After you've completed the above installation steps, here are the steps to get ARTIQ Dashboard running:
-1. Connect to the lab tunnel: Open `PuTTy.exe` (you should have a copy in `C:\Artiq-Windows`),
+1. _(Optional, only if you want to run things on the real ARTIQ hardware)_ Connect to the lab tunnel: Open `PuTTy.exe` (you should have a copy in `C:\Artiq-Windows`),
 load the "Haeffner Lab with Tunnels" profile, and click Open.
 You'll have to login with a valid lab username and password, either yours or lab-user.
 2. To start LabRAD and all necessary servers, run `C:\LabRAD\start_labrad.bat`. Wait a few seconds for this to complete.
 3. To start the ARTIQ Master, run `C:\Users\<username>\artiq\artiq_master_start.bat`.
 4. To start the ARTIQ Dashboard, run `C:\Users\<username>\artiq\artiq_dashboard_start.bat`.
 
-After a few seconds, the ARTIQ dashboard should load successfully.
+After several seconds, the ARTIQ dashboard should load successfully. If you didn't connect to the lab tunnel, you'll see a bunch of error messages about being unable to communicate with the hardware, but these can be ignored.
 
 Troubleshooting Common Issues
 ==============
