@@ -37,7 +37,7 @@ dependencies:
   - libpng=1.6.36=h7602738_1000
   - libssh2=1.8.2=h642c060_2
   - libusb=1.0.20=0
-  - lit=0.4.1=py_9
+  - lit
   - llvmlite=0.24.0=py35_1
   - llvmlite-artiq=0.23.0.dev=py35_4
   - lmfit=0.9.13=pyh24bf2e0_0
