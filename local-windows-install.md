@@ -13,7 +13,7 @@ Keep all the installation defaults, as some later parts of the setup depend on t
 
 2. Install Visual Studio Build Tools from:
 https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools&rel=16.
-During the setup, choose to install `C++ Build Tools` component. This is required while setting up the conda environments later.
+During the setup, go to the `Individual Components` tab and choose to install the `MSVC v140 - VS 2015 C++ build tools (v14.00)` component. This is required while setting up the conda environments later.
 
 3. Download this complete package of all the LabRAD and ARTIQ stuff you will need: 
 
