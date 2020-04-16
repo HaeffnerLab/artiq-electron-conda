@@ -45,14 +45,14 @@ from the `C:\Artiq-Windows` folder. LabRAD requires this.
 8. Double-click the `lab-artiq-putty.reg` file from the `C:\Artiq-Windows` folder.
 This adds a PuTTy configuration file with tunnels that allow communication with the ARTIQ hardware in the lab.
 
-9. Make sure that the Anaconda environment creation from step 3 completed successfully.
+9. Make sure that the Anaconda environment creation from step 3 completed successfully by typing `conda env list`. You should see both `artiq` and `labrad` in the list.
 
 Running Lattice's LabRAD + ARTIQ locally on Windows
 ==============
 After you've completed the above installation steps, here are the steps to get ARTIQ Dashboard running:
 1. _(Optional, only if you want to run things on the real ARTIQ hardware)_ Connect to the lab tunnel: Open `PuTTy.exe` (you should have a copy in `C:\Artiq-Windows`),
 load the "Haeffner Lab with Tunnels" profile, and click Open.
-You'll have to login with a valid lab username and password, either yours or lab-user.
+You'll have to login with a valid lab username and password, either yours or lab-user. Just minimize the shell window after you have logged in.
 2. To start LabRAD and all necessary servers, run `C:\LabRAD\start_labrad.bat`. Wait a few seconds for this to complete.
 3. To start the ARTIQ Master, run `C:\Users\<username>\artiq\artiq_master_start.bat`.
 4. To start the ARTIQ Dashboard, run `C:\Users\<username>\artiq\artiq_dashboard_start.bat`.
