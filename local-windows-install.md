@@ -11,20 +11,24 @@ Now follow these steps carefully to get the necessary Lattice LabRAD and ARTIQ c
 https://repo.anaconda.com/archive/Anaconda3-2020.02-Windows-x86_64.exe.
 Keep all the installation defaults, as some later parts of the setup depend on this.
 
-2. Download this complete package of all the LabRAD and ARTIQ stuff you will need: 
+2. Install Visual Studio Build Tools from:
+https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools&rel=16.
+This is required while setting up the LabRAD environment.
+
+3. Download this complete package of all the LabRAD and ARTIQ stuff you will need: 
 
     **[Lattice-LabRAD-ARTIQ-Windows-package](https://www.dropbox.com/sh/qe9fhxtldfolaqv/AADFkTKwL77O3U7sHsn5t9nIa?dl=1)**
 
     (It's about 900 MB, may take a little while.) Once this finishes downloading, unzip it somewhere convenient, maybe `C:\Artiq-Windows`.
 
-3. After the Anaconda installation has finished, open an Anaconda Prompt
+4. After the Anaconda installation has finished, open an Anaconda Prompt
 and run `conda-recreate-envs.bat` from the `C:\Artiq-Windows` folder.
 This will take a while - it will delete any `artiq` or `labrad` conda environments you might have,
 and recreate them from scratch. You can continue with the other steps while this is going.
 
-4. Unzip the `LabRAD (unzip to C drive root).zip` file to `C:\`. This should create a `C:\LabRAD` folder.
+5. Unzip the `LabRAD (unzip to C drive root).zip` file to `C:\`. This should create a `C:\LabRAD` folder.
 
-5. Unzip the `Repos (unzip to user home folder).zip` to `C:\Users\<your_user_name>`.  This should create a number
+6. Unzip the `Repos (unzip to user home folder).zip` to `C:\Users\<your_user_name>`.  This should create a number
 of folders directly in your `C:\Users\<username>` folder:
     - `artiq`
     - `artiq-master`
@@ -37,15 +41,15 @@ of folders directly in your `C:\Users\<username>` folder:
     Also note that there are clones of several GitHub repos here, and if you install Git/GitHub tools on your machine you'll be able
     to sync these to pull any changes that have been pushed since you first set this up.
 
-6. Open a command prompt and run `set-labrad-env-variables.bat` from the `C:\Artiq-Windows` folder.
+7. Open a command prompt and run `set-labrad-env-variables.bat` from the `C:\Artiq-Windows` folder.
 
-7. Install Java Runtime if you don't have it already by running `Java Runtime 8u241 x86 (required for LabRAD).exe`
+8. Install Java Runtime if you don't have it already by running `Java Runtime 8u241 x86 (required for LabRAD).exe`
 from the `C:\Artiq-Windows` folder. LabRAD requires this.
 
-8. Double-click the `lab-artiq-putty.reg` file from the `C:\Artiq-Windows` folder.
+9. Double-click the `lab-artiq-putty.reg` file from the `C:\Artiq-Windows` folder.
 This adds a PuTTy configuration file with tunnels that allow communication with the ARTIQ hardware in the lab.
 
-9. Make sure that the Anaconda environment creation from step 3 completed successfully by typing `conda env list`. You should see both `artiq` and `labrad` in the list.
+10. Make sure that the Anaconda environment creation completed successfully by typing `conda env list`. You should see both `artiq` and `labrad` in the list.
 
 Running Lattice's LabRAD + ARTIQ locally on Windows
 ==============
