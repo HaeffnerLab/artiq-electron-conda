@@ -40,8 +40,8 @@ of folders directly in your `C:\Users\<username>` folder:
 7. Install Java Runtime if you don't have it already by running `Java Runtime 8u241 x86 (required for LabRAD).exe`
 from the `C:\Artiq-Windows` folder. LabRAD requires this.
 
-8. Double-click the `lab-artiq-putty.reg` file. This adds a PuTTy configuration file with tunnels
-that allow communication with the ARTIQ hardware in the lab.
+8. Double-click the `lab-artiq-putty.reg` file from the `C:\Artiq-Windows` folder.
+This adds a PuTTy configuration file with tunnels that allow communication with the ARTIQ hardware in the lab.
 
 9. Make sure that the Anaconda environment creation from step 3 completed successfully.
 
