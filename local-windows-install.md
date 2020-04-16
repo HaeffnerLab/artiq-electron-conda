@@ -8,7 +8,8 @@ Before you start, if you have anything left over from a previous setup, go ahead
 Now follow these steps carefully to get the necessary Lattice LabRAD and ARTIQ components running on your Windows machine.
 
 1. Install Anaconda, if you don't have it already, from:
-https://repo.anaconda.com/archive/Anaconda3-2020.02-Windows-x86_64.exe
+https://repo.anaconda.com/archive/Anaconda3-2020.02-Windows-x86_64.exe.
+Keep all the installation defaults, as some later parts of the setup depend on this.
 
 2. Download this complete package of all the LabRAD and ARTIQ stuff you will need: 
 
