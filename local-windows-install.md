@@ -15,9 +15,10 @@ Keep all the installation defaults, as some later parts of the setup depend on t
 
     **[Lattice-LabRAD-ARTIQ-Windows-package](https://www.dropbox.com/sh/qe9fhxtldfolaqv/AADFkTKwL77O3U7sHsn5t9nIa?dl=1)**
 
-    (It's about 900 MB, may take a little while.) Once this finishes downloading, unzip it somewhere convenient, maybe C:\Artiq-Windows.
+    (It's about 900 MB, may take a little while.) Once this finishes downloading, unzip it somewhere convenient, maybe `C:\Artiq-Windows`.
 
-3. Open an Anaconda Prompt and run `conda-recreate-envs.bat` from the `C:\Artiq-Windows` folder.
+3. After the Anaconda installation has finished, open an Anaconda Prompt
+and run `conda-recreate-envs.bat` from the `C:\Artiq-Windows` folder.
 This will take a while - it will delete any `artiq` or `labrad` conda environments you might have,
 and recreate them from scratch. You can continue with the other steps while this is going.
 
