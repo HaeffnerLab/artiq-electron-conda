@@ -6,6 +6,8 @@ from functools import partial
 from collections import OrderedDict
 import imp
 import importlib
+import importlib.machinery
+import sys
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 import h5py
@@ -378,8 +380,17 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         submit.setShortcut("CTRL+RETURN")
         submit.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
                              QtWidgets.QSizePolicy.Expanding)
-        self.layout.addWidget(submit, 1, 4, 2, 1)
+        self.layout.addWidget(submit, 1, 4, 1, 1)
         submit.clicked.connect(self.submit_clicked)
+
+        simulate = QtWidgets.QPushButton("Simulate")
+        simulate.setIcon(QtWidgets.QApplication.style().standardIcon(
+                QtWidgets.QStyle.SP_ComputerIcon))
+        simulate.setToolTip("Simulate the experiment")
+        simulate.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
+                             QtWidgets.QSizePolicy.Expanding)        
+        self.layout.addWidget(simulate, 2, 4, 1, 1)
+        simulate.clicked.connect(self.simulate_clicked)
 
         reqterm = QtWidgets.QPushButton("Terminate instances")
         reqterm.setIcon(QtWidgets.QApplication.style().standardIcon(
@@ -457,6 +468,37 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
             # from repository/explist
             logger.error("Failed to submit '%s'",
                          self.expurl, exc_info=True)
+
+    def modify_and_import(self, module_name, path, modification_func):
+        # adapted from https://stackoverflow.com/questions/41858147/how-to-modify-imported-source-code-on-the-fly
+        loader = importlib.machinery.SourceFileLoader(module_name, path)
+        source = loader.get_source(module_name)
+        new_source = modification_func(source)
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        module = importlib.util.module_from_spec(spec)
+        codeobj = compile(new_source, module.__spec__.origin, 'exec')
+        exec(codeobj, module.__dict__)
+        sys.modules[module_name] = module
+        return module
+
+    def simulate_clicked(self):
+        try:
+            logger.info("Running simulate for experiment: '%s'", self.expurl)
+
+            file_path, class_, _ = self.manager.resolve_expurl(self.expurl)
+            logger.info(str(file_path) + " " + str(class_))
+            file_path = os.path.join(os.path.expanduser("~"), "artiq-work", file_path)
+            mod = self.modify_and_import(class_, file_path, lambda src: src.replace("from pulse_sequence", "from simulated_pulse_sequence"))
+
+            pulse_sequence = getattr(mod, class_)()
+            pulse_sequence.print_parameters()
+
+        except:
+            # May happen when experiment has been removed
+            # from repository/explist
+            logger.error("Failed to simulate '%s'",
+                         self.expurl, exc_info=True)
+
 
     def reqterm_clicked(self):
         try:
