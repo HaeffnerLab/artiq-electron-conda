@@ -592,12 +592,13 @@ class ddsControlWidget(QtWidgets.QFrame):
         self.parent.all_dds_specs.update({self.name: new_values})
         self.parent.expid_dds["arguments"].update(
                 {"specs": pyon.encode(self.parent.all_dds_specs)})
-        self.scheduler.submit("main", self.parent.expid_dds, priority=1)
-        cxn = labrad.connect()
-        p = cxn.parametervault
-        p.set_parameter(["dds_cw_parameters", self.name,
-                [str(self.freq), str(self.amplitude), str(int(self.state)), str(self.att)]])
-        cxn.disconnect()
+        # TEMPORARILY DISABLE updates for local execution
+        #self.scheduler.submit("main", self.parent.expid_dds, priority=1)
+        #cxn = labrad.connect()
+        #p = cxn.parametervault
+        #p.set_parameter(["dds_cw_parameters", self.name,
+                #[str(self.freq), str(self.amplitude), str(int(self.state)), str(self.att)]])
+        #cxn.disconnect()
 
 
 class boldLabel(QtWidgets.QLabel):
