@@ -8,6 +8,7 @@ import imp
 import importlib
 import importlib.machinery
 import sys
+import traceback
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 import h5py
@@ -487,13 +488,37 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         try:
             logger.info("Running simulate for experiment: '%s'", self.expurl)
 
+            # for development convenience, always reload the latest simulated_pulse_sequence.py
+            sim_mod_name = "simulated_pulse_sequence"
+            if sim_mod_name in sys.modules:
+                importlib.reload(sys.modules[sim_mod_name])
+
+            # import all of the subsequences and strip out the @kernel decorators
+            subsequences_folder = os.path.join(os.path.expanduser("~"), "artiq-work", "subsequences")
+            for path, subdirs, files in os.walk(subsequences_folder):
+                for filename in files:
+                    filename_without_extension, extension = os.path.splitext(filename)
+                    if extension == ".py":
+                        try:
+                            module_name = "simulated_subsequences." + filename_without_extension
+                            experiment_file_full_path = os.path.join(path, filename)
+                            self.modify_and_import(module_name, experiment_file_full_path, lambda src:
+                                src.replace("@kernel", ""))
+                        except:
+                            logger.error(traceback.print_exc())
+                            continue
+
+            # load the experiment source and make the necessary modifications
             file_path, class_, _ = self.manager.resolve_expurl(self.expurl)
-            logger.info(str(file_path) + " " + str(class_))
             file_path = os.path.join(os.path.expanduser("~"), "artiq-work", file_path)
-            mod = self.modify_and_import(class_, file_path, lambda src: src.replace("from pulse_sequence", "from simulated_pulse_sequence"))
+            mod = self.modify_and_import(class_, file_path, lambda src: 
+                src.replace("from pulse_sequence", "from simulated_pulse_sequence")
+                .replace("from subsequences.", "from simulated_subsequences.")
+                .replace("@kernel", ""))
 
             pulse_sequence = getattr(mod, class_)()
-            pulse_sequence.print_parameters()
+            pulse_sequence.output_parameters()
+            pulse_sequence.simulate()
 
         except:
             # May happen when experiment has been removed
