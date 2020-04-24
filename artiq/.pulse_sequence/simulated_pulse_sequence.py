@@ -38,6 +38,7 @@ class SimulatedDDS:
         self.amplitude = 0.0
         self.phase = 0.0
         self.ref_time_mu = 0
+        self.att = 8.0
 
     def _switched_on(self):
         self.time_switched_on = self.pulse_sequence.time_manager.get_time()
@@ -79,7 +80,7 @@ class PulseSequence:
         self.simulated_pulses = []
         self.core = _FakeCore()
 
-        csv_headers = ["Name","On","Off","Frequency","Amplitude","Phase"]
+        csv_headers = ["Name","On","Off","Frequency","Amplitude","Attenuation","Phase"]
         self.simulated_pulses.append(csv_headers)
 
         self.sequence_name = type(self).__name__
@@ -115,6 +116,7 @@ class PulseSequence:
             str(round(time_switched_off, 8)),
             str(dds.freq),
             str(dds.amplitude),
+            str(dds.att),
             str(dds.phase)
         ]
         self.simulated_pulses.append(simulated_pulse)
@@ -323,9 +325,11 @@ class PulseSequence:
                                           use_dds2=False, dds2_att=8.0, dds2_freq=0.):
         # TODO: currently this doesn't actually do any ramping
         self.dds_729.set(dds1_freq, self.dds1_amp)
+        self.dds_729.set_att(dds1_att)
         self.dds_729.sw.on()
         if use_dds2:
-            self.dds_7291(dds2_freq, self.dds2_amp)
+            self.dds_7291.set(dds2_freq, self.dds2_amp)
+            self.dds_7291.set_att(dds2_att)
             self.dds_7291.sw.on()
 
         self.time_manager.take_time(self.pulse_duration)
