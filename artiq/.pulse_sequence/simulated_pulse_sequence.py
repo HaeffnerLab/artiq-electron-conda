@@ -115,7 +115,6 @@ class PulseSequence:
                 param_file.write(line + "\n")
                 logger.info(line)
             # print scan param name
-            scan_param_name = self.submission_arguments[self.sequence_name + "-Scan_Selection"]
             write_line("Scan.parameter_name=" + self.scan_param_name)
             # print all scan param values
             for k,v in self.scan_params.items():
