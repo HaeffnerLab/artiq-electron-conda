@@ -513,8 +513,16 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
                 src.replace("from pulse_sequence", "from simulated_pulse_sequence")
                 .replace("from subsequences.", "from simulated_subsequences.")
                 .replace("@kernel", ""))
+            
+            # get the submission arguments (scan ranges, etc.)
+            arguments = self.manager.get_submission_arguments(self.expurl)
+            argument_values = dict()
+            for name, argument in arguments.items():
+                entry_cls = procdesc_to_entry(argument["desc"])
+                argument_values[name] = entry_cls.state_to_value(argument["state"])
 
             pulse_sequence = getattr(mod, class_)()
+            pulse_sequence.set_submission_arguments(argument_values)
             pulse_sequence.output_parameters()
             pulse_sequence.simulate()
 
