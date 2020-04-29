@@ -68,6 +68,9 @@ class _FakeCore:
     def seconds_to_mu(self, time):
         return time
 
+class FitError(Exception):
+    pass
+
 class PulseSequence:
 
     scan_params = dict()
@@ -79,6 +82,7 @@ class PulseSequence:
         self.time_manager = None
         self.simulated_pulses = []
         self.core = _FakeCore()
+        self.data = edict()
 
         csv_headers = ["Name","On","Off","Frequency","Amplitude","Attenuation","Phase"]
         self.simulated_pulses.append(csv_headers)
@@ -130,24 +134,43 @@ class PulseSequence:
         
         self.N = int(self.p.StateReadout.repeat_each_measurement)
         
+        self.run_initially()
+        
         for seq_name, scan_list in PulseSequence.scan_params.items():
             self.selected_scan[seq_name] = seq_name
+            self.data[seq_name] = edict(x=[], y=[])
 
-        self.run_initially()
-        main_sequence_name = list(self.set_subsequence.keys())[0]
-        self.set_subsequence[main_sequence_name]()
+            # TODO: Iterate over scan_params and generate one pulse sequence per point.
+            #       For now, just using a single point.
 
-        current_sequence = getattr(self, main_sequence_name)
-        current_sequence()
+            main_sequence_name = list(self.set_subsequence.keys())[0]
+            self.set_subsequence[main_sequence_name]()
 
-        filename = self.timestamp + "_pulses.csv"
-        with open(filename, "w") as pulses_file:
-            for pulse in self.simulated_pulses:
-                line = ",".join(pulse)
-                pulses_file.write(line + "\n")
-                logger.info(line)
-        
-        logger.info("*** pulse sequence written to " + os.path.join(self.dir, filename))
+            current_sequence = getattr(self, main_sequence_name)
+            current_sequence()
+            
+            # TODO: Pass self.simulated_pulses to the Julia IonSim code above to generate each point!
+            #       For now, temporarily hard-coding some result data below.
+
+            filename = self.timestamp + "_pulses_" + seq_name + ".csv"
+            with open(filename, "w") as pulses_file:
+                for pulse in self.simulated_pulses:
+                    line = ",".join(pulse)
+                    pulses_file.write(line + "\n")
+                    logger.info(line)
+            
+            logger.info("*** pulse sequence written to " + os.path.join(self.dir, filename))
+
+        # Temporarily hard-coding some result data.
+        self.data[seq_name]["x"] = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dtype=float) * 1e-6
+        self.data[seq_name]["y"].append(np.array([0.0, 0.1, 0.4, 0.7, 0.9, 1.0, 0.9, 0.7, 0.4, 0.1, 0.0], dtype=float))
+
+        try:
+            self.run_finally()
+        except FitError:
+            logger.error("FitError encountered in run_finally", exc_info=True)
+            pass
+
 
     def setup_carriers(self):
         self.carrier_names = ["S+1/2D-3/2",
@@ -435,3 +458,15 @@ class PulseSequence:
                     continue
             D[collection] = d
         return edict(D)
+
+    def run_initially(self):
+        # individual pulse sequences should override this
+        pass
+
+    def sequence(self):
+        # individual pulse sequences should override this
+        raise NotImplementedError
+
+    def run_finally(self):
+        # individual pulse sequences should override this
+        pass
