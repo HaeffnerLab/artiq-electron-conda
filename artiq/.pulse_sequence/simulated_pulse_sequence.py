@@ -93,6 +93,11 @@ class PulseSequence:
                                 datetime.now().strftime("%Y-%m-%d"), self.sequence_name)
         os.makedirs(self.dir, exist_ok=True)
         os.chdir(self.dir)
+
+    def set_submission_arguments(self, submission_arguments):
+        self.submission_arguments = submission_arguments
+        self.scan_param_name = self.submission_arguments[self.sequence_name + "-Scan_Selection"]
+        self.scan_params = self.submission_arguments[self.sequence_name + ":" + self.scan_param_name]
     
     def output_parameters(self):
         if not self.p:
@@ -106,10 +111,18 @@ class PulseSequence:
 
         filename = self.timestamp + "_params.txt"
         with open(filename, "w") as param_file:
-            for k,v in parameter_dict.items():
-                line = k + "=" + str(v)
+            def write_line(line):
                 param_file.write(line + "\n")
                 logger.info(line)
+            # print scan param name
+            scan_param_name = self.submission_arguments[self.sequence_name + "-Scan_Selection"]
+            write_line("Scan.parameter_name=" + self.scan_param_name)
+            # print all scan param values
+            for k,v in self.scan_params.items():
+                write_line("Scan." + k + "=" + str(v))
+            # print parameter values
+            for k,v in parameter_dict.items():
+                write_line(k + "=" + str(v))
 
         logger.info("*** parameters written to " + os.path.join(self.dir, filename))
 
@@ -152,7 +165,7 @@ class PulseSequence:
             # TODO: Pass self.simulated_pulses to the Julia IonSim code above to generate each point!
             #       For now, temporarily hard-coding some result data below.
 
-            filename = self.timestamp + "_pulses_" + seq_name + ".csv"
+            filename = self.timestamp + "_pulses.csv"
             with open(filename, "w") as pulses_file:
                 for pulse in self.simulated_pulses:
                     line = ",".join(pulse)
