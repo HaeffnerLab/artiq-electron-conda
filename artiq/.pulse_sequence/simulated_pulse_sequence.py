@@ -138,20 +138,10 @@ class PulseSequence:
         self.simulated_pulses.append(simulated_pulse)
 
     def simulate_with_ion_sim(self):
-        # This function should return a list of values between 0.0 and 1.0.
-        # The list represents the probability of each possible readout state.
-        # The length of the list returned should be 2**num_ions.
-        # i.e., for num_ions=1, the returned list should be of length 2
-        #       for num_ions=3, the returned list should be of length 8, etc.
-        pulses = self.simulated_pulses
-        num_ions = self.num_ions
-
-        # BEGIN TEMP: Call a new Julia function here, passing "pulses" and "num_ions".
-        # This is just an example showing how to call Julia code.
-        from julia import IonSim
-        ion = IonSim.ca40(selected_level_structure=["S-1/2", "D-1/2"])
-        return [0.1, 0.9] # fake single-ion result indicating P(S)=0.1, P(D)=0.9
-        # END TEMP
+        path_to_simulate_jl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "simulate.jl")
+        from julia import Main
+        Main.include(path_to_simulate_jl)
+        return Main.simulate_with_ion_sim(self.simulated_pulses, self.num_ions)
 
     def simulate(self):
         if not self.p:
