@@ -80,12 +80,9 @@ class PulseSequence:
         self.set_subsequence = dict()
         self.selected_scan = dict()
         self.time_manager = None
-        self.simulated_pulses = []
+        self.simulated_pulses = None
         self.core = _FakeCore()
         self.data = edict()
-
-        csv_headers = ["Name","On","Off","Frequency","Amplitude","Attenuation","Phase"]
-        self.simulated_pulses.append(csv_headers)
 
         self.sequence_name = type(self).__name__
         self.timestamp = datetime.now().strftime("%H%M_%S")
@@ -94,10 +91,17 @@ class PulseSequence:
         os.makedirs(self.dir, exist_ok=True)
         os.chdir(self.dir)
 
+        logger.info("Simulation timestamp " + self.timestamp + ", output files saved to " + self.dir)
+
     def set_submission_arguments(self, submission_arguments):
         self.submission_arguments = submission_arguments
         self.scan_param_name = self.submission_arguments[self.sequence_name + "-Scan_Selection"]
         self.scan_params = self.submission_arguments[self.sequence_name + ":" + self.scan_param_name]
+    
+    def write_line(self, output_file, line):
+        # writes a line to both the file and the logger (if uncommented)
+        output_file.write(line + "\n")
+        #logger.info(line)
     
     def output_parameters(self):
         if not self.p:
@@ -111,19 +115,15 @@ class PulseSequence:
 
         filename = self.timestamp + "_params.txt"
         with open(filename, "w") as param_file:
-            def write_line(line):
-                param_file.write(line + "\n")
-                logger.info(line)
             # print scan param name
-            write_line("Scan.parameter_name=" + self.scan_param_name)
+            self.write_line(param_file, "Scan.parameter_name=" + self.scan_param_name)
             # print all scan param values
             for k,v in self.scan_params.items():
-                write_line("Scan." + k + "=" + str(v))
+                self.write_line(param_file, "Scan." + k + "=" + str(v))
             # print parameter values
             for k,v in parameter_dict.items():
-                write_line(k + "=" + str(v))
-
-        logger.info("*** parameters written to " + os.path.join(self.dir, filename))
+                self.write_line(param_file, k + "=" + str(v))
+        #logger.info("*** parameters written to " + os.path.join(self.dir, filename))
 
     def report_pulse(self, dds, time_switched_on, time_switched_off):
         simulated_pulse = [
@@ -137,45 +137,85 @@ class PulseSequence:
         ]
         self.simulated_pulses.append(simulated_pulse)
 
+    def simulate_with_ion_sim(self):
+        # This function should return a list of values between 0.0 and 1.0.
+        # The list represents the probability of each possible readout state.
+        # The length of the list returned should be 2**num_ions.
+        # i.e., for num_ions=1, the returned list should be of length 2
+        #       for num_ions=3, the returned list should be of length 8, etc.
+        pulses = self.simulated_pulses
+        num_ions = self.num_ions
+
+        # BEGIN TEMP: Call a new Julia function here, passing "pulses" and "num_ions".
+        # This is just an example showing how to call Julia code.
+        from julia import IonSim
+        ion = IonSim.ca40(selected_level_structure=["S-1/2", "D-1/2"])
+        return [0.1, 0.9] # fake single-ion result indicating P(S)=0.1, P(D)=0.9
+        # END TEMP
+
     def simulate(self):
         if not self.p:
             self.p = self.load_parameter_vault()
         self.setup_carriers()
         self.setup_dds()
-        self.setup_time_manager()
         
         self.N = int(self.p.StateReadout.repeat_each_measurement)
         
         self.run_initially()
+
+        self.num_ions = int(self.p.IonsOnCamera.ion_number)
+        x_data = np.array([], dtype=float)
+        y_data = [np.array([], dtype=float)] * (2**self.num_ions)
         
         for seq_name, scan_list in PulseSequence.scan_params.items():
             self.selected_scan[seq_name] = seq_name
             self.data[seq_name] = edict(x=[], y=[])
-
-            # TODO: Iterate over scan_params and generate one pulse sequence per point.
-            #       For now, just using a single point.
-
-            main_sequence_name = list(self.set_subsequence.keys())[0]
-            self.set_subsequence[main_sequence_name]()
-
-            current_sequence = getattr(self, main_sequence_name)
-            current_sequence()
             
-            # TODO: Pass self.simulated_pulses to the Julia IonSim code above to generate each point!
-            #       For now, temporarily hard-coding some result data below.
+            # Determine the list of scan points.
+            variable_param_name = self.scan_param_name.replace(".", "_")
+            scan_points = [self.get_variable_parameter(variable_param_name)]
+            if self.scan_params["ty"] == "RangeScan":
+                scan_points = np.linspace(self.scan_params["start"], self.scan_params["stop"], self.scan_params["npoints"])
 
-            filename = self.timestamp + "_pulses.csv"
-            with open(filename, "w") as pulses_file:
-                for pulse in self.simulated_pulses:
-                    line = ",".join(pulse)
-                    pulses_file.write(line + "\n")
-                    logger.info(line)
+            # Iterate over the scan points and simulate one pulse sequence per point.
+            for scan_idx, scan_point in enumerate(scan_points):
+                # Reset the timer and stored pulse sequence.
+                self.setup_time_manager()
+                self.simulated_pulses = []
+
+                # Overwrite the scan parameter value with the current scan point.
+                setattr(self, variable_param_name, scan_point)
+
+                main_sequence_name = list(self.set_subsequence.keys())[0]
+                self.set_subsequence[main_sequence_name]()
+
+                # Run the pulse sequence function to generate the pulse sequence.
+                current_sequence = getattr(self, main_sequence_name)
+                current_sequence()
+                
+                logger.info("*** Calling IonSim with num_ions=" + str(self.num_ions) + ", " + self.scan_param_name + "=" + str(scan_point))
+                result_data = self.simulate_with_ion_sim()
+                
+                x_data = np.append(x_data, scan_point)
+                for state_idx in range(2**self.num_ions):
+                    y_data[state_idx] = np.append(y_data[state_idx], result_data[state_idx])
+
+                filename = self.timestamp + "_pulses_" + str(scan_idx) + ".csv"
+                with open(filename, "w") as pulses_file:
+                    csv_header = ",".join(["Name","On","Off","Frequency","Amplitude","Attenuation","Phase"])
+                    self.write_line(pulses_file, csv_header)                
+                    for pulse in self.simulated_pulses:
+                        self.write_line(pulses_file, ",".join(pulse))                
+                #logger.info("*** pulse sequence written to " + os.path.join(self.dir, filename))
+
+        self.data[seq_name]["x"] = x_data
+        for y_state in y_data:
+            self.data[seq_name]["y"].append(y_state)
             
-            logger.info("*** pulse sequence written to " + os.path.join(self.dir, filename))
-
-        # Temporarily hard-coding some result data.
-        self.data[seq_name]["x"] = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dtype=float) * 1e-6
-        self.data[seq_name]["y"].append(np.array([0.0, 0.1, 0.4, 0.7, 0.9, 1.0, 0.9, 0.7, 0.4, 0.1, 0.0], dtype=float))
+        filename = self.timestamp + "_results.txt"
+        with open(filename, "w") as results_file:
+            self.write_line(results_file, str(self.data[seq_name]))
+        #logger.info("*** simulation results written to " + os.path.join(self.dir, filename))
 
         try:
             self.run_finally()
