@@ -108,33 +108,33 @@ class PulseSequence:
             self.p = self.load_parameter_vault()
 
         parameter_dict = {}
+
+        # add accessed params to parameter_dict
         for param_name in self.accessed_params:
             collection, key = param_name.split(".")
             param_value = self.p[collection][key]
             parameter_dict[param_name] = param_value
 
+        # add scan params to parameter_dict
+        parameter_dict["Scan.parameter_name"] = self.scan_param_name
+        for k,v in self.scan_params.items():
+            parameter_dict["Scan." + k] = v
+
         filename = self.timestamp + "_params.txt"
         with open(filename, "w") as param_file:
-            # print scan param name
-            self.write_line(param_file, "Scan.parameter_name=" + self.scan_param_name)
-            # print all scan param values
-            for k,v in self.scan_params.items():
-                self.write_line(param_file, "Scan." + k + "=" + str(v))
-            # print parameter values
-            for k,v in parameter_dict.items():
-                self.write_line(param_file, k + "=" + str(v))
+            self.write_line(param_file, str(parameter_dict))
         #logger.info("*** parameters written to " + os.path.join(self.dir, filename))
 
     def report_pulse(self, dds, time_switched_on, time_switched_off):
-        simulated_pulse = [
-            dds.name,
-            str(round(time_switched_on, 8)),
-            str(round(time_switched_off, 8)),
-            str(dds.freq),
-            str(dds.amplitude),
-            str(dds.att),
-            str(dds.phase)
-        ]
+        simulated_pulse = {
+            "dds_name": dds.name,
+            "time_on": time_switched_on,
+            "time_off": time_switched_off,
+            "freq": dds.freq,
+            "amp": dds.amplitude,
+            "att": dds.att,
+            "phase": dds.phase,
+        }
         self.simulated_pulses.append(simulated_pulse)
 
     def simulate_with_ion_sim(self):
@@ -190,12 +190,9 @@ class PulseSequence:
                 for state_idx in range(2**self.num_ions):
                     y_data[state_idx] = np.append(y_data[state_idx], result_data[state_idx])
 
-                filename = self.timestamp + "_pulses_" + str(scan_idx) + ".csv"
+                filename = self.timestamp + "_pulses_" + str(scan_idx) + ".txt"
                 with open(filename, "w") as pulses_file:
-                    csv_header = ",".join(["Name","On","Off","Frequency","Amplitude","Attenuation","Phase"])
-                    self.write_line(pulses_file, csv_header)                
-                    for pulse in self.simulated_pulses:
-                        self.write_line(pulses_file, ",".join(pulse))                
+                    self.write_line(pulses_file, str(self.simulated_pulses))
                 #logger.info("*** pulse sequence written to " + os.path.join(self.dir, filename))
 
         self.data[seq_name]["x"] = x_data
