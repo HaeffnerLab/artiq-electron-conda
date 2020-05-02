@@ -94,6 +94,7 @@ dependencies:
     - futures==3.1.1
     - hyperlink==19.0.0
     - incremental==17.5.0
+    - julia==0.5.3
     - pyasn1==0.4.5
     - pyasn1-modules==0.2.4
     - pyhamcrest==1.9.0
