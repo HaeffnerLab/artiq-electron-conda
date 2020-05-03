@@ -1,6 +1,7 @@
 import pickle
 from collections import namedtuple
 from artiq.applets.rcg.fitting.fit_functions import __all__ as fit_models
+import os
 
 
 # Host / port to run server on
@@ -9,7 +10,7 @@ port = 3286
 
 
 # Data directory location
-data_dir = "/home/lattice/data"
+data_dir = os.path.join(os.path.expanduser("~"), "data")
 
 
 # Tuple. First value True, then load all compatible hdf5 data  presently saved in
