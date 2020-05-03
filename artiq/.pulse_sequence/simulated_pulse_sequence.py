@@ -125,7 +125,7 @@ class PulseSequence:
         filename = self.timestamp + "_params.txt"
         with open(filename, "w") as param_file:
             self.write_line(param_file, str(self.parameter_dict))
-        #logger.info("*** parameters written to " + os.path.join(self.dir, filename))
+        print("** SIMULATION ** parameters written to " + os.path.join(self.dir, filename))
 
     def report_pulse(self, dds, time_switched_on, time_switched_off):
         simulated_pulse = {
@@ -157,7 +157,7 @@ class PulseSequence:
 
         self.num_ions = int(self.p.IonsOnCamera.ion_number)
         x_data = np.array([], dtype=float)
-        y_data = [np.array([], dtype=float)] * (2**self.num_ions)
+        y_data = {}
         
         for seq_name, scan_list in PulseSequence.scan_params.items():
             self.selected_scan[seq_name] = seq_name
@@ -190,32 +190,32 @@ class PulseSequence:
                 filename = self.timestamp + "_pulses_" + str(scan_idx) + ".txt"
                 with open(filename, "w") as pulses_file:
                     self.write_line(pulses_file, str(self.simulated_pulses))
-                #logger.info("*** pulse sequence written to " + os.path.join(self.dir, filename))
+                print("** SIMULATION ** pulse sequence written to " + os.path.join(self.dir, filename))
                 
                 # Call IonSim code to simulate the dynamics.
-                logger.info("*** Calling IonSim with num_ions=" + str(self.num_ions) + ", " + self.scan_param_name + "=" + str(scan_point))
+                print("** SIMULATION ** Calling IonSim with num_ions=" + str(self.num_ions) + ", " + self.scan_param_name + "=" + str(scan_point))
                 result_data = self.simulate_with_ion_sim()
                 
                 # Record and plot the result.
                 x_data = np.append(x_data, scan_point)
-                for state_idx in range(2**self.num_ions):
-                    y_data[state_idx] = np.append(y_data[state_idx], result_data[state_idx])
+                for result_name, result_value in result_data.items():
+                    if not result_name in y_data:
+                        y_data[result_name] = np.array([], dtype=float)
+                    y_data[result_name] = np.append(y_data[result_name], result_value)
                     if self.grapher:
-                        state_as_binary_string = format(state_idx, "0" + str(self.num_ions) + "b")
-                        plot_title = self.timestamp + " - " + self.sequence_name + " - state:" + state_as_binary_string
-                        self.grapher.plot(x_data, y_data[state_idx], tab_name="IonSim",
+                        plot_title = self.timestamp + " - " + self.sequence_name + " - state:" + result_name
+                        self.grapher.plot(x_data, y_data[result_name], tab_name="IonSim",
                             plot_title=plot_title, append=True,
                             file_="", range_guess=(scan_points[0], scan_points[-1]))
-
-
+        
+        # Add the results to self.data and output to file.
         self.data[seq_name]["x"] = x_data
-        for y_state in y_data:
-            self.data[seq_name]["y"].append(y_state)
-            
+        for y_name, y_data in y_data.items():
+            self.data[seq_name]["y"].append(y_data)
         filename = self.timestamp + "_results.txt"
         with open(filename, "w") as results_file:
             self.write_line(results_file, str(self.data[seq_name]))
-        #logger.info("*** simulation results written to " + os.path.join(self.dir, filename))
+        print("** SIMULATION ** results written to " + os.path.join(self.dir, filename))
 
         try:
             self.run_finally()
