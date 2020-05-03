@@ -60,6 +60,24 @@ This adds a PuTTy configuration file with tunnels that allow communication with 
 
 1. Make sure that the Anaconda environment creation completed successfully by typing `conda env list`. You should see both `artiq` and `labrad` in the list.
 
+Setting up Julia to run simulations with IonSim
+==============
+If you want to run local simulations from the Lattice ARTIQ Dashboard, you'll need to set up Julia, IonSim, and PyJulia:
+
+1. Install Julia from https://julialang.org/downloads/.
+1. From a Julia prompt, run the following commands to install the required packages:
+    ```julia
+    using Pkg
+    Pkg.add(PackageSpec(url="https://github.com/HaeffnerLab/IonSim.jl.git"))
+    Pkg.add("QuantumOptics")
+    Pkg.add("PyCall")
+    ```
+1. From an Anaconda prompt, run the following commands to ensure that PyJulia is installed in your `artiq` environment:
+    ```
+    conda activate artiq
+    pip install julia==0.5.3
+    ```
+
 Running Lattice's LabRAD + ARTIQ locally on Windows
 ==============
 After you've completed the above installation steps, here are the steps to get ARTIQ Dashboard running:
@@ -70,8 +88,9 @@ You'll have to login with a valid lab username and password, either yours or lab
     - _Note:_ here and elsewhere below, if you get a Microsoft SmartScreen warning about the file being unsafe, click `More info` and then click `Run anyway`.
 1. To start the ARTIQ Master, run `C:\Users\<username>\artiq\artiq_master_start.bat`.
 1. To start the ARTIQ Dashboard, run `C:\Users\<username>\artiq\artiq_dashboard_start.bat`.
+1. To start the Real Complicated Grapher, run `C:\Users\<username>\artiq\artiq_grapher_start.bat`.
 
-After several seconds, the ARTIQ dashboard should load successfully. If you didn't connect to the lab tunnel, you'll see a bunch of error messages about being unable to communicate with the hardware, but these can be ignored.
+After several seconds, the ARTIQ dashboard and grapher should load successfully. If you didn't connect to the lab tunnel, you'll see a bunch of error messages about being unable to communicate with the hardware, but these can be ignored.
 
 Troubleshooting Common Issues
 ==============
