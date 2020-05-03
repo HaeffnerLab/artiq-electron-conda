@@ -525,7 +525,6 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
 
             pulse_sequence = getattr(mod, class_)()
             pulse_sequence.set_submission_arguments(argument_values)
-            pulse_sequence.output_parameters()
             pulse_sequence.simulate()
 
         except:

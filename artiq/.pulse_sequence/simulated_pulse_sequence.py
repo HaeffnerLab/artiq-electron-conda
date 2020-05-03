@@ -80,6 +80,7 @@ class PulseSequence:
         self.set_subsequence = dict()
         self.selected_scan = dict()
         self.time_manager = None
+        self.parameter_dict = None
         self.simulated_pulses = None
         self.core = _FakeCore()
         self.data = edict()
@@ -103,26 +104,25 @@ class PulseSequence:
         output_file.write(line + "\n")
         #logger.info(line)
     
-    def output_parameters(self):
+    def load_parameters(self):
         if not self.p:
             self.p = self.load_parameter_vault()
 
-        parameter_dict = {}
+        self.parameter_dict = {}
 
         # add accessed params to parameter_dict
-        for param_name in self.accessed_params:
-            collection, key = param_name.split(".")
-            param_value = self.p[collection][key]
-            parameter_dict[param_name] = param_value
+        for collection_name in self.p:
+            for param_name in self.p[collection_name]:
+                self.parameter_dict[collection_name + "." + param_name] = self.p[collection_name][param_name]
 
         # add scan params to parameter_dict
-        parameter_dict["Scan.parameter_name"] = self.scan_param_name
+        self.parameter_dict["Scan.parameter_name"] = self.scan_param_name
         for k,v in self.scan_params.items():
-            parameter_dict["Scan." + k] = v
+            self.parameter_dict["Scan." + k] = v
 
         filename = self.timestamp + "_params.txt"
         with open(filename, "w") as param_file:
-            self.write_line(param_file, str(parameter_dict))
+            self.write_line(param_file, str(self.parameter_dict))
         #logger.info("*** parameters written to " + os.path.join(self.dir, filename))
 
     def report_pulse(self, dds, time_switched_on, time_switched_off):
@@ -141,11 +141,10 @@ class PulseSequence:
         path_to_simulate_jl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "simulate.jl")
         from julia import Main
         Main.include(path_to_simulate_jl)
-        return Main.simulate_with_ion_sim(self.simulated_pulses, self.num_ions)
+        return Main.simulate_with_ion_sim(self.parameter_dict, self.simulated_pulses, self.num_ions)
 
     def simulate(self):
-        if not self.p:
-            self.p = self.load_parameter_vault()
+        self.load_parameters()
         self.setup_carriers()
         self.setup_dds()
         
@@ -175,6 +174,7 @@ class PulseSequence:
 
                 # Overwrite the scan parameter value with the current scan point.
                 setattr(self, variable_param_name, scan_point)
+                self.parameter_dict[self.scan_param_name] = scan_point
 
                 main_sequence_name = list(self.set_subsequence.keys())[0]
                 self.set_subsequence[main_sequence_name]()

@@ -1,6 +1,6 @@
 using IonSim
 
-function simulate_with_ion_sim(pulses, num_ions)
+function simulate_with_ion_sim(parameters, pulses, num_ions)
     # This function should return a list of values between 0.0 and 1.0.
     # The list represents the probability of each possible readout state.
     # The length of the list returned should be 2**num_ions.
@@ -11,6 +11,9 @@ function simulate_with_ion_sim(pulses, num_ions)
     for i = 1:num_ions
         push!(ions, ca40(selected_level_structure=["S-1/2", "D-1/2"]))
     end
+
+    # TODO: If necessary, read parameters here. For example:
+    axial_frequency = parameters["TrapFrequencies.axial_frequency"]
 
     for pulse in pulses
         dds_name = pulse["dds_name"]
