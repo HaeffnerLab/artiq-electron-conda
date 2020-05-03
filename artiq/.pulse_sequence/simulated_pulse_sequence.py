@@ -1,4 +1,5 @@
 from artiq.language import core as core_language
+from artiq.protocols.pc_rpc import Client
 from datetime import datetime
 from easydict import EasyDict as edict
 import json
@@ -84,6 +85,7 @@ class PulseSequence:
         self.simulated_pulses = None
         self.core = _FakeCore()
         self.data = edict()
+        self.grapher = None
 
         self.sequence_name = type(self).__name__
         self.timestamp = datetime.now().strftime("%H%M_%S")
@@ -144,6 +146,7 @@ class PulseSequence:
         return Main.simulate_with_ion_sim(self.parameter_dict, self.simulated_pulses, self.num_ions)
 
     def simulate(self):
+        self.setup_grapher()
         self.load_parameters()
         self.setup_carriers()
         self.setup_dds()
@@ -182,18 +185,28 @@ class PulseSequence:
                 # Run the pulse sequence function to generate the pulse sequence.
                 current_sequence = getattr(self, main_sequence_name)
                 current_sequence()
-                
-                logger.info("*** Calling IonSim with num_ions=" + str(self.num_ions) + ", " + self.scan_param_name + "=" + str(scan_point))
-                result_data = self.simulate_with_ion_sim()
-                
-                x_data = np.append(x_data, scan_point)
-                for state_idx in range(2**self.num_ions):
-                    y_data[state_idx] = np.append(y_data[state_idx], result_data[state_idx])
 
+                # Write the generated pulse sequences to a file.
                 filename = self.timestamp + "_pulses_" + str(scan_idx) + ".txt"
                 with open(filename, "w") as pulses_file:
                     self.write_line(pulses_file, str(self.simulated_pulses))
                 #logger.info("*** pulse sequence written to " + os.path.join(self.dir, filename))
+                
+                # Call IonSim code to simulate the dynamics.
+                logger.info("*** Calling IonSim with num_ions=" + str(self.num_ions) + ", " + self.scan_param_name + "=" + str(scan_point))
+                result_data = self.simulate_with_ion_sim()
+                
+                # Record and plot the result.
+                x_data = np.append(x_data, scan_point)
+                for state_idx in range(2**self.num_ions):
+                    y_data[state_idx] = np.append(y_data[state_idx], result_data[state_idx])
+                    if self.grapher:
+                        state_as_binary_string = format(state_idx, "0" + str(self.num_ions) + "b")
+                        plot_title = self.timestamp + " - " + self.sequence_name + " - state:" + state_as_binary_string
+                        self.grapher.plot(x_data, y_data[state_idx], tab_name="IonSim",
+                            plot_title=plot_title, append=True,
+                            file_="", range_guess=(scan_points[0], scan_points[-1]))
+
 
         self.data[seq_name]["x"] = x_data
         for y_state in y_data:
@@ -208,8 +221,14 @@ class PulseSequence:
             self.run_finally()
         except FitError:
             logger.error("FitError encountered in run_finally", exc_info=True)
-            pass
 
+    def setup_grapher(self):
+        if not self.grapher:
+            try:
+                self.grapher = Client("::1", 3286, "rcg")
+            except:
+                logger.warning("Failed to connect to RCG grapher", exc_info=True)
+                self.grapher = None
 
     def setup_carriers(self):
         self.carrier_names = ["S+1/2D-3/2",
