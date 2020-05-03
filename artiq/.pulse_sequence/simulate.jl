@@ -1,11 +1,16 @@
 using IonSim
 
 function simulate_with_ion_sim(parameters, pulses, num_ions)
-    # This function should return a list of values between 0.0 and 1.0.
-    # The list represents the probability of each possible readout state.
-    # The length of the list returned should be 2**num_ions.
-    # i.e., for num_ions=1, the returned list should be of length 2
-    #       for num_ions=3, the returned list should be of length 8, etc.
+    # This function must return a dictionary of result values.
+    # Typically, this dictionary will represent the probability
+    #    of each possible readout state, and so each value will
+    #    be between 0.0 and 1.0.
+    # e.g.,  for one ion: Dict("dark" => 0.1)
+    # e.g.,           or: Dict("S" => 0.1, "D" => 0.9)
+    # e.g., for two ions: Dict("ion 0 dark" => 0.1, "ion 1 dark" => 0.5)
+    # e.g.,           or: Dict("SS" => 0.1, "SD" => 0.2, "DS" => 0.3, "DD" => 0.4)
+    # The names of each readout state are not critical. They are used only for
+    #    display in the grapher and output to the results file.
 
     ions = []
     for i = 1:num_ions
@@ -29,6 +34,6 @@ function simulate_with_ion_sim(parameters, pulses, num_ions)
 
     # TODO: Run the simulation and return the result.
 
-    return [0.1, 0.9] # fake single-ion result indicating P(S)=0.1, P(D)=0.9
+    return Dict("S" => 0.1, "D" => 0.9) # fake single-ion result indicating P(S)=0.1, P(D)=0.9
 
 end
