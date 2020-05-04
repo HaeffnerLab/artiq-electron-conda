@@ -119,8 +119,8 @@ class _FakeCore:
         return time
 
 class SimulationScheduler:
-    def submit(self, expid, priority):
-        pass
+    def submit(self, scheduler_name, expid, priority=None):
+        run_simulation(expid["file"], expid["class_name"], expid["arguments"])
 
 class FitError(Exception):
     pass
