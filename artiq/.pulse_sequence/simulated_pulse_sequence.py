@@ -2,14 +2,63 @@ from artiq.language import core as core_language
 from artiq.protocols.pc_rpc import Client
 from datetime import datetime
 from easydict import EasyDict as edict
+import importlib
+import importlib.machinery
 import json
 import labrad
 from labrad.units import WithUnit
 import logging
 import numpy as np
 import os
+import traceback
+import sys
 
 logger = logging.getLogger(__name__)
+
+#
+# Entry point to trigger a simulation of a particular experiment
+#
+def run_simulation(file_path, class_, argument_values):
+
+    # define a function to import a modified source file
+    def modify_and_import(module_name, path, modification_func):
+        # adapted from https://stackoverflow.com/questions/41858147/how-to-modify-imported-source-code-on-the-fly
+        loader = importlib.machinery.SourceFileLoader(module_name, path)
+        source = loader.get_source(module_name)
+        new_source = modification_func(source)
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        module = importlib.util.module_from_spec(spec)
+        codeobj = compile(new_source, module.__spec__.origin, 'exec')
+        exec(codeobj, module.__dict__)
+        sys.modules[module_name] = module
+        return module
+
+    # import all of the subsequences and strip out the @kernel decorators
+    subsequences_folder = os.path.join(os.path.expanduser("~"), "artiq-work", "subsequences")
+    for path, subdirs, files in os.walk(subsequences_folder):
+        for filename in files:
+            filename_without_extension, extension = os.path.splitext(filename)
+            if extension == ".py":
+                try:
+                    module_name = "simulated_subsequences." + filename_without_extension
+                    experiment_file_full_path = os.path.join(path, filename)
+                    modify_and_import(module_name, experiment_file_full_path, lambda src:
+                        src.replace("@kernel", ""))
+                except:
+                    logger.error(traceback.print_exc())
+                    continue
+
+    # load the experiment source and make the necessary modifications
+    file_path = os.path.join(os.path.expanduser("~"), "artiq-work", file_path)
+    mod = modify_and_import(class_, file_path, lambda src: 
+        src.replace("from pulse_sequence", "from simulated_pulse_sequence")
+        .replace("from subsequences.", "from simulated_subsequences.")
+        .replace("@kernel", ""))
+
+    # execute the simulated pulse sequence
+    pulse_sequence = getattr(mod, class_)()
+    pulse_sequence.set_submission_arguments(argument_values)
+    pulse_sequence.simulate()
 
 class SimulatedDDSSwitch:
     def __init__(self, dds):
@@ -69,6 +118,10 @@ class _FakeCore:
     def seconds_to_mu(self, time):
         return time
 
+class SimulationScheduler:
+    def submit(self, expid, priority):
+        pass
+
 class FitError(Exception):
     pass
 
@@ -86,6 +139,7 @@ class PulseSequence:
         self.core = _FakeCore()
         self.data = edict()
         self.grapher = None
+        self.scheduler = SimulationScheduler()
 
         self.sequence_name = type(self).__name__
         self.timestamp = datetime.now().strftime("%H%M_%S")
