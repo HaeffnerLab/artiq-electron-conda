@@ -383,7 +383,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         submit.setShortcut("CTRL+RETURN")
         submit.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
                              QtWidgets.QSizePolicy.Expanding)
-        self.layout.addWidget(submit, 1, 4, 1, 1)
+        self.layout.addWidget(submit, 1, 4, 2, 1)
         submit.clicked.connect(self.submit_clicked)
 
         simulate = QtWidgets.QPushButton("Simulate")
@@ -392,7 +392,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         simulate.setToolTip("Simulate the experiment")
         simulate.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
                              QtWidgets.QSizePolicy.Expanding)        
-        self.layout.addWidget(simulate, 2, 4, 1, 1)
+        self.layout.addWidget(simulate, 3, 4, 1, 1)
         simulate.clicked.connect(self.simulate_clicked)
 
         reqterm = QtWidgets.QPushButton("Terminate instances")
@@ -402,7 +402,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         reqterm.setShortcut("CTRL+BACKSPACE")
         reqterm.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
                               QtWidgets.QSizePolicy.Expanding)
-        self.layout.addWidget(reqterm, 3, 4)
+        self.layout.addWidget(reqterm, 4, 4)
         reqterm.clicked.connect(self.reqterm_clicked)
 
         self.hdf5_load_directory = os.path.expanduser("~")
