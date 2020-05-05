@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # TODO: Consolidate laser room labrad connections
-laser_room_ip = "localhost"
+laser_room_ip = "192.168.169.49"
 SIGNALID = 270835
 
 
