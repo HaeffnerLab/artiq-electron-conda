@@ -14,12 +14,20 @@ import os
 import traceback
 import sys
 
-logger = logging.getLogger(__name__)
+def unitless(param):
+    if isinstance(param, WithUnit):
+        param = param.inBaseUnits()
+        param = param[param.units]
+    return param
 
 #
 # Entry point to trigger a simulation of a particular experiment
 #
 def run_simulation(file_path, class_, argument_values):
+    # for development convenience, always reload the latest simulated_pulse_sequence.py
+    sim_mod_name = "simulated_pulse_sequence"
+    if sim_mod_name in sys.modules:
+        importlib.reload(sys.modules[sim_mod_name])
 
     # define a function to import a modified source file
     def modify_and_import(module_name, path, modification_func):
@@ -46,7 +54,7 @@ def run_simulation(file_path, class_, argument_values):
                     modify_and_import(module_name, experiment_file_full_path, lambda src:
                         src.replace("@kernel", ""))
                 except:
-                    logger.error(traceback.print_exc())
+                    self.logger.error(traceback.format_exc())
                     continue
 
     # load the experiment source and make the necessary modifications
@@ -101,19 +109,16 @@ class SimulatedDDS:
             self.time_switched_on = None
 
     def set(self, freq, amplitude=None, phase=None, ref_time_mu=None):
-        if isinstance(freq, WithUnit):
-            freq = freq['Hz']
-
-        self.freq = freq
+        self.freq = float(unitless(freq))
         if amplitude:
-            self.amplitude = amplitude
+            self.amplitude = float(unitless(amplitude))
         if phase:
-            self.phase = phase
+            self.phase = float(unitless(phase))
         if ref_time_mu:
-            self.ref_time_mu = ref_time_mu
+            self.ref_time_mu = float(unitless(ref_time_mu))
 
     def set_att(self, att):
-        self.att = att
+        self.att = float(unitless(att))
 
 class _FakeCore:
     def seconds_to_mu(self, time):
@@ -140,9 +145,13 @@ class PulseSequence:
         self.simulated_pulses = None
         self.core = _FakeCore()
         self.data = edict()
-        self.grapher = None
         self.scheduler = SimulationScheduler()
         self.rcg_tabs = dict()
+        
+        self.grapher = None
+        self.visualizer = None
+        self.logger = None
+        self.setup_rpc_connections()
 
         self.sequence_name = type(self).__name__
         self.rcg_tabs[self.sequence_name] = dict()
@@ -152,15 +161,13 @@ class PulseSequence:
         os.makedirs(self.dir, exist_ok=True)
         os.chdir(self.dir)
 
-        logger.info("Simulation timestamp " + self.timestamp + ", output files saved to " + self.dir)
-
     def set_submission_arguments(self, submission_arguments):
         self.submission_arguments = submission_arguments
     
     def write_line(self, output_file, line):
         # writes a line to both the file and the logger (if uncommented)
         output_file.write(line + "\n")
-        #logger.info(line)
+        #self.logger.info(line)
 
     def load_parameters(self):
         if not self.p:
@@ -195,7 +202,7 @@ class PulseSequence:
         filename = self.timestamp + "_params_" + scan_name + ".txt"
         with open(filename, "w") as param_file:
             self.write_line(param_file, str(self.parameter_dict))
-        print("** SIMULATION ** parameters written to " + os.path.join(self.dir, filename))
+        print("Parameters written to " + os.path.join(self.dir, filename))
 
     def report_pulse(self, dds, time_switched_on, time_switched_off):
         simulated_pulse = {
@@ -217,7 +224,6 @@ class PulseSequence:
 
     def simulate(self):
         self.load_parameters()
-        self.setup_grapher()
         self.setup_carriers()
         self.setup_dds()
         
@@ -268,10 +274,10 @@ class PulseSequence:
                 filename = self.timestamp + "_pulses_" + str(scan_idx) + ".txt"
                 with open(filename, "w") as pulses_file:
                     self.write_line(pulses_file, str(self.simulated_pulses))
-                print("** SIMULATION ** pulse sequence written to " + os.path.join(self.dir, filename))
+                print("Pulse sequence written to " + os.path.join(self.dir, filename))
                 
                 # Call IonSim code to simulate the dynamics.
-                print("** SIMULATION ** Calling IonSim with num_ions=" + str(self.num_ions) + ", " + self.scan_parameter_name + "=" + str(scan_point))
+                print("Calling IonSim with num_ions=" + str(self.num_ions) + ", " + self.scan_parameter_name + "=" + str(scan_point))
                 result_data = self.simulate_with_ion_sim()
                 
                 # Record and plot the result.
@@ -293,28 +299,103 @@ class PulseSequence:
             filename = self.timestamp + "_results.txt"
             with open(filename, "w") as results_file:
                 self.write_line(results_file, str(self.data[scan_name]))
-            print("** SIMULATION ** results written to " + os.path.join(self.dir, filename))
+            print("Results written to " + os.path.join(self.dir, filename))
+            
+            # Visualize the most recent pulse sequence.
+            if self.visualizer:
+                try:
+                    dds, ttl, channels = self.make_human_readable_pulses()
+                    self.visualizer.plot_simulated_pulses(dds, ttl, channels)
+                except:
+                    self.logger.warning("Failed to plot pulse sequence visualization:" + traceback.format_exc(), exc_info=True)
             
             if scan_name in self.run_after:
                 try:
                     self.run_after[scan_name]()
                 except FitError:
-                    logger.error("FitError encountered in run_after for " + scan_name, exc_info=True)
+                    self.logger.error("FitError encountered in run_after for " + scan_name, exc_info=True)
                     raise
 
         try:
             self.run_finally()
         except FitError:
-            logger.error("FitError encountered in run_finally", exc_info=True)
+            self.logger.error("FitError encountered in run_finally", exc_info=True)
             raise
+        
+        self.logger.info(self.sequence_name + " complete! Timestamp " + self.timestamp + ", output files saved to " + self.dir)
 
-    def setup_grapher(self):
+        if self.grapher:
+            try:
+                self.grapher.close_rpc()
+            except:
+                pass
+        if self.visualizer:
+            try:
+                self.visualizer.close_rpc()
+            except:
+                pass
+        if self.logger:
+            try:
+                self.logger.close_rpc()
+            except:
+                pass
+
+    def make_human_readable_pulses(self):
+        # Converts self.simulated_pulses into the "human readable" format expected
+        # by the pulse sequence visualizer GUI.
+        # Returns a tuple: (dds, ttl, channels)
+        times = set()
+        dds_names = set()
+        for simulated_pulse in self.simulated_pulses:
+            dds_names.add(simulated_pulse["dds_name"])
+            times.add(simulated_pulse["time_on"])
+            times.add(simulated_pulse["time_off"])
+        dds_names = sorted(dds_names)
+        times = sorted(times)
+        times = times + [times[-1]*1.01] + [times[-1]*1.02]
+
+        raw_channels = [["AdvanceDDS", 0]] + [["unused" + str(i), i] for i in range(1, 32)]
+        raw_ttl = [[time, [1] + [0] * 31] for time in times]
+
+        def freq_and_amp(dds_name, time):
+            freq = 0.0
+            amp = 0.0
+            for simulated_pulse in self.simulated_pulses:
+                if dds_name == simulated_pulse["dds_name"] and time > simulated_pulse["time_on"] and time <= simulated_pulse["time_off"]:
+                    freq = simulated_pulse["freq"] / 1e6
+                    amp = simulated_pulse["amp"] * (10 ** (-simulated_pulse["att"] / 20))
+                    break
+            return freq, amp
+
+        raw_dds = []
+        for time in times[:-1]:
+            for dds_name in dds_names:
+                freq, amp = freq_and_amp(dds_name, time)
+                raw_dds.append([dds_name, freq, amp])
+
+        return raw_dds, raw_ttl, raw_channels
+
+    def setup_rpc_connections(self):
+        try:
+            self.logger = Client("::1", 3289, "simulation_logger")
+        except:
+            self.logger = logging.getLogger("** SIMULATION **")
+            self.logger.warning("Failed to connect to remote logger", exc_info=True)
+
         if not self.grapher:
             try:
                 self.grapher = Client("::1", 3286, "rcg")
             except:
-                logger.warning("Failed to connect to RCG grapher", exc_info=True)
+                self.logger.warning("Failed to connect to RCG grapher", exc_info=True)
                 self.grapher = None
+
+        if not self.visualizer:
+            try:
+                self.visualizer = Client("::1", 3289, "pulse_sequence_visualizer")
+                pass
+            except:
+                self.logger.warning("Failed to connect to pulse sequence visualizer", exc_info=True)
+                self.visualizer = None
 
     def setup_carriers(self):
         self.carrier_names = [
@@ -334,8 +415,7 @@ class PulseSequence:
         _list = [0.] * 10
 
         for carrier, frequency in current_lines:
-            frequency = frequency.inBaseUnits()
-            abs_freq = frequency[frequency.units]
+            abs_freq = unitless(frequency)
             for i in range(10):
                 if carrier == self.carrier_names[i]:
                     _list[i] = abs_freq
@@ -346,9 +426,7 @@ class PulseSequence:
         freq = 0.
         for i in range(len(self.trap_frequency_names)):
             if self.trap_frequency_names[i] == name:
-                freq = self.trap_frequency_values[i]
-                if isinstance(freq, WithUnit):
-                    freq = freq['Hz']
+                freq = unitless(self.trap_frequency_values[i])
                 return freq
         return 0.
 
@@ -378,9 +456,7 @@ class PulseSequence:
                 pass
 
             def _take_time(self, duration):
-                if isinstance(duration, WithUnit):
-                    duration = duration['s']
-                self.time += duration
+                self.time += unitless(duration)
 
             def _get_time(self):
                 return self.time
@@ -574,16 +650,7 @@ class PulseSequence:
             names = p.get_parameter_names(collection)
             for name in names:
                 try:
-                    param = p.get_parameter([collection, name])
-                    try:
-                        if isinstance(param, WithUnit):
-                            param = param.inBaseUnits()
-                            param = param[param.units]
-                    except KeyError:
-                        if (units == "dBm" or
-                            units == "deg" or
-                            units == ""):
-                            param = param[units]
+                    param = unitless(p.get_parameter([collection, name]))
                     d[name] = param
                     setattr(self, collection + "_" + name, param)
                 except:
