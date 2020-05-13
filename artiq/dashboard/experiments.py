@@ -487,8 +487,12 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
             sim_mod_name = "simulated_pulse_sequence"
             if sim_mod_name in sys.modules:
                 importlib.reload(sys.modules[sim_mod_name])
+
+            from multiprocessing import Process, Pool
             import simulated_pulse_sequence
-            simulated_pulse_sequence.run_simulation(file_path, class_, argument_values)
+            if not self.manager.simulation_process_pool:
+                self.manager.simulation_process_pool = Pool(processes=1)
+            self.manager.simulation_process_pool.apply_async(simulated_pulse_sequence.run_simulation, (file_path, class_, argument_values))
 
         except:
             # May happen when experiment has been removed
@@ -617,6 +621,8 @@ class ExperimentManager:
         self.main_window = main_window
         self.schedule_ctl = schedule_ctl
         self.experiment_db_ctl = experiment_db_ctl
+        
+        self.simulation_process_pool = None
 
         self.dock_states = dict()
         self.submission_scheduling = dict()
