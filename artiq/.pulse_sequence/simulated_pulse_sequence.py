@@ -14,6 +14,8 @@ import os
 import traceback
 import sys
 
+logger = logging.getLogger(__name__)
+
 def unitless(param):
     if isinstance(param, WithUnit):
         param = param.inBaseUnits()
@@ -24,53 +26,72 @@ def unitless(param):
 # Entry point to trigger a simulation of a particular experiment
 #
 def run_simulation(file_path, class_, argument_values):
-    # for development convenience, always reload the latest simulated_pulse_sequence.py
-    sim_mod_name = "simulated_pulse_sequence"
-    if sim_mod_name in sys.modules:
-        importlib.reload(sys.modules[sim_mod_name])
-
-    # define a function to import a modified source file
-    def modify_and_import(module_name, path, modification_func):
-        # adapted from https://stackoverflow.com/questions/41858147/how-to-modify-imported-source-code-on-the-fly
-        loader = importlib.machinery.SourceFileLoader(module_name, path)
-        source = loader.get_source(module_name)
-        new_source = modification_func(source)
-        spec = importlib.util.spec_from_loader(loader.name, loader)
-        module = importlib.util.module_from_spec(spec)
-        codeobj = compile(new_source, module.__spec__.origin, 'exec')
-        exec(codeobj, module.__dict__)
-        sys.modules[module_name] = module
-        return module
-
-    # import all of the subsequences and strip out the @kernel decorators
-    subsequences_folder = os.path.join(os.path.expanduser("~"), "artiq-work", "subsequences")
-    for path, subdirs, files in os.walk(subsequences_folder):
-        for filename in files:
-            filename_without_extension, extension = os.path.splitext(filename)
-            if extension == ".py":
-                try:
-                    module_name = "simulated_subsequences." + filename_without_extension
-                    experiment_file_full_path = os.path.join(path, filename)
-                    modify_and_import(module_name, experiment_file_full_path, lambda src:
-                        src.replace("@kernel", ""))
-                except:
-                    self.logger.error("Error importing subsequence " + filename_without_extension + ": " + traceback.format_exc())
-                    continue
-
-    # load the experiment source and make the necessary modifications
-    file_path = os.path.join(os.path.expanduser("~"), "artiq-work", file_path)
-    mod = modify_and_import(class_, file_path, lambda src: 
-        src.replace("from pulse_sequence", "from simulated_pulse_sequence")
-        .replace("from subsequences.", "from simulated_subsequences.")
-        .replace("@kernel", ""))
-
-    # execute the simulated pulse sequence
     try:
+        # for development convenience, always reload the latest simulated_pulse_sequence.py
+        sim_mod_name = "simulated_pulse_sequence"
+        if sim_mod_name in sys.modules:
+            importlib.reload(sys.modules[sim_mod_name])
+
+        # define a function to import a modified source file
+        def modify_and_import(module_name, path, modification_func):
+            # adapted from https://stackoverflow.com/questions/41858147/how-to-modify-imported-source-code-on-the-fly
+            loader = importlib.machinery.SourceFileLoader(module_name, path)
+            source = loader.get_source(module_name)
+            new_source = modification_func(source)
+            spec = importlib.util.spec_from_loader(loader.name, loader)
+            module = importlib.util.module_from_spec(spec)
+            codeobj = compile(new_source, module.__spec__.origin, 'exec')
+            exec(codeobj, module.__dict__)
+            sys.modules[module_name] = module
+            return module
+
+        # import all of the subsequences and strip out the @kernel decorators
+        subsequences_folder = os.path.join(os.path.expanduser("~"), "artiq-work", "subsequences")
+        for path, subdirs, files in os.walk(subsequences_folder):
+            for filename in files:
+                filename_without_extension, extension = os.path.splitext(filename)
+                if extension == ".py":
+                    try:
+                        module_name = "simulated_subsequences." + filename_without_extension
+                        experiment_file_full_path = os.path.join(path, filename)
+                        modify_and_import(module_name, experiment_file_full_path, lambda src:
+                            src.replace("@kernel", ""))
+                    except:
+                        logger.error("Error importing subsequence " + filename_without_extension + ": " + traceback.format_exc())
+                        continue
+
+        # import all of the auto calibration sequences and strip out the @kernel decorators
+        auto_calibration_sequences_folder = os.path.join(os.path.expanduser("~"), "artiq-work", "auto_calibration", "sequences")
+        for path, subdirs, files in os.walk(auto_calibration_sequences_folder):
+            for filename in files:
+                filename_without_extension, extension = os.path.splitext(filename)
+                if extension == ".py":
+                    try:
+                        module_name = "auto_calibration.simulated_sequences." + filename_without_extension
+                        experiment_file_full_path = os.path.join(path, filename)
+                        modify_and_import(module_name, experiment_file_full_path, lambda src:
+                            src.replace("from pulse_sequence", "from simulated_pulse_sequence")
+                            .replace("from subsequences.", "from simulated_subsequences.")
+                            .replace("from auto_calibration.sequences.", "from auto_calibration.simulated_sequences.")
+                            .replace("@kernel", ""))
+                    except:
+                        logger.error("Error importing auto calibration sequence " + filename_without_extension + ": " + traceback.format_exc())
+                        continue
+
+        # load the experiment source and make the necessary modifications
+        file_path = os.path.join(os.path.expanduser("~"), "artiq-work", file_path)
+        mod = modify_and_import(class_, file_path, lambda src: 
+            src.replace("from pulse_sequence", "from simulated_pulse_sequence")
+            .replace("from subsequences.", "from simulated_subsequences.")
+            .replace("from auto_calibration.sequences.", "from auto_calibration.simulated_sequences.")
+            .replace("@kernel", ""))
+
+        # execute the simulated pulse sequence
         pulse_sequence = getattr(mod, class_)()
         pulse_sequence.set_submission_arguments(argument_values)
         pulse_sequence.simulate()
     except:
-        self.logger.error("Error simulating pulse sequence" + traceback.format_exc())
+        logger.error("Error simulating pulse sequence" + traceback.format_exc())
 
 class SimulatedDDSSwitch:
     def __init__(self, dds):
@@ -224,7 +245,12 @@ class PulseSequence:
             path_to_simulate_jl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "simulate.jl")
             from julia import Main
             Main.include(path_to_simulate_jl)
-            return Main.simulate_with_ion_sim(self.parameter_dict, self.simulated_pulses, self.num_ions)
+            self.logger.info(self.current_b_field)
+            return Main.simulate_with_ion_sim(
+                self.parameter_dict,
+                self.simulated_pulses,
+                self.num_ions,
+                self.current_b_field)
         except:
             self.logger.error("Error running IonSim simulation: " + traceback.format_exc())
 
@@ -279,7 +305,7 @@ class PulseSequence:
                 # Write the generated pulse sequences to a file.
                 filename = self.timestamp + "_pulses_" + str(scan_idx) + ".txt"
                 with open(filename, "w") as pulses_file:
-                    self.write_line(pulses_file, str(self.simulated_pulses))
+                    self.write_line(pulses_file, json.dumps(self.simulated_pulses, sort_keys=True, indent=4))
                 print("Pulse sequence written to " + os.path.join(self.dir, filename))
                 
                 # Call IonSim code to simulate the dynamics.
@@ -410,23 +436,25 @@ class PulseSequence:
         self.carrier_dict = {}
         for idx, name in enumerate(self.carrier_names):
             self.carrier_dict[name] = idx
-        self.carrier_values = self.get_carriers_from_sd_tracker()
 
-    def get_carriers_from_sd_tracker(self):
         global_cxn = labrad.connect(dt_config.global_address,
                                     password=dt_config.global_password,
                                     tls_mode="off")
         sd_tracker = global_cxn.sd_tracker_global
+
+        current_line_center = float(unitless(sd_tracker.get_current_center_local(dt_config.client_name)))
         current_lines = sd_tracker.get_current_lines(dt_config.client_name)
         _list = [0.] * 10
-
         for carrier, frequency in current_lines:
             abs_freq = unitless(frequency)
             for i in range(10):
                 if carrier == self.carrier_names[i]:
-                    _list[i] = abs_freq
+                    # for simulation, express carrier frequencies relative to line center
+                    _list[i] = abs_freq - current_line_center
                     break
-        return _list
+        self.carrier_values = _list
+
+        self.current_b_field = float(unitless(sd_tracker.get_current_b_local(dt_config.client_name)['gauss']))
 
     def get_trap_frequency(self, name):
         freq = 0.
