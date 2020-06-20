@@ -134,11 +134,11 @@ class SimulatedDDS:
 
     def set(self, freq, amplitude=None, phase=None, ref_time_mu=None):
         self.freq = float(unitless(freq))
-        if amplitude:
+        if amplitude is not None:
             self.amplitude = float(unitless(amplitude))
-        if phase:
+        if phase is not None:
             self.phase = float(unitless(phase))
-        if ref_time_mu:
+        if ref_time_mu is not None:
             self.ref_time_mu = float(unitless(ref_time_mu))
 
     def set_att(self, att):
@@ -151,6 +151,9 @@ class _FakeCore:
 class SimulationScheduler:
     def submit(self, scheduler_name, expid, priority=None):
         run_simulation(expid["file"], expid["class_name"], expid["arguments"])
+
+    def get_status(self):
+        return dict()
 
 class FitError(Exception):
     pass
@@ -178,8 +181,10 @@ class PulseSequence:
         self.setup_rpc_connections()
 
         self.sequence_name = type(self).__name__
+        self.frequency_scan_sequence_names = ["Spectrum", "CalibAllLines", "CalibSideband"]
         self.rcg_tabs[self.sequence_name] = dict()
-        self.timestamp = datetime.now().strftime("%H%M_%S")
+        self.start_time = datetime.now()
+        self.timestamp = self.start_time.strftime("%H%M_%S")
         self.dir = os.path.join(os.path.expanduser("~"), "data", "simulation",
                                 datetime.now().strftime("%Y-%m-%d"), self.sequence_name)
         os.makedirs(self.dir, exist_ok=True)
@@ -245,7 +250,6 @@ class PulseSequence:
             path_to_simulate_jl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "simulate.jl")
             from julia import Main
             Main.include(path_to_simulate_jl)
-            self.logger.info(self.current_b_field)
             return Main.simulate_with_ion_sim(
                 self.parameter_dict,
                 self.simulated_pulses,
@@ -263,13 +267,17 @@ class PulseSequence:
 
         self.num_ions = int(self.p.IonsOnCamera.ion_number)
         
+        run_initially_complete = False
         for scan_name in PulseSequence.scan_params:
             self.data[scan_name] = edict(x=[], y=[])
             x_data = np.array([], dtype=float)
             y_data = {}
             
             # Look up the settings for the current scan.
-            self.scan_parameter_name = self.submission_arguments[scan_name + "-Scan_Selection"]
+            scan_selection = scan_name + "-Scan_Selection"
+            if not scan_selection in self.submission_arguments:
+                continue
+            self.scan_parameter_name = self.submission_arguments[scan_selection]
             self.scan_settings = self.submission_arguments[scan_name + ":" + self.scan_parameter_name]
             self.selected_scan[scan_name] = self.scan_parameter_name
             
@@ -277,8 +285,9 @@ class PulseSequence:
             self.write_parameters_for_scan(scan_name)
 
             # Call run_initially, but only if this is the first scan.
-            if scan_name == list(PulseSequence.scan_params.keys())[0]:
+            if not run_initially_complete:
                 self.run_initially()
+                run_initially_complete = True
             
             # Determine the list of scan points.
             variable_param_name = self.scan_parameter_name.replace(".", "_")
@@ -296,6 +305,10 @@ class PulseSequence:
                 setattr(self, variable_param_name, scan_point)
                 self.parameter_dict[self.scan_parameter_name] = scan_point
 
+                # Set the current x value for plotting. May be overwritten inside a pulse sequence.
+                self.current_x_value = scan_point
+
+                # Initialize the sequence by calling set_subsequence.
                 self.set_subsequence[scan_name]()
 
                 # Run the pulse sequence function to generate the pulse sequence.
@@ -303,7 +316,7 @@ class PulseSequence:
                 current_sequence()
 
                 # Write the generated pulse sequences to a file.
-                filename = self.timestamp + "_pulses_" + str(scan_idx) + ".txt"
+                filename = self.timestamp + "_pulses_" + scan_name + "_" + str(scan_idx) + ".txt"
                 with open(filename, "w") as pulses_file:
                     self.write_line(pulses_file, json.dumps(self.simulated_pulses, sort_keys=True, indent=4))
                 print("Pulse sequence written to " + os.path.join(self.dir, filename))
@@ -312,23 +325,31 @@ class PulseSequence:
                 print("Calling IonSim with num_ions=" + str(self.num_ions) + ", " + self.scan_parameter_name + "=" + str(scan_point))
                 result_data = self.simulate_with_ion_sim()
                 
+                # Guess the plot range.
+                range_offset = self.current_x_value - scan_point
+                range_guess = (scan_points[0] + range_offset, scan_points[-1] + range_offset)
+                
+                # Adjustment for absolute frequency scans, which should be displayed in MHz.
+                if self.sequence_name in self.frequency_scan_sequence_names:
+                    self.current_x_value = self.current_x_value * 1e-6
+                    range_guess = (range_guess[0] * 1e-6, range_guess[1] * 1e-6)
+
                 # Record and plot the result.
-                x_data = np.append(x_data, scan_point)
-                for result_name, result_value in result_data.items():
-                    if not result_name in y_data:
-                        y_data[result_name] = np.array([], dtype=float)
-                    y_data[result_name] = np.append(y_data[result_name], result_value)
-                    if self.grapher:
-                        plot_title = self.timestamp + " - " + scan_name + " - state:" + result_name
-                        self.grapher.plot(x_data, y_data[result_name], tab_name="IonSim",
+                x_data = np.append(x_data, self.current_x_value)
+                self.perform_state_readout(result_data, y_data)
+                if self.grapher:
+                    for curve_name, curve_values in sorted(y_data.items()):
+                        plot_title = self.timestamp + " - " + scan_name + " - " + curve_name
+                        self.grapher.plot(x_data, curve_values,
+                            tab_name=PulseSequence.scan_params[scan_name][0][0],
                             plot_title=plot_title, append=True,
-                            file_="", range_guess=(scan_points[0], scan_points[-1]))
+                            file_="", range_guess=range_guess)
         
             # Add the results to self.data and output to file.
             self.data[scan_name]["x"] = x_data
             for y_name, y_data in y_data.items():
                 self.data[scan_name]["y"].append(y_data)
-            filename = self.timestamp + "_results.txt"
+            filename = self.timestamp + "_results_" + scan_name + ".txt"
             with open(filename, "w") as results_file:
                 self.write_line(results_file, str(self.data[scan_name]))
             print("Results written to " + os.path.join(self.dir, filename))
@@ -371,6 +392,47 @@ class PulseSequence:
                 self.logger.close_rpc()
             except:
                 pass
+
+    def perform_state_readout(self, result_data, y_data):
+        # Takes the data points contained in result_data and appends them
+        # to the accumulated data stored in y_data, taking into account the
+        # setting of the StateReadout.readout_mode parameter. 
+        def ensure_curve_exists(y_data, curve_name):
+            if not curve_name in y_data:
+                y_data[curve_name] = np.array([], dtype=float)
+        readout_mode = self.parameter_dict["StateReadout.readout_mode"]
+        if readout_mode in ["pmt", "pmtMLE", "pmt_parity", "pmt_states"]:
+            # Curves are named num_dark:1, num_dark:2, ..., num_dark:self.num_ions
+            for num_dark in range(1, self.num_ions + 1):
+                curve_name = "num_dark:" + str(num_dark)
+                ensure_curve_exists(y_data, curve_name)
+                y_value = np.sum([result_value for result_name, result_value in result_data.items() if result_name.count('D') == num_dark])
+                y_data[curve_name] = np.append(y_data[curve_name], y_value)
+            if readout_mode == "pmt_parity":
+                # TODO: Add parity curve (pmt_parity is not currently implemented)
+                pass
+            elif readout_mode == "pmt_states":
+                # TODO: Add states (pmt_states is not currently implemented)
+                pass
+        elif readout_mode in ["camera"]:
+            # Curves are named dark_ion:0, dark_ion:1, ...
+            for ion_idx in range(self.num_ions):
+                curve_name = "dark_ion:" + str(ion_idx)
+                ensure_curve_exists(y_data, curve_name)
+                y_value = np.sum([result_value for result_name, result_value in result_data.items() if result_name[ion_idx] == 'D'])
+                y_data[curve_name] = np.append(y_data[curve_name], y_value)
+        elif readout_mode in ["camera_states", "camera_parity"]:
+            # Curves are named state:SS, state:SD, etc.
+            for result_name, result_value in result_data.items():
+                curve_name = "state:" + str(result_name)
+                ensure_curve_exists(y_data, curve_name)
+                y_data[curve_name] = np.append(y_data[curve_name], result_value)
+            if readout_mode == "camera_parity":
+                # Add parity curve
+                curve_name = "parity"
+                ensure_curve_exists(y_data, curve_name)
+                y_value = np.sum([y_value * (-1)**curve_name.count('D') for curve_name, y_value in result_data.items()])
+                y_data[curve_name] = np.append(y_data[curve_name], y_value)
 
     def make_human_readable_pulses(self):
         # Converts self.simulated_pulses into the "human readable" format expected
@@ -442,7 +504,7 @@ class PulseSequence:
                                     tls_mode="off")
         sd_tracker = global_cxn.sd_tracker_global
 
-        current_line_center = float(unitless(sd_tracker.get_current_center_local(dt_config.client_name)))
+        self.current_line_center = float(unitless(sd_tracker.get_current_center(dt_config.client_name)))
         current_lines = sd_tracker.get_current_lines(dt_config.client_name)
         _list = [0.] * 10
         for carrier, frequency in current_lines:
@@ -450,7 +512,7 @@ class PulseSequence:
             for i in range(10):
                 if carrier == self.carrier_names[i]:
                     # for simulation, express carrier frequencies relative to line center
-                    _list[i] = abs_freq - current_line_center
+                    _list[i] = abs_freq - self.current_line_center
                     break
         self.carrier_values = _list
 
@@ -531,9 +593,9 @@ class PulseSequence:
         values = (std * np.random.randn(n) + mean).tolist()
         for i in range(len(values)):
             # make sure the values are between min and max
-            if min:
+            if min is not None:
                 values[i] = max(min, amps[i])
-            if max:
+            if max is not None:
                 values[i] = min(max, amps[i])
         return values
 
@@ -651,7 +713,6 @@ class PulseSequence:
 
     def calc_frequency(self, line, detuning=0.,
                     sideband="", order=0., dds="", bound_param=""):
-        relative_display = self.Display_relative_frequencies
         freq = detuning
         abs_freq = 0.
         line_set = False
@@ -667,6 +728,11 @@ class PulseSequence:
             if line_set and sideband_set:
                 abs_freq = freq
                 break
+
+        # Plot absolute frequencies for frequency scans.
+        if self.sequence_name in self.frequency_scan_sequence_names:
+            self.current_x_value = abs_freq + self.current_line_center
+
         return freq
 
     def get_variable_parameter(self, name):
