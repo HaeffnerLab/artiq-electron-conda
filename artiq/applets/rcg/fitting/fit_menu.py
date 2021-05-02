@@ -159,9 +159,10 @@ class fitMenu(QtWidgets.QWidget):
                 params[self.args[i]].vary = False
         try:
             x, y = self.data_item.getData()
-            end = np.isnan(y).argmax()
-            y = y[:end]
-            x = x[:end]
+            if np.isnan(y).any():
+                end = np.isnan(y).argmax()
+                y = y[:end]
+                x = x[:end]
             result = fitmodel.fit(y, params, x=x)
         except Exception as e:
             print(e)
@@ -212,14 +213,13 @@ class fitMenu(QtWidgets.QWidget):
         return qpixmap
 
     def on_save_plot_button_released(self):
-        if self.plot_item is None:
-            return
-        xfit = self.plot_item.x
-        yfit = self.plot_item.y
         xdata = self.data_item.getData()[0]
         ydata = self.data_item.getData()[1]
         fig, ax = plt.subplots(figsize=(10,5))
-        ax.plot([x * 1e6 for x in xfit], yfit, color="k")
+        if self.plot_item is not None:
+            xfit = self.plot_item.x
+            yfit = self.plot_item.y
+            ax.plot([x * 1e6 for x in xfit], yfit, color="k")
         ax.plot([x * 1e6 for x in xdata], ydata, marker="o", lw=0, ms=4, color="C0")
         ax.set_xlabel("Time [us]", fontsize=20)
         ax.tick_params(width=0)
@@ -233,11 +233,11 @@ class fitMenu(QtWidgets.QWidget):
             params = "\n["
             for param in self.params:
                 params += "{:.3g}, ".format(param)
-            params = params.rstrip(",") 
+            params = params.rstrip(",")
             params += "]"
         plt.title(r"${}$".format(self.Tex) + params)
         plt.tight_layout()
         name = QtWidgets.QFileDialog.getSaveFileName(self, "Save File", "/home/lattice/Desktop", filter=".pdf")
         plt.savefig("".join(name))
-        
-    
+
+
