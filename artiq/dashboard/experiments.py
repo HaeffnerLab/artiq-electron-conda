@@ -6,6 +6,7 @@ from functools import partial
 from collections import OrderedDict
 import imp
 import importlib
+import sys
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 import h5py
@@ -381,6 +382,15 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         self.layout.addWidget(submit, 1, 4, 2, 1)
         submit.clicked.connect(self.submit_clicked)
 
+        simulate = QtWidgets.QPushButton("Simulate")
+        simulate.setIcon(QtWidgets.QApplication.style().standardIcon(
+                QtWidgets.QStyle.SP_ComputerIcon))
+        simulate.setToolTip("Simulate the experiment")
+        simulate.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
+                             QtWidgets.QSizePolicy.Expanding)        
+        self.layout.addWidget(simulate, 3, 4, 1, 1)
+        simulate.clicked.connect(self.simulate_clicked)
+
         reqterm = QtWidgets.QPushButton("Terminate instances")
         reqterm.setIcon(QtWidgets.QApplication.style().standardIcon(
                 QtWidgets.QStyle.SP_DialogCancelButton))
@@ -388,7 +398,7 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
         reqterm.setShortcut("CTRL+BACKSPACE")
         reqterm.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
                               QtWidgets.QSizePolicy.Expanding)
-        self.layout.addWidget(reqterm, 3, 4)
+        self.layout.addWidget(reqterm, 4, 4)
         reqterm.clicked.connect(self.reqterm_clicked)
 
         self.hdf5_load_directory = os.path.expanduser("~")
@@ -457,6 +467,39 @@ class _ExperimentDock(QtWidgets.QMdiSubWindow):
             # from repository/explist
             logger.error("Failed to submit '%s'",
                          self.expurl, exc_info=True)
+
+    def simulate_clicked(self):
+        try:
+            logger.info("Running simulate for experiment: '%s'", self.expurl)
+
+            # resolve the expurl
+            file_path, class_, _ = self.manager.resolve_expurl(self.expurl)
+
+            # get the submission arguments (scan ranges, etc.)
+            arguments = self.manager.get_submission_arguments(self.expurl)
+            argument_values = dict()
+            for name, argument in arguments.items():
+                entry_cls = procdesc_to_entry(argument["desc"])
+                argument_values[name] = entry_cls.state_to_value(argument["state"])
+
+            # run the simulation
+            # for development convenience, always reload the latest simulated_pulse_sequence.py
+            sim_mod_name = "simulated_pulse_sequence"
+            if sim_mod_name in sys.modules:
+                importlib.reload(sys.modules[sim_mod_name])
+
+            from multiprocessing import Process, Pool
+            import simulated_pulse_sequence
+            if not self.manager.simulation_process_pool:
+                self.manager.simulation_process_pool = Pool(processes=1)
+            self.manager.simulation_process_pool.apply_async(simulated_pulse_sequence.run_simulation, (file_path, class_, argument_values))
+
+        except:
+            # May happen when experiment has been removed
+            # from repository/explist
+            logger.error("Failed to simulate '%s'",
+                         self.expurl, exc_info=True)
+
 
     def reqterm_clicked(self):
         try:
@@ -578,6 +621,8 @@ class ExperimentManager:
         self.main_window = main_window
         self.schedule_ctl = schedule_ctl
         self.experiment_db_ctl = experiment_db_ctl
+        
+        self.simulation_process_pool = None
 
         self.dock_states = dict()
         self.submission_scheduling = dict()
