@@ -1165,7 +1165,7 @@ class PulseSequence(EnvExperiment):
             dataset[i] = parity
             self.save_and_send_to_rcg(x, dataset[:i + 1], "parity", seq_name, is_multi, self.range_guess[seq_name])
 
-    def output_images_to_file(self, images):
+    def output_images_to_file(self, images, seq_name, i):
         image_region = [int(self.p.IonsOnCamera.horizontal_bin),
                         int(self.p.IonsOnCamera.vertical_bin),
                         int(self.p.IonsOnCamera.horizontal_min),
@@ -1202,7 +1202,7 @@ class PulseSequence(EnvExperiment):
             raise Exception("Camera acquisition timed out")
 
         # Uncomment this line to write all of the camera images to an .h5 file
-        # self.output_images_to_file(images)
+        # self.output_images_to_file(images, seq_name, i)
 
         self.camera.abort_acquisition()
         ion_state, camera_readout, confidences = readouts.camera_ion_probabilities(images,
