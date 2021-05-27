@@ -470,9 +470,10 @@ class PulseSequence(EnvExperiment):
         for cpld in self.cpld_list:
             cpld.init()
         for device in self.dds_device_list:
-            device.init()
+            # device.init()
             device.sw.off()
-            device.set_phase_mode(PHASE_MODE_TRACKING)
+            # device.set_phase_mode(PHASE_MODE_CONTINUOUS)
+            # device.set_phase_mode(PHASE_MODE_TRACKING)
 
     def make_random_list(self, n, mean, std, min=None, max=None) -> TList(TFloat):
         #
@@ -898,10 +899,13 @@ class PulseSequence(EnvExperiment):
     def line_trigger(self, offset):
         # Phase lock to mains
         self.core.reset()
-        self.camera_ttl.off()
+        # self.camera_ttl.off()
         trigger_time = -1
 
+        # delay(1*ms)
+        # t0 = 0
         while True:
+            # t0 = now_mu()
             with parallel:
                 t_gate = self.linetrigger_ttl.gate_rising(1000*us)
                 trigger_time = self.linetrigger_ttl.timestamp_mu(t_gate)
@@ -909,6 +913,7 @@ class PulseSequence(EnvExperiment):
                 delay(10*us)
                 continue
             break
+        
         at_mu(trigger_time + offset)
 
     @kernel
@@ -1001,21 +1006,24 @@ class PulseSequence(EnvExperiment):
                 with parallel:
                     self.dds_397.sw.on()
                     self.dds_866.sw.on()
-                self.core.wait_until_mu(now_mu())
+                # at_mu(now_mu())
+                # self.core.wait_until_mu(now_mu())
                 delay(10*us)
 
             pulse_sequence_handle = self.core_dma.get_handle(trace_name)
             self.core.break_realtime()
 
             for j in range(reps):
-                # Line trigger, if necessary.
+                # # Line trigger, if necessary.
                 if linetrigger:
                     self.line_trigger(linetrigger_offset)
                 else:
                     self.core.break_realtime()
 
+                # print("real now: ", now_mu())
                 # This executes the full pre-recorded pulse sequence.
                 self.core_dma.playback_handle(pulse_sequence_handle)
+                
 
                 # Readout.
                 if not use_camera:
@@ -1349,11 +1357,12 @@ class PulseSequence(EnvExperiment):
             cpld.init()
         self.core.break_realtime()
         for i in range(len(dds_list)):
-            try:
-                dds_list[i].init()
-            except RTIOUnderflow:
-                self.core.break_realtime()
-                dds_list[i].init()
+            self.core.break_realtime()
+            # try:
+            #     dds_list[i].init()
+            # except RTIOUnderflow:
+            #     self.core.break_realtime()
+            #     dds_list[i].init()
             dds_list[i].set(freq_list[i], amplitude=amp_list[i])
             dds_list[i].set_att(att_list[i]*dB)
             if state_list[i]:
