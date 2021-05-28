@@ -9,7 +9,7 @@ from matplotlib.backends.backend_qt5agg import (NavigationToolbar2QT,
 from matplotlib.figure import Figure
 from matplotlib.cm import get_cmap
 from matplotlib import colors
-from artiq.protocols.pc_rpc import Server, Client
+from sipyco.pc_rpc import Server, Client
 from artiq.readout_analysis.ion_state_detector import ion_state_detector
 from artiq.dashboard.parameter_editor import ParameterEditorDock
 from contextlib import suppress

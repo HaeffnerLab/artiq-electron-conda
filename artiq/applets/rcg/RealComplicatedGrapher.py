@@ -15,7 +15,7 @@ import artiq.applets.rcg.RealComplicatedGrapherConfig as conf
 from artiq.applets.rcg.tree_item import treeItem
 from artiq.applets.rcg.parameter_view import parameterView
 from artiq.gui.tools import QDockWidgetCloseDetect
-from artiq.protocols.pc_rpc import Server
+from sipyco.pc_rpc import Server
 from functools import partial
 
 

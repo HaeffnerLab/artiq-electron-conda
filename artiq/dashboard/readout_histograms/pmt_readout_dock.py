@@ -6,7 +6,7 @@ from matplotlib.backends.backend_qt5agg import (NavigationToolbar2QT,
                                                 FigureCanvasQTAgg)
 from matplotlib.figure import Figure
 from twisted.internet.defer import inlineCallbacks
-from artiq.protocols.pc_rpc import Server
+from sipyco.pc_rpc import Server
 import labrad
 
 

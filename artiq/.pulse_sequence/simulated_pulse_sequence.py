@@ -1,6 +1,6 @@
 from artiq.dashboard.drift_tracker import client_config as dt_config
 from artiq.language import core as core_language
-from artiq.protocols.pc_rpc import Client
+from sipyco.pc_rpc import Client
 from datetime import datetime
 from easydict import EasyDict as edict
 import importlib

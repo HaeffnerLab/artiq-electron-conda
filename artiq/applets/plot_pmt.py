@@ -6,7 +6,7 @@ import pyqtgraph
 from PyQt5 import QtCore
 
 from artiq.applets.simple import TitleApplet
-from artiq.protocols.pc_rpc import Client
+from sipyco.pc_rpc import Client
 
 
 class PMTPlot(pyqtgraph.PlotWidget):

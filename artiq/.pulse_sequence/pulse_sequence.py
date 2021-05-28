@@ -12,7 +12,7 @@ from artiq.language.core import TerminationRequested
 from artiq.experiment import *
 from artiq.coredevice.ad9910 import PHASE_MODE_ABSOLUTE, PHASE_MODE_CONTINUOUS, PHASE_MODE_TRACKING
 from artiq.coredevice.ad9910 import RAM_MODE_BIDIR_RAMP, RAM_MODE_CONT_BIDIR_RAMP, RAM_MODE_CONT_RAMPUP, RAM_MODE_RAMPUP, RAM_DEST_ASF, RAM_DEST_FTW, RAM_MODE_DIRECTSWITCH
-from artiq.protocols.pc_rpc import Client
+from sipyco.pc_rpc import Client
 from artiq.dashboard.drift_tracker import client_config as dt_config
 from artiq.readout_analysis import readouts
 from easydict import EasyDict as edict

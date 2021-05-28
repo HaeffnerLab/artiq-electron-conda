@@ -1,5 +1,5 @@
 from artiq.dashboard.pulse_sequence.sequence_analyzer import SequenceAnalyzer
-from artiq.protocols.pc_rpc import Server
+from sipyco.pc_rpc import Server
 import asyncio
 import logging
 import matplotlib

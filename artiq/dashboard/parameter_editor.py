@@ -8,7 +8,7 @@ from ast import literal_eval
 from decimal import Decimal
 import numpy as np
 from PyQt5 import QtCore, QtWidgets, QtGui
-from artiq.protocols.pc_rpc import Client
+from sipyco.pc_rpc import Client
 from artiq.gui.tools import LayoutWidget
 import logging
 from twisted.internet.defer import inlineCallbacks

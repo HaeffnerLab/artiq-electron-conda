@@ -3,8 +3,8 @@ import os
 from labrad.units import WithUnit as U
 import logging
 from PyQt5 import QtCore, QtWidgets, QtGui
-from artiq.protocols.pc_rpc import Client
-from artiq.protocols import pyon
+from sipyco.pc_rpc import Client
+from sipyco import pyon
 from twisted.internet.defer import inlineCallbacks
 from runpy import run_path
 
