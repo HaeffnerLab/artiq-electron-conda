@@ -58,10 +58,10 @@ class CommMgmt:
         self.host = host
         self.port = port
 
-    def open(self):
+    def open(self, **kwargs):
         if hasattr(self, "socket"):
             return
-        self.socket = initialize_connection(self.host, self.port)
+        self.socket = initialize_connection(self.host, self.port, **kwargs)
         self.socket.sendall(b"ARTIQ management\n")
         endian = self._read(1)
         if endian == b"e":
