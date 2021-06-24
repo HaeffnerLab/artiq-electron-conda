@@ -71,16 +71,20 @@ def short_format(v):
 
 
 def file_import(filename, prefix="file_import_"):
-    filename = pathlib.Path(filename)
-    modname = prefix + filename.stem
+    modname = filename
+    i = modname.rfind("/")
+    if i > 0:
+        modname = modname[i+1:]
+    i = modname.find(".")
+    if i > 0:
+        modname = modname[:i]
+    modname = prefix + modname
 
-    path = str(filename.resolve().parent)
+    path = os.path.dirname(os.path.realpath(filename))
     sys.path.insert(0, path)
-
     try:
-        spec = importlib.util.spec_from_file_location(modname, filename)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        loader = importlib.machinery.SourceFileLoader(modname, filename)
+        module = loader.load_module()
     finally:
         sys.path.remove(path)
 
