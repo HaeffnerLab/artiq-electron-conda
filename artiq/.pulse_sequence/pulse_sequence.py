@@ -899,21 +899,16 @@ class PulseSequence(EnvExperiment):
     def line_trigger(self, offset):
         # Phase lock to mains
         self.core.reset()
-        # self.camera_ttl.off()
         trigger_time = -1
-
-        # delay(1*ms)
-        # t0 = 0
         while True:
             # t0 = now_mu()
             with parallel:
-                t_gate = self.linetrigger_ttl.gate_rising(1000*us)
+                t_gate = self.linetrigger_ttl.gate_rising(2*ms)
                 trigger_time = self.linetrigger_ttl.timestamp_mu(t_gate)
             if trigger_time == -1:
-                delay(10*us)
+                delay(6*us)
                 continue
             break
-        
         at_mu(trigger_time + offset)
 
     @kernel
@@ -935,35 +930,6 @@ class PulseSequence(EnvExperiment):
             self.dds_854.sw.on()
             self.dds_866.sw.on()
             self.dds_397.sw.on()
-        # if is_ndim:
-        #     for i in list(range(len(ndim_iterable)))[start1:]:
-        #         if self.scheduler.check_pause():
-        #             break
-        #         if i == start1:
-        #             Start2 = start2
-        #         else:
-        #             Start2 = 0
-        #         for j in list(range(len(ndim_iterable[i])))[Start2:]:
-        #             if self.scheduler.check_pause():
-        #                 self.set_start_point(1, i)
-        #                 self.set_start_point(2, j)
-        #                 break
-        #             for k in range(reps):
-        #                 if linetrigger:
-        #                     self.line_trigger(linetrigger_offset)
-        #                 sequence()
-        #                 if not use_camera:
-        #                     pmt_count = self.pmt_readout(readout_duration)
-        #                     self.record_result(seq_name + "-raw_data",
-        #                         ((i, i + 1), (j, j + 1), (k, k + 1)), pmt_count)
-        #                 else:
-        #                     pass
-        #         if (i + 1) % 5 == 0:
-        #             self.update_carriers()
-        #             pass
-        #     else:
-        #         self.set_run_looper_off()
-        #     return
 
         i = 0
         for i in list(range(len(scan_iterable)))[start1:]:
@@ -977,53 +943,79 @@ class PulseSequence(EnvExperiment):
                     self.variable_parameter_names[l], scan_iterable[i])
             set_subsequence()
 
-            # Record the pulse sequence. This doesn't actually execute it, just
-            # programs it into memory for later execution.
-            trace_name = "PulseSequence"
-            with self.core_dma.record(trace_name):
-                delay(20*us)
-                self.dds_397.sw.off()
-                delay(20*us)
-                with parallel:
-                    self.dds_854.sw.off()
-                    self.dds_866.sw.off()
-                sequence()
-                delay(5*us)
-                self.dds_397.set(self.StateReadout_frequency_397,
-                                amplitude=self.StateReadout_amplitude_397)
-                delay(5*us)
-                self.dds_397.set_att(self.StateReadout_att_397)
-                delay(5*us)
-                self.dds_866.set(self.StateReadout_frequency_866,
-                                amplitude=self.StateReadout_amplitude_866)
-                delay(5*us)
-                self.dds_866.set_att(self.StateReadout_att_866)
-                delay(5*us)
-                self.dds_854.set(self.RepumpD_5_2_repump_d_frequency_854,
-                         amplitude=self.RepumpD_5_2_repump_d_amplitude_854)
-                delay(10*us)
-                self.dds_854.set_att(self.RepumpD_5_2_repump_d_att_854)
-                with parallel:
-                    self.dds_397.sw.on()
-                    self.dds_866.sw.on()
-                # at_mu(now_mu())
-                # self.core.wait_until_mu(now_mu())
-                delay(10*us)
+            # DMA option
+            # # Record the pulse sequence. This doesn't actually execute it, just
+            # # programs it into memory for later execution.
+            # trace_name = "PulseSequence"
+            # with self.core_dma.record(trace_name):
+            #     delay(20*us)
+            #     self.dds_397.sw.off()
+            #     delay(20*us)
+            #     with parallel:
+            #         self.dds_854.sw.off()
+            #         self.dds_866.sw.off()
+            #     sequence()
+            #     delay(5*us)
+            #     self.dds_397.set(self.StateReadout_frequency_397,
+            #                     amplitude=self.StateReadout_amplitude_397)
+            #     delay(5*us)
+            #     self.dds_397.set_att(self.StateReadout_att_397)
+            #     delay(5*us)
+            #     self.dds_866.set(self.StateReadout_frequency_866,
+            #                     amplitude=self.StateReadout_amplitude_866)
+            #     delay(5*us)
+            #     self.dds_866.set_att(self.StateReadout_att_866)
+            #     delay(5*us)
+            #     self.dds_854.set(self.RepumpD_5_2_repump_d_frequency_854,
+            #              amplitude=self.RepumpD_5_2_repump_d_amplitude_854)
+            #     delay(10*us)
+            #     self.dds_854.set_att(self.RepumpD_5_2_repump_d_att_854)
+            #     with parallel:
+            #         self.dds_397.sw.on()
+            #         self.dds_866.sw.on()
+            #     # at_mu(now_mu())
+            #     # self.core.wait_until_mu(now_mu())
+            #     delay(10*us)
 
-            pulse_sequence_handle = self.core_dma.get_handle(trace_name)
-            self.core.break_realtime()
+            # pulse_sequence_handle = self.core_dma.get_handle(trace_name)
+            # self.core.break_realtime()
 
+            # for j in range(reps):
+            #     # # Line trigger, if desired.
+            #     if linetrigger:
+            #         self.line_trigger(linetrigger_offset)
+            #     else:
+            #         self.core.break_realtime()
+
+            #     # print("real now: ", now_mu())
+            #     # This executes the full pre-recorded pulse sequence.
+            #     self.core_dma.playback_handle(pulse_sequence_handle)
+            
             for j in range(reps):
-                # # Line trigger, if necessary.
+                # # Line trigger, if desired.
                 if linetrigger:
                     self.line_trigger(linetrigger_offset)
                 else:
                     self.core.break_realtime()
 
-                # print("real now: ", now_mu())
-                # This executes the full pre-recorded pulse sequence.
-                self.core_dma.playback_handle(pulse_sequence_handle)
-                
+                delay(15*ms)  # generate plenty of slack
+                self.dds_397.sw.off()
+                with parallel:
+                    self.dds_854.sw.off()
+                    self.dds_866.sw.off()
+                sequence()
+                self.dds_397.set(self.StateReadout_frequency_397,
+                                amplitude=self.StateReadout_amplitude_397)
+                self.dds_397.set_att(self.StateReadout_att_397)
+                self.dds_866.set(self.StateReadout_frequency_866,
+                                amplitude=self.StateReadout_amplitude_866)
+                self.dds_866.set_att(self.StateReadout_att_866)
+                self.dds_854.set(self.RepumpD_5_2_repump_d_frequency_854,
+                            amplitude=self.RepumpD_5_2_repump_d_amplitude_854)
+                self.dds_854.set_att(self.RepumpD_5_2_repump_d_att_854)
+                with parallel:
+                    self.dds_397.sw.on()
+                    self.dds_866.sw.on()
 
                 # Readout.
                 if not use_camera:
@@ -1046,10 +1038,9 @@ class PulseSequence(EnvExperiment):
                 self.core.wait_until_mu(now_mu())
                 delay(5*us)
                 self.dds_854.sw.on()
-                delay(300*us)
 
             # Pulse sequence repetitions are complete, so free up the DMA memory.
-            self.core_dma.erase(trace_name)
+            # self.core_dma.erase(trace_name)
 
             # Process readout data now that all repetitions of the pulse sequence
             # have been completed.
@@ -1358,11 +1349,11 @@ class PulseSequence(EnvExperiment):
         self.core.break_realtime()
         for i in range(len(dds_list)):
             self.core.break_realtime()
-            # try:
-            #     dds_list[i].init()
-            # except RTIOUnderflow:
-            #     self.core.break_realtime()
-            #     dds_list[i].init()
+            try:
+                dds_list[i].init()
+            except RTIOUnderflow:
+                self.core.break_realtime()
+                dds_list[i].init()
             dds_list[i].set(freq_list[i], amplitude=amp_list[i])
             dds_list[i].set_att(att_list[i]*dB)
             if state_list[i]:

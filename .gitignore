@@ -40,3 +40,4 @@ __pycache__/
 
 lettice
 logo_ver.svg
+artiq/board-support/*
