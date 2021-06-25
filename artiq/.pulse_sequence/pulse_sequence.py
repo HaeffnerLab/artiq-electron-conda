@@ -1162,8 +1162,8 @@ class PulseSequence(EnvExperiment):
                 parity += dataset[i]
             else:
                 parity -= dataset[i]
-            # For some reason, when using master scans, xdata for consecutive runs is appended.
-            # Need to figure out why, but for now this will do.
+            # For some reason, when using master scans, xdata for consecutive runs is
+            # appended. Need to figure out why, but for now this will do.
             if len(x) != len(dataset[:i + 1]):
                 x = x[-len(dataset[:i + 1]):]
             self.save_and_send_to_rcg(
@@ -1318,9 +1318,15 @@ class PulseSequence(EnvExperiment):
                 title = self.timestamp[seq_name] + " - " + name + " ({})".format(seq_name)
             else:
                 title = self.timestamp[seq_name] + " - " + name
-            self.rcg.plot(x, y, tab_name=self.rcg_tabs[seq_name][self.selected_scan[seq_name]],
-                          plot_title=title, append=True,
-                          file_=os.path.join(os.getcwd(), self.filename[seq_name]), range_guess=range_guess)
+            self.rcg.plot(
+                        x, y, 
+                        tab_name=self.rcg_tabs[seq_name][self.selected_scan[seq_name]],
+                        plot_title=title, 
+                        append=True,
+                        file_=os.path.join(os.getcwd(), 
+                        self.filename[seq_name]), 
+                        range_guess=range_guess
+                    )
         except:
             return
 
