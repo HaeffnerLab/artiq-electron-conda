@@ -943,7 +943,9 @@ class PulseSequence(EnvExperiment):
                     self.variable_parameter_names[l], scan_iterable[i])
             set_subsequence()
 
+
             # DMA option
+            #-------------------------------------------------------------------------------
             # # Record the pulse sequence. This doesn't actually execute it, just
             # # programs it into memory for later execution.
             # trace_name = "PulseSequence"
@@ -990,7 +992,9 @@ class PulseSequence(EnvExperiment):
             #     # print("real now: ", now_mu())
             #     # This executes the full pre-recorded pulse sequence.
             #     self.core_dma.playback_handle(pulse_sequence_handle)
+            #-------------------------------------------------------------------------------
             
+
             for j in range(reps):
                 # # Line trigger, if desired.
                 if linetrigger:
@@ -1039,8 +1043,11 @@ class PulseSequence(EnvExperiment):
                 delay(5*us)
                 self.dds_854.sw.on()
 
+            # DMA option
+            #-------------------------------------------------------------------------------
             # Pulse sequence repetitions are complete, so free up the DMA memory.
             # self.core_dma.erase(trace_name)
+            #-------------------------------------------------------------------------------
 
             # Process readout data now that all repetitions of the pulse sequence
             # have been completed.
@@ -1124,7 +1131,7 @@ class PulseSequence(EnvExperiment):
         name = seq_name + "-dark_ions:{}"
         idxs = [0]
         scan_name = self.selected_scan_name.replace("_", ".", 1)
-        scanned_x = list(self.multi_scannables[seq_name][scan_name])#sorted(list(self.multi_scannables[seq_name][scan_name]))
+        scanned_x = list(self.multi_scannables[seq_name][scan_name])
         if isinstance(self.multi_scannables[seq_name][scan_name], scan.NoScan):
             scanned_x = np.linspace(0, len(scanned_x), len(scanned_x))
         if self.abs_freqs and not self.p.Display.relative_frequencies:
@@ -1157,12 +1164,23 @@ class PulseSequence(EnvExperiment):
             # Need to figure out why, but for now this will do.
             if len(x) != len(dataset[:i + 1]):
                 x = x[-len(dataset[:i + 1]):]
-            self.save_and_send_to_rcg(x, dataset[:i + 1],
-                                      name.split("-")[-1].format(k), seq_name, is_multi, self.range_guess[seq_name])
+            self.save_and_send_to_rcg(
+                                        x, dataset[:i + 1],
+                                        name.split("-")[-1].format(k), 
+                                        seq_name, is_multi, 
+                                        self.range_guess[seq_name]
+                                    )
         if with_parity:
             dataset = getattr(self, seq_name + "-parity")
             dataset[i] = parity
-            self.save_and_send_to_rcg(x, dataset[:i + 1], "parity", seq_name, is_multi, self.range_guess[seq_name])
+            self.save_and_send_to_rcg(
+                                        x, 
+                                        dataset[:i + 1], 
+                                        "parity", 
+                                        seq_name, 
+                                        is_multi, 
+                                        self.range_guess[seq_name]
+                                    )
 
     def output_images_to_file(self, images, seq_name, i):
         image_region = [int(self.p.IonsOnCamera.horizontal_bin),
@@ -1208,7 +1226,7 @@ class PulseSequence(EnvExperiment):
                                                         self.N, self.p.IonsOnCamera, readout_mode)
         self.average_confidences[i] = np.mean(confidences)
         scan_name = self.selected_scan_name.replace("_", ".", 1)
-        scanned_x = list(self.multi_scannables[seq_name][scan_name])#sorted(list(self.multi_scannables[seq_name][scan_name]))
+        scanned_x = list(self.multi_scannables[seq_name][scan_name])
         if isinstance(self.multi_scannables[seq_name][scan_name], scan.NoScan):
             scanned_x = np.linspace(0, len(scanned_x), len(scanned_x))
         if self.abs_freqs and not self.p.Display.relative_frequencies:
@@ -1223,28 +1241,38 @@ class PulseSequence(EnvExperiment):
         if readout_mode == "camera":
             name = seq_name + "-ion number:{}"
             for k in range(self.n_ions):
-                # For some reason, when using master scans, xdata for consecutive runs is appended.
-                # Need to figure out why, but for now this will do.
+                # For some reason, when using master scans, xdata for consecutive runs is 
+                # appended. Need to figure out why, but for now this will do.
                 dataset = getattr(self, name.format(k))
                 if len(x) != len(dataset[:i + 1]):
                     x = x[-len(dataset[:i + 1]):]
                 dataset[i] = ion_state[k]
-                self.save_and_send_to_rcg(x, dataset[:i + 1],
-                    name.split("-")[-1].format(k), seq_name, is_multi, self.range_guess[seq_name])
+                self.save_and_send_to_rcg(
+                                            x, 
+                                            dataset[:i + 1],
+                                            name.split("-")[-1].format(k), 
+                                            seq_name, is_multi, 
+                                            self.range_guess[seq_name]
+                                        )
         elif readout_mode == "camera_states" or readout_mode == "camera_parity":
             name = seq_name + "-{}"
             for k, state in enumerate(self.camera_states_repr(self.n_ions)):
-                # For some reason, when using master scans, xdata for consecutive runs is appended.
-                # Need to figure out why, but for now this will do.
+                # For some reason, when using master scans, xdata for consecutive runs is 
+                # appended. Need to figure out why, but for now this will do.
                 dataset = getattr(self, name.format(self.camera_string_states[k]))
                 if len(x) != len(dataset[:i + 1]):
                     x = x[-len(dataset[:i + 1]):]
                 dataset[i] = ion_state[k]
-                self.save_and_send_to_rcg(x, dataset[:i + 1],
-                    name.split("-")[-1].format(state), seq_name, is_multi, self.range_guess[seq_name])
+                self.save_and_send_to_rcg(
+                                            x, 
+                                            dataset[:i + 1],
+                                            name.split("-")[-1].format(state), 
+                                            seq_name, is_multi, 
+                                            self.range_guess[seq_name]
+                                        )
             if readout_mode == "camera_parity":
-                # For some reason, when using master scans, xdata for consecutive runs is appended.
-                # Need to figure out why, but for now this will do.
+                # For some reason, when using master scans, xdata for consecutive runs is 
+                # appended. Need to figure out why, but for now this will do.
                 dataset = getattr(self, name.format("parity"))
                 if len(x) != len(dataset[:i + 1]):
                     x = x[-len(dataset[:i + 1]):]
