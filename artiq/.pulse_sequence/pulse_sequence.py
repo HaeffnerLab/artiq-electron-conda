@@ -10,7 +10,6 @@ import logging
 from artiq.language import scan
 from artiq.language.core import TerminationRequested
 from artiq.experiment import *
-from artiq.coredevice.ad9910 import PHASE_MODE_ABSOLUTE, PHASE_MODE_CONTINUOUS, PHASE_MODE_TRACKING
 from artiq.coredevice.ad9910 import RAM_MODE_BIDIR_RAMP, RAM_MODE_CONT_BIDIR_RAMP, RAM_MODE_CONT_RAMPUP, RAM_MODE_RAMPUP, RAM_DEST_ASF, RAM_DEST_FTW, RAM_MODE_DIRECTSWITCH
 from sipyco.pc_rpc import Client
 from artiq.dashboard.drift_tracker import client_config as dt_config
@@ -214,7 +213,11 @@ class PulseSequence(EnvExperiment):
                 if not self.is_ndim:
                 # Currently not supporting any default plotting for (n>1)-dim scans
                     for i in range(self.n_ions):
-                        setattr(self, "{}-dark_ions:{}".format(seq_name, i), np.full(dims, np.nan))
+                        setattr(
+                                self, 
+                                "{}-dark_ions:{}".format(seq_name, i), 
+                                np.full(dims, np.nan)
+                            )
                     if self.rm == "pmt_parity":
                         setattr(self, seq_name + "-parity", np.full(dims, np.nan))
                     x_array = np.array(list(self.multi_scannables[seq_name][self.selected_scan[seq_name]]))
@@ -228,13 +231,21 @@ class PulseSequence(EnvExperiment):
                     # dims = [mul(*dims), len(dims)]
                 if self.rm != "pmtMLE":
                     dims.append(N)
-                    self.set_dataset("{}-raw_data".format(seq_name), np.full(dims, np.nan), broadcast=True)
+                    self.set_dataset(
+                                    "{}-raw_data".format(seq_name), 
+                                    np.full(dims, np.nan), 
+                                    broadcast=True
+                                )
                 else:
                     M = int(self.p.StateReadout.pmt_readout_duration // 1e-5)
                     dims.append(M)
                     dims.append(N)
                     self.set_dataset("mledata", np.full(M, np.nan), broadcast=True)
-                    self.set_dataset("{}-raw_data".format(seq_name), np.full(dims, np.nan), broadcast=True)
+                    self.set_dataset(
+                                    "{}-raw_data".format(seq_name), 
+                                    np.full(dims, np.nan), 
+                                    broadcast=True
+                                )
                 self.timestamp[seq_name] = None
 
         elif self.rm in ["camera", "camera_states", "camera_parity"]:
@@ -246,11 +257,19 @@ class PulseSequence(EnvExperiment):
                     self.average_confidences = np.full(dims, np.nan)
                     if self.rm == "camera":
                         for i in range(self.n_ions):
-                            setattr(self, "{}-ion number:{}".format(seq_name, i), np.full(dims, np.nan))
+                            setattr(
+                                    self, 
+                                    "{}-ion number:{}".format(seq_name, i), 
+                                    np.full(dims, np.nan)
+                                )
                     else:
                         self.camera_string_states = self.camera_states_repr(self.n_ions)
                         for state in self.camera_string_states:
-                            setattr(self, "{}-{}".format(seq_name, state), np.full(dims, np.nan))
+                            setattr(
+                                    self, 
+                                    "{}-{}".format(seq_name, state), 
+                                    np.full(dims, np.nan)
+                                )
                         if self.rm == "camera_parity":
                             setattr(self, "{}-parity".format(seq_name), np.full(dims, np.nan))
                     x_array = np.array(list(list(self.multi_scannables[seq_name].values())[0]))
@@ -260,8 +279,6 @@ class PulseSequence(EnvExperiment):
                     setattr(self, f, x_array)
                 else:
                     raise NotImplementedError("Ndim scans with camera not implemented yet")
-                    # self.x_label[seq_name] = [element[0] for element in self.scan_params[seq_name][0]]
-                    # dims = [mul(*dims), len(dims)]
                 self.timestamp[seq_name] = None
 
         # Setup for saving data
@@ -382,17 +399,12 @@ class PulseSequence(EnvExperiment):
                         self.parameter_values.append(param)
                         self.kernel_invariants.update({new_param_name})
                         setattr(self, new_param_name, param)
-                    # Clean this up later
-                    #if param_name in repump_dc_params:
-                    #    self.parameter_names.append(param_name)
-                    #    self.parameter_values.append(param)
-                    #    self.kernel_invariants.update({new_param_name})
-                    #    setattr(self, new_param_name, param)
+        
                 current_sequence = getattr(self, seq_name)
                 selected_scan = self.selected_scan[seq_name]
                 self.selected_scan_name = selected_scan.replace(".", "_")
                 if not self.is_ndim:
-                    scan_iterable = list(scan_dict[selected_scan])#sorted(list(scan_dict[selected_scan]))
+                    scan_iterable = list(scan_dict[selected_scan])
                     self.scan_iterable = scan_iterable
                     ndim_iterable = [[0]]
                 else:
@@ -417,9 +429,24 @@ class PulseSequence(EnvExperiment):
 
                 while self.run_looper:
                     try:
-                        self.looper(current_sequence, self.N, linetrigger, linetrigger_offset, scan_iterable,
-                                self.rm, readout_duration, seq_name, is_multi, self.n_ions, self.is_ndim, scan_names,
-                                ndim_iterable, self.start_point1, self.start_point2, self.use_camera, set_subsequence)
+                        self.looper(
+                                    current_sequence, 
+                                    self.N, 
+                                    linetrigger, 
+                                    linetrigger_offset, 
+                                    scan_iterable,
+                                    self.rm, 
+                                    readout_duration, 
+                                    seq_name, is_multi, 
+                                    self.n_ions, 
+                                    self.is_ndim, 
+                                    scan_names,
+                                    ndim_iterable, 
+                                    self.start_point1, 
+                                    self.start_point2, 
+                                    self.use_camera, 
+                                    set_subsequence
+                                )
                     except RTIOUnderflow:
                         logger.error("RTIOUnderflow", exc_info=True)
                         continue
@@ -470,10 +497,7 @@ class PulseSequence(EnvExperiment):
         for cpld in self.cpld_list:
             cpld.init()
         for device in self.dds_device_list:
-            # device.init()
             device.sw.off()
-            # device.set_phase_mode(PHASE_MODE_CONTINUOUS)
-            # device.set_phase_mode(PHASE_MODE_TRACKING)
 
     def make_random_list(self, n, mean, std, min=None, max=None) -> TList(TFloat):
         #
