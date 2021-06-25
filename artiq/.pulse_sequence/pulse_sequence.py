@@ -1422,7 +1422,9 @@ class PulseSequence(EnvExperiment):
             except:
                 x_label = "x"
             if self.abs_freqs and not self.p.Display.relative_frequencies:
-                data = np.array([i * 1e-6 for i in self.get_dataset(seq_name + "-raw_x_data")])
+                data = np.array(
+                            [i * 1e-6 for i in self.get_dataset(seq_name + "-raw_x_data")]
+                        )
             else:
                 data = getattr(self, seq_name + "-" + x_label if is_multi else x_label)
             dataset = self.x_label[name][0]
@@ -1658,8 +1660,11 @@ class PulseSequence(EnvExperiment):
                                             unit=scan_param[-1])
                 self.multi_scannables[seq_name].update(
                     {scan_param[0]: self.get_argument(scan_name, scannable, group=seq_name)})
-            self.selected_scan[seq_name] = self.get_argument(seq_name + "-Scan_Selection",
-                                                EnumerationValue(scan_names), group=seq_name)
+            self.selected_scan[seq_name] = self.get_argument(
+                                                    seq_name + "-Scan_Selection",
+                                                    EnumerationValue(scan_names), 
+                                                    group=seq_name
+                                                )
 
     def run_in_build(self):
         pass
