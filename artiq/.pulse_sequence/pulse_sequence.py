@@ -897,28 +897,6 @@ class PulseSequence(EnvExperiment):
             ramp_dds2.cpld.set_profile(0)
             ramp_dds2.cpld.io_update.pulse_mu(8)
 
-    # @kernel
-    # def pmt_readout(self, duration) -> TInt32:
-    #     delay(1*ms)
-    #     self.dds_397.set_att(self.StateReadout_att_397)
-    #     self.dds_397.set(self.StateReadout_frequency_397,
-    #                         amplitude=self.StateReadout_amplitude_397)
-    #     self.dds_866.set(self.StateReadout_frequency_866,
-    #                         amplitude=self.StateReadout_amplitude_866)
-    #     self.dds_866.set_att(self.StateReadout_att_866)
-    #     self.dds_397.sw.on()
-    #     self.dds_866.sw.on()
-    #     self.core.break_realtime()
-    #     count = self.pmt.count(self.pmt.gate_rising(duration))
-    #     # delay(duration)
-    #     self.core.wait_until_mu(now_mu())
-    #     delay(10*us)
-    #     self.dds_854.sw.on()
-    #     # self.dds_397.sw.off()
-    #     # delay(self.StateReadout_doppler_cooling_repump_additional)
-    #     # self.dds_866.sw.off()
-    #     return count
-
     @kernel
     def line_trigger(self, offset):
         # Phase lock to mains
