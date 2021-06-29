@@ -10,7 +10,10 @@ import logging
 from artiq.language import scan
 from artiq.language.core import TerminationRequested
 from artiq.experiment import *
-from artiq.coredevice.ad9910 import RAM_MODE_BIDIR_RAMP, RAM_MODE_CONT_BIDIR_RAMP, RAM_MODE_CONT_RAMPUP, RAM_MODE_RAMPUP, RAM_DEST_ASF, RAM_DEST_FTW, RAM_MODE_DIRECTSWITCH
+from artiq.coredevice.ad9910 import (
+        RAM_MODE_BIDIR_RAMP, RAM_MODE_CONT_BIDIR_RAMP, RAM_MODE_CONT_RAMPUP, RAM_MODE_RAMPUP, 
+        RAM_DEST_ASF, RAM_DEST_FTW, RAM_MODE_DIRECTSWITCH
+    )
 from sipyco.pc_rpc import Client
 from artiq.dashboard.drift_tracker import client_config as dt_config
 from artiq.readout_analysis import readouts
@@ -64,12 +67,17 @@ class PulseSequence(EnvExperiment):
                 if len(scan_descr) == 4:
                     scannable = scan.Scannable(default=scan.RangeScan(*scan_descr[1:]))
                 elif len(scan_descr) == 5:
-                    scannable = scan.Scannable(default=scan.RangeScan(*scan_descr[1:-1]),
-                                               unit=scan_descr[-1])
-                self.master_scan_iterables.append(self.get_argument(
-                            scan_name, scannable, group="Master Scans"
-                        )
-                    )
+                    scannable = scan.Scannable(
+                                                default=scan.RangeScan(*scan_descr[1:-1]),
+                                                unit=scan_descr[-1]
+                                            )
+                self.master_scan_iterables.append(
+                                        self.get_argument(
+                                                    scan_name, 
+                                                    scannable, 
+                                                    group="Master Scans"
+                                                )
+                                            )
         self.run_in_build()
 
         # Load all AD9910 and AD9912 DDS channels specified in device_db
@@ -104,7 +112,7 @@ class PulseSequence(EnvExperiment):
         self.ramp_slope_duration = 0*us
         self.ramp_wait_duration = 0*us
         self.dds1_ramp_up_profile = 2
-        self.dds1_ramp_down_profile = 3 # must differ by exactly one binary digit from ramp-up
+        self.dds1_ramp_down_profile = 3  # must differ by exactly one binary digit from ramp-up
         self.dds2_ramp_up_profile = 4
         self.dds2_ramp_down_profile = 5  # must differ by exactly one binary digit from ramp-up
         self.noise_profile = 6
@@ -117,14 +125,14 @@ class PulseSequence(EnvExperiment):
         G = globals().copy()
         self.G = G
         cxn = labrad.connect()
-        self.global_cxn = labrad.connect(dt_config.global_address,
-                                         password=dt_config.global_password,
-                                         tls_mode="off")
+        self.global_cxn = labrad.connect(
+                                        dt_config.global_address,
+                                        password=dt_config.global_password,
+                                        tls_mode="off"
+                                    )
         self.sd_tracker = self.global_cxn.sd_tracker_global
         p = cxn.parametervault
         collections = p.get_collections()
-        # Takes over 1 second to do this. We should move away from using labrad units
-        # in registry. Would be nice if parametervault was not a labrad server.
         D = dict()
         for collection in collections:
             d = dict()
@@ -227,8 +235,6 @@ class PulseSequence(EnvExperiment):
                     setattr(self, f, x_array)
                 else:
                     raise NotImplementedError("Ndim scans with PMT not implemented yet")
-                    # self.x_label[seq_name] = [element[0] for element in self.scan_params[seq_name][0]]
-                    # dims = [mul(*dims), len(dims)]
                 if self.rm != "pmtMLE":
                     dims.append(N)
                     self.set_dataset(
@@ -283,8 +289,11 @@ class PulseSequence(EnvExperiment):
 
         # Setup for saving data
         self.filename = dict()
-        self.dir = os.path.join(os.path.expanduser("~"), "data",
-                                datetime.now().strftime("%Y-%m-%d"), type(self).__name__)
+        self.dir = os.path.join(
+                                os.path.expanduser("~"), 
+                                "data",
+                                datetime.now().strftime("%Y-%m-%d"), type(self).__name__
+                            )
         os.makedirs(self.dir, exist_ok=True)
         os.chdir(self.dir)
 
@@ -303,8 +312,7 @@ class PulseSequence(EnvExperiment):
         self.carrier_dict = {"S+1/2D-3/2": 0,
                              "S-1/2D-5/2": 1,
                              "S+1/2D-1/2": 2,
-                             "S-1/2D-3/2": 3,      # else:
-                    #     self.dds_sp_list.append(getattr(self, "dds_" + key))
+                             "S-1/2D-3/2": 3,      
                              "S+1/2D+1/2": 4,
                              "S-1/2D-1/2": 5,
                              "S+1/2D+3/2": 6,
@@ -477,10 +485,16 @@ class PulseSequence(EnvExperiment):
                 except KeyError:
                     continue
                 except:
-                    logger.error("run_after failed for seq_name: {}.".format(seq_name), exc_info=True)
+                    logger.error(
+                                "run_after failed for seq_name: {}.".format(seq_name), 
+                                exc_info=True
+                            )
                     continue
         self.set_dataset("raw_run_data", None, archive=False)
-        self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list, self.state_list, self.att_list)
+        self.reset_cw_settings(
+                                self.dds_list, self.freq_list, self.amp_list, 
+                                self.state_list, self.att_list
+                            )
         self.reset_camera_settings()
 
     def reset_camera_settings(self):
@@ -903,7 +917,6 @@ class PulseSequence(EnvExperiment):
         self.core.reset()
         trigger_time = -1
         while True:
-            # t0 = now_mu()
             with parallel:
                 t_gate = self.linetrigger_ttl.gate_rising(2*ms)
                 trigger_time = self.linetrigger_ttl.timestamp_mu(t_gate)
@@ -914,19 +927,27 @@ class PulseSequence(EnvExperiment):
         at_mu(trigger_time + offset)
 
     @kernel
-    def looper(self, sequence, reps, linetrigger, linetrigger_offset, scan_iterable,
-               readout_mode, readout_duration, seq_name, is_multi, number_of_ions,
-               is_ndim, scan_names, ndim_iterable, start1, start2, use_camera,
-               set_subsequence):
+    def looper(
+                self, sequence, reps, linetrigger, linetrigger_offset, scan_iterable,
+                readout_mode, readout_duration, seq_name, is_multi, number_of_ions,
+                is_ndim, scan_names, ndim_iterable, start1, start2, use_camera, 
+                set_subsequence
+            ):
         self.turn_off_all()
-        self.dds_854.set(self.RepumpD_5_2_repump_d_frequency_854,
-                         amplitude=self.RepumpD_5_2_repump_d_amplitude_854)
+        self.dds_854.set(
+                        self.RepumpD_5_2_repump_d_frequency_854,
+                        amplitude=self.RepumpD_5_2_repump_d_amplitude_854
+                    )
         self.dds_854.set_att(self.RepumpD_5_2_repump_d_att_854)
-        self.dds_866.set(self.DopplerCooling_doppler_cooling_frequency_866,
-                         amplitude=self.DopplerCooling_doppler_cooling_amplitude_866)
+        self.dds_866.set(
+                        self.DopplerCooling_doppler_cooling_frequency_866,
+                        amplitude=self.DopplerCooling_doppler_cooling_amplitude_866
+                    )
         self.dds_866.set_att(self.DopplerCooling_doppler_cooling_att_866)
-        self.dds_397.set(self.DopplerCooling_doppler_cooling_frequency_397,
-                         amplitude=self.DopplerCooling_doppler_cooling_amplitude_397)
+        self.dds_397.set(
+                        self.DopplerCooling_doppler_cooling_frequency_397,
+                        amplitude=self.DopplerCooling_doppler_cooling_amplitude_397
+                    )
         self.dds_397.set_att(self.DopplerCooling_doppler_cooling_att_397)
         with parallel:
             self.dds_854.sw.on()
@@ -942,7 +963,9 @@ class PulseSequence(EnvExperiment):
                 self.prepare_camera()
             for l in list(range(len(self.variable_parameter_names))):
                 self.set_variable_parameter(
-                    self.variable_parameter_names[l], scan_iterable[i])
+                                        self.variable_parameter_names[l], 
+                                        scan_iterable[i]
+                                    )
             set_subsequence()
 
 
@@ -1009,15 +1032,23 @@ class PulseSequence(EnvExperiment):
                 with parallel:
                     self.dds_854.sw.off()
                     self.dds_866.sw.off()
+
                 sequence()
-                self.dds_397.set(self.StateReadout_frequency_397,
-                                amplitude=self.StateReadout_amplitude_397)
+
+                self.dds_397.set(
+                                self.StateReadout_frequency_397,
+                                amplitude=self.StateReadout_amplitude_397
+                            )
                 self.dds_397.set_att(self.StateReadout_att_397)
-                self.dds_866.set(self.StateReadout_frequency_866,
-                                amplitude=self.StateReadout_amplitude_866)
+                self.dds_866.set(
+                                self.StateReadout_frequency_866,
+                                amplitude=self.StateReadout_amplitude_866
+                            )
                 self.dds_866.set_att(self.StateReadout_att_866)
-                self.dds_854.set(self.RepumpD_5_2_repump_d_frequency_854,
-                            amplitude=self.RepumpD_5_2_repump_d_amplitude_854)
+                self.dds_854.set(
+                                self.RepumpD_5_2_repump_d_frequency_854,
+                                amplitude=self.RepumpD_5_2_repump_d_amplitude_854
+                            )
                 self.dds_854.set_att(self.RepumpD_5_2_repump_d_att_854)
                 with parallel:
                     self.dds_397.sw.on()
@@ -1656,8 +1687,10 @@ class PulseSequence(EnvExperiment):
                 if len(scan_param) == 4:
                     scannable = scan.Scannable(default=scan.RangeScan(*scan_param[1:]))
                 elif len(scan_param) == 5:
-                    scannable = scan.Scannable(default=scan.RangeScan(*scan_param[1:-1]),
-                                            unit=scan_param[-1])
+                    scannable = scan.Scannable(
+                                            default=scan.RangeScan(*scan_param[1:-1]),
+                                            unit=scan_param[-1]
+                                        )
                 self.multi_scannables[seq_name].update(
                     {scan_param[0]: self.get_argument(scan_name, scannable, group=seq_name)})
             self.selected_scan[seq_name] = self.get_argument(
