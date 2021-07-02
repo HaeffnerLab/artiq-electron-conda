@@ -1021,13 +1021,13 @@ class PulseSequence(EnvExperiment):
             
 
             for j in range(reps):
-                # # Line trigger, if desired.
+                # Line trigger, if desired.
                 if linetrigger:
                     self.line_trigger(linetrigger_offset)
                 else:
                     self.core.break_realtime()
 
-                delay(15*ms)  # generate plenty of slack
+                delay(500*us)  # extra slack
                 self.dds_397.sw.off()
                 with parallel:
                     self.dds_854.sw.off()
@@ -1071,9 +1071,6 @@ class PulseSequence(EnvExperiment):
                     self.core.wait_until_mu(now_mu())
                     delay(readout_duration)
 
-                # Wait for readout to complete.
-                self.core.wait_until_mu(now_mu())
-                delay(5*us)
                 self.dds_854.sw.on()
 
             # DMA option
