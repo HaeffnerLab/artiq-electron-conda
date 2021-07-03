@@ -1301,11 +1301,9 @@ class PulseSequence(EnvExperiment):
     @kernel
     def set_variable_parameter(self, name, value):
         for i in list(range(len(self.variable_parameter_names))):
-            if not name in [
-                            self.selected_scan_name, 
-                            "current_data_point", 
-                            "current_experiment_iteration"
-                        ]:
+            if (name != self.selected_scan_name and 
+                name != "current_data_point" and 
+                name != "current_experiment_iteration"):
                 break
             if name == self.variable_parameter_names[i]:
                 self.variable_parameter_values[i] = value
