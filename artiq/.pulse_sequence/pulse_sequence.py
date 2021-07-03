@@ -11,7 +11,7 @@ from artiq.language import scan
 from artiq.language.core import TerminationRequested, kernel
 from artiq.experiment import *
 from artiq.coredevice.ad9910 import (
-        RAM_MODE_BIDIR_RAMP, RAM_MODE_CONT_BIDIR_RAMP, RAM_MODE_CONT_RAMPUP, RAM_MODE_RAMPUP, 
+        RAM_DEST_POW, RAM_DEST_POWASF, RAM_MODE_BIDIR_RAMP, RAM_MODE_CONT_BIDIR_RAMP, RAM_MODE_CONT_RAMPUP, RAM_MODE_RAMPUP, 
         RAM_DEST_ASF, RAM_DEST_FTW, RAM_MODE_DIRECTSWITCH
     )
 from sipyco.pc_rpc import Client
@@ -529,9 +529,19 @@ class PulseSequence(EnvExperiment):
         if modulation_type in ["frequency", "freq"]:
             dds.frequency_to_ram(modulation_waveform, ram_data)
             destination = RAM_DEST_FTW
-        elif modulation_type == ["amplitude", "amp"]:
+        elif modulation_type in ["amplitude", "amp"]:
             dds.amplitude_to_ram(modulation_waveform, ram_data)
             destination = RAM_DEST_ASF
+        elif modulation_type == "phase":
+            dds.turns_to_ram(modulation_waveform, ram_data)
+            destination = RAM_DEST_POW
+        elif modulation_type in ["phase_and_amplitude", "phase_and_amp"]:
+            dds.turns_amplitude_to_ram(
+                                    modulation_waveform[0], 
+                                    modulation_waveform[1], 
+                                    ram_data
+                                )
+            destination = RAM_DEST_POWASF
 
         dds.cpld.init()
         dds.init()
