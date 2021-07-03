@@ -298,27 +298,31 @@ class PulseSequence(EnvExperiment):
         os.chdir(self.dir)
 
         # Lists to keep track of current line calibrations
-        self.carrier_names = ["S+1/2D-3/2",
-                              "S-1/2D-5/2",
-                              "S+1/2D-1/2",
-                              "S-1/2D-3/2",
-                              "S+1/2D+1/2",
-                              "S-1/2D-1/2",
-                              "S+1/2D+3/2",
-                              "S-1/2D+1/2",
-                              "S+1/2D+5/2",
-                              "S-1/2D+3/2"]
+        self.carrier_names = [
+                            "S+1/2D-3/2",
+                            "S-1/2D-5/2",
+                            "S+1/2D-1/2",
+                            "S-1/2D-3/2",
+                            "S+1/2D+1/2",
+                            "S-1/2D-1/2",
+                            "S+1/2D+3/2",
+                            "S-1/2D+1/2",
+                            "S+1/2D+5/2",
+                            "S-1/2D+3/2"
+                        ]
         # Convenience dictionary for user sequences
-        self.carrier_dict = {"S+1/2D-3/2": 0,
-                             "S-1/2D-5/2": 1,
-                             "S+1/2D-1/2": 2,
-                             "S-1/2D-3/2": 3,      
-                             "S+1/2D+1/2": 4,
-                             "S-1/2D-1/2": 5,
-                             "S+1/2D+3/2": 6,
-                             "S-1/2D+1/2": 7,
-                             "S+1/2D+5/2": 8,
-                             "S-1/2D+3/2": 9}
+        self.carrier_dict = {
+                            "S+1/2D-3/2": 0,
+                            "S-1/2D-5/2": 1,
+                            "S+1/2D-1/2": 2,
+                            "S-1/2D-3/2": 3,
+                            "S+1/2D+1/2": 4,
+                            "S-1/2D-1/2": 5,
+                            "S+1/2D+3/2": 6,
+                            "S-1/2D+1/2": 7,
+                            "S+1/2D+5/2": 8,
+                            "S-1/2D+3/2": 9
+                        }
         self.carrier_values = self.update_carriers()
         self.trap_frequency_names = list()
         self.trap_frequency_values = list()
@@ -328,23 +332,24 @@ class PulseSequence(EnvExperiment):
 
     @classmethod
     def set_global_params(cls):
-        cls.accessed_params.update({
-            "Display.relative_frequencies",
-            "StateReadout.amplitude_397",
-            "StateReadout.amplitude_866",
-            "StateReadout.att_397",
-            "StateReadout.att_866",
-            "StateReadout.frequency_397",
-            "StateReadout.frequency_866",
-            "StateReadout.readout_mode",
-            "StateReadout.doppler_cooling_repump_additional",
-            "StateReadout.frequency_397",
-            "StatePreparation.sideband_cooling_enable",
-            "StatePreparation.pulsed_optical_pumping",
-            "StatePreparation.optical_pumping_enable",
-            "StatePreparation.channel_729"
-            }
-        )
+        cls.accessed_params.update(
+                        {
+                            "Display.relative_frequencies",
+                            "StateReadout.amplitude_397",
+                            "StateReadout.amplitude_866",
+                            "StateReadout.att_397",
+                            "StateReadout.att_866",
+                            "StateReadout.frequency_397",
+                            "StateReadout.frequency_866",
+                            "StateReadout.readout_mode",
+                            "StateReadout.doppler_cooling_repump_additional",
+                            "StateReadout.frequency_397",
+                            "StatePreparation.sideband_cooling_enable",
+                            "StatePreparation.pulsed_optical_pumping",
+                            "StatePreparation.optical_pumping_enable",
+                            "StatePreparation.channel_729"
+                        }
+                    )
 
     def run(self):
         if self.rm in ["camera", "camera_states", "camera_parity"]:
@@ -370,16 +375,16 @@ class PulseSequence(EnvExperiment):
                 scanned_params = set(scan_dict.keys())
                 self.set_global_params()
                 repump_dc_params = {
-                    "RepumpD_5_2.repump_d_frequency_854",
-                    "RepumpD_5_2.repump_d_att_854",
-                    "RepumpD_5_2.repump_d_amplitude_854",
-                    "DopplerCooling.doppler_cooling_frequency_866",
-                    "DopplerCooling.doppler_cooling_amplitude_866",
-                    "DopplerCooling.doppler_cooling_att_866",
-                    "DopplerCooling.doppler_cooling_frequency_397",
-                    "DopplerCooling.doppler_cooling_amplitude_397",
-                    "DopplerCooling.doppler_cooling_att_397"
-                }
+                                    "RepumpD_5_2.repump_d_frequency_854",
+                                    "RepumpD_5_2.repump_d_att_854",
+                                    "RepumpD_5_2.repump_d_amplitude_854",
+                                    "DopplerCooling.doppler_cooling_frequency_866",
+                                    "DopplerCooling.doppler_cooling_amplitude_866",
+                                    "DopplerCooling.doppler_cooling_att_866",
+                                    "DopplerCooling.doppler_cooling_frequency_397",
+                                    "DopplerCooling.doppler_cooling_amplitude_397",
+                                    "DopplerCooling.doppler_cooling_att_397"
+                                }
                 all_accessed_params = self.accessed_params | scanned_params | repump_dc_params
                 self.kernel_invariants = set()
                 for mode_name, frequency in self.p.TrapFrequencies.items():
@@ -389,8 +394,15 @@ class PulseSequence(EnvExperiment):
                 self.abs_freqs = abs_freqs
                 self.seq_name = seq_name
                 self.current_x_value = 9898989898.9898989898
-                self.kernel_invariants.update({"dds_names", "dds_offsets",
-                                            "dds_dp_flags", "seq_name", "abs_freqs"})
+                self.kernel_invariants.update(
+                                            {
+                                                "dds_names",
+                                                "dds_offsets",
+                                                "dds_dp_flags",
+                                                "seq_name",
+                                                "abs_freqs"
+                                            }
+                                        )
                 for param_name in all_accessed_params:
                     collection, key = param_name.split(".")
                     param = self.p[collection][key]
@@ -435,32 +447,40 @@ class PulseSequence(EnvExperiment):
                 else:
                     readout_duration = self.p.StateReadout.pmt_readout_duration
 
+                self.current_data_point = 0
+                self.current_experiment_iteration = 0
+
                 while self.run_looper:
                     try:
                         self.looper(
-                                    current_sequence, 
-                                    self.N, 
-                                    linetrigger, 
-                                    linetrigger_offset, 
+                                    current_sequence,
+                                    self.N,
+                                    linetrigger,
+                                    linetrigger_offset,
                                     scan_iterable,
-                                    self.rm, 
-                                    readout_duration, 
-                                    seq_name, is_multi, 
-                                    self.n_ions, 
-                                    self.is_ndim, 
+                                    self.rm,
+                                    readout_duration,
+                                    seq_name, is_multi,
+                                    self.n_ions,
+                                    self.is_ndim,
                                     scan_names,
-                                    ndim_iterable, 
-                                    self.start_point1, 
-                                    self.start_point2, 
-                                    self.use_camera, 
+                                    ndim_iterable,
+                                    self.start_point1,
+                                    self.start_point2,
+                                    self.use_camera,
                                     set_subsequence
                                 )
                     except RTIOUnderflow:
                         logger.error("RTIOUnderflow", exc_info=True)
                         continue
                     except:
-                        self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list,
-                                            self.state_list, self.att_list)
+                        self.reset_cw_settings(
+                                                self.dds_list,
+                                                self.freq_list,
+                                                self.amp_list,
+                                                self.state_list,
+                                                self.att_list
+                                            )
                         self.reset_camera_settings()
                         raise
                     if self.scheduler.check_pause():
@@ -473,8 +493,13 @@ class PulseSequence(EnvExperiment):
                                 continue
                             except:
                                 self.set_dataset("raw_run_data", None, archive=False)
-                                self.reset_cw_settings(self.dds_list, self.freq_list, self.amp_list,
-                                                    self.state_list, self.att_list)
+                                self.reset_cw_settings(
+                                                        self.dds_list,
+                                                        self.freq_list,
+                                                        self.amp_list,
+                                                        self.state_list,
+                                                        self.att_list
+                                                    )
                                 self.reset_camera_settings()
                                 return
                 try:
@@ -486,14 +511,17 @@ class PulseSequence(EnvExperiment):
                     continue
                 except:
                     logger.error(
-                                "run_after failed for seq_name: {}.".format(seq_name), 
+                                "run_after failed for seq_name: {}.".format(seq_name),
                                 exc_info=True
                             )
                     continue
         self.set_dataset("raw_run_data", None, archive=False)
         self.reset_cw_settings(
-                                self.dds_list, self.freq_list, self.amp_list, 
-                                self.state_list, self.att_list
+                                self.dds_list,
+                                self.freq_list,
+                                self.amp_list,
+                                self.state_list,
+                                self.att_list
                             )
         self.reset_camera_settings()
 
@@ -515,16 +543,16 @@ class PulseSequence(EnvExperiment):
 
     @kernel
     def setup_ram_modulation(
-                            self, 
-                            dds, 
-                            modulation_waveform, 
-                            modulation_type="frequency", 
+                            self,
+                            dds,
+                            modulation_waveform,
+                            modulation_type="frequency",
                             step=1,  # in units of sync_clk cycle, ~4 ns for us
                             ram_mode=0,
                             nodwell_high=0
                         ):
         N = len(modulation_waveform)
-        ram_data = [0] * len(modulation_waveform)
+        ram_data = [0] * N
 
         if modulation_type in ["frequency", "freq"]:
             dds.frequency_to_ram(modulation_waveform, ram_data)
@@ -537,8 +565,8 @@ class PulseSequence(EnvExperiment):
             destination = RAM_DEST_POW
         elif modulation_type in ["phase_and_amplitude", "phase_and_amp"]:
             dds.turns_amplitude_to_ram(
-                                    modulation_waveform[0], 
-                                    modulation_waveform[1], 
+                                    modulation_waveform[0],
+                                    modulation_waveform[1],
                                     ram_data
                                 )
             destination = RAM_DEST_POWASF
@@ -832,6 +860,7 @@ class PulseSequence(EnvExperiment):
 
         i = 0
         for i in list(range(len(scan_iterable)))[start1:]:
+            self.current_data_point = i
             self.set_start_point(1, i)
             if self.scheduler.check_pause():
                 return
@@ -897,6 +926,8 @@ class PulseSequence(EnvExperiment):
             
 
             for j in range(reps):
+                self.current_experiment_iteration = j
+                
                 # Line trigger, if desired.
                 if linetrigger:
                     self.line_trigger(linetrigger_offset)
