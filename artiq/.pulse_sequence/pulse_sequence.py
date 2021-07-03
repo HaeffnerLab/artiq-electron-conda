@@ -866,7 +866,7 @@ class PulseSequence(EnvExperiment):
             if use_camera:
                 self.prepare_camera()
             self.set_variable_parameter("current_data_point", i*1.)
-            for l in list(range(len(self.variable_parameter_names))):
+            for l in list(range(2, len(self.variable_parameter_names))):
                 self.set_variable_parameter(
                                         self.variable_parameter_names[l], 
                                         scan_iterable[i]
@@ -1301,7 +1301,11 @@ class PulseSequence(EnvExperiment):
     @kernel
     def set_variable_parameter(self, name, value):
         for i in list(range(len(self.variable_parameter_names))):
-            if name != self.selected_scan_name:
+            if not name in [
+                            self.selected_scan_name, 
+                            "current_data_point", 
+                            "current_experiment_iteration"
+                        ]:
                 break
             if name == self.variable_parameter_names[i]:
                 self.variable_parameter_values[i] = value
