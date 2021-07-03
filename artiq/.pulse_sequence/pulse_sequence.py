@@ -368,8 +368,11 @@ class PulseSequence(EnvExperiment):
                 if (self.rcg_tabs[seq_name][self.selected_scan[seq_name]] in absolute_frequency_plots
                         and not self.p.Display.relative_frequencies):
                         self.set_dataset(seq_name + "-raw_x_data", [], broadcast=True)
-                self.variable_parameter_names = list()
-                self.variable_parameter_values = list()
+                self.variable_parameter_names = [
+                                                "current_data_point", 
+                                                "current_experiment_iteration"
+                                            ]
+                self.variable_parameter_values = [0, 0]
                 self.parameter_names = list()
                 self.parameter_values = list()
                 scanned_params = set(scan_dict.keys())
@@ -446,9 +449,6 @@ class PulseSequence(EnvExperiment):
                     readout_duration = self.p.StateReadout.camera_readout_duration
                 else:
                     readout_duration = self.p.StateReadout.pmt_readout_duration
-
-                self.current_data_point = 0
-                self.current_experiment_iteration = 0
 
                 while self.run_looper:
                     try:
@@ -860,12 +860,12 @@ class PulseSequence(EnvExperiment):
 
         i = 0
         for i in list(range(len(scan_iterable)))[start1:]:
-            self.current_data_point = i
             self.set_start_point(1, i)
             if self.scheduler.check_pause():
                 return
             if use_camera:
                 self.prepare_camera()
+            self.set_variable_parameter("current_data_point", i)
             for l in list(range(len(self.variable_parameter_names))):
                 self.set_variable_parameter(
                                         self.variable_parameter_names[l], 
@@ -925,9 +925,9 @@ class PulseSequence(EnvExperiment):
             #-------------------------------------------------------------------------------
             
 
-            for j in range(reps):
-                self.current_experiment_iteration = j
-                
+            for j in range(reps):     
+                self.set_variable_parameter("current_experiment_iteration", j)
+
                 # Line trigger, if desired.
                 if linetrigger:
                     self.line_trigger(linetrigger_offset)
