@@ -372,7 +372,7 @@ class PulseSequence(EnvExperiment):
                                                 "current_data_point", 
                                                 "current_experiment_iteration"
                                             ]
-                self.variable_parameter_values = [0, 0]
+                self.variable_parameter_values = [0., 0.]
                 self.parameter_names = list()
                 self.parameter_values = list()
                 scanned_params = set(scan_dict.keys())
