@@ -865,7 +865,7 @@ class PulseSequence(EnvExperiment):
                 return
             if use_camera:
                 self.prepare_camera()
-            self.set_variable_parameter("current_data_point", i)
+            self.set_variable_parameter("current_data_point", i*1.)
             for l in list(range(len(self.variable_parameter_names))):
                 self.set_variable_parameter(
                                         self.variable_parameter_names[l], 
@@ -926,7 +926,7 @@ class PulseSequence(EnvExperiment):
             
 
             for j in range(reps):     
-                self.set_variable_parameter("current_experiment_iteration", j)
+                self.set_variable_parameter("current_experiment_iteration", j * 1.)
 
                 # Line trigger, if desired.
                 if linetrigger:
