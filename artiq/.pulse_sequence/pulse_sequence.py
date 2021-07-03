@@ -8,7 +8,7 @@ import sys
 import inspect
 import logging
 from artiq.language import scan
-from artiq.language.core import TerminationRequested
+from artiq.language.core import TerminationRequested, kernel
 from artiq.experiment import *
 from artiq.coredevice.ad9910 import (
         RAM_MODE_BIDIR_RAMP, RAM_MODE_CONT_BIDIR_RAMP, RAM_MODE_CONT_RAMPUP, RAM_MODE_RAMPUP, 
@@ -513,195 +513,61 @@ class PulseSequence(EnvExperiment):
         for device in self.dds_device_list:
             device.sw.off()
 
-    def make_random_list(self, n, mean, std, min=None, max=None) -> TList(TFloat):
-        #
-        # Returns a list of n values pulled from a Gaussian distribution
-        # with the given mean and standard deviation, in the range [min, max].
-        #
-        values = (std * np.random.randn(n) + mean).tolist()
-        for i in range(len(values)):
-            # make sure the values are between min and max
-            if min:
-                values[i] = max(min, amps[i])
-            if max:
-                values[i] = min(max, amps[i])
-        return values
+    @kernel
+    def setup_ram_modulation(
+                            self, 
+                            dds, 
+                            modulation_waveform, 
+                            modulation_type="frequency", 
+                            step=1,  # in units of sync_clk cycle, ~4 ns for us
+                            ram_mode=0,
+                            nodwell_high=0
+                        ):
+        N = len(modulation_waveform)
+        ram_data = [0] * len(modulation_waveform)
 
-    def make_random_amplitudes(self, n, mean, std) -> TList(TFloat):
-        #
-        # Returns a list of n amplitudes pulled from a Gaussian distribution
-        # with the given mean and standard deviation, in the range [0,1].
-        #
-        return self.make_random_list(n, mean, std, min=0.0, max=1.0)
+        if modulation_type in ["frequency", "freq"]:
+            dds.frequency_to_ram(modulation_waveform, ram_data)
+            destination = RAM_DEST_FTW
+        elif modulation_type == ["amplitude", "amp"]:
+            dds.amplitude_to_ram(modulation_waveform, ram_data)
+            destination = RAM_DEST_ASF
 
-    def make_random_frequencies(self, n, mean, std) -> TList(TFloat):
-        #
-        # Returns a list of n frequencies pulled from a Gaussian distribution
-        # with the given mean and standard deviation, in the range [0,].
-        #
-        return self.make_random_list(n, mean, std, min=0.0)
+        dds.cpld.init()
+        dds.init()
+        dds.set_cfr1(ram_enable=0)
+        dds.cpld.set_profile(0)
+        dds.cpld.io_update.pulse_mu(8)
+        dds.set_profile_ram(
+                            start=0,
+                            end=len(ram_data) - 1,
+                            step=step,
+                            profile=0,
+                            mode=ram_mode,
+                            nodwell_high=nodwell_high
+                        )
+        dds.cpld.io_update_pulse.pulse_mu(8)
+        dds.write_ram(ram_data)
+        delay(1*ms)
 
-    def generate_single_pass_noise_waveform(self, mean, std, freq_noise=False):
-        #
-        # Generates noise waveform for a full datapoint (N shots).
-        #
-        if std > 0.0:
-            n_steps = self.noise_n_steps * self.N
-            if freq_noise:
-                self.noise_waveform = self.make_random_frequencies(n_steps, mean, std)
-            else:
-                self.noise_waveform = self.make_random_amplitudes(n_steps, mean, std)
+        dds.set_cfr1(
+                    ram_enable=1,
+                    ram_destination=destination,
+                    phase_autoclear=1,
+                    # the following parameters are a hack as described in
+                    # https://github.com/m-labs/artiq/issues/1554
+                    manual_osk_external=0,
+                    osk_enable=1 if modulation_type in ["frequency", "freq"] else 0,
+                    select_auto_osk=0
+                )
+        dds.cpld.io_update.pulse_mu(8)
 
     @kernel
-    def prepare_noisy_single_pass(self, freq_noise=False, id=0):
-        #
-        # Programs the noise waveform into the RAM for the single-pass DDS.
-        # Must have already called generate_single_pass_noise_waveform.
-        #
-
-        # Get the DDS channel.
-        noisy_dds = self.dds_729_SP
-        if id == 1:
-            noisy_dds = self.dds_729_SP1
-
-        # Start by disabling ramping and resetting to profile 0.
-        noisy_dds.set_cfr1(ram_enable=0)
-        noisy_dds.cpld.io_update.pulse_mu(8)
-        noisy_dds.cpld.set_profile(0)
-        noisy_dds.cpld.io_update.pulse_mu(8)
-
-        # If we have no noise waveform, do nothing.
-        if len(self.noise_waveform) <= 1:
-            return
-
-        # Delay to avoid RTIO underflow.
-        delay(20*ms)
-
-        # Define the waveform
-        start_index = self.current_noise_index
-        end_index = start_index + self.noise_n_steps
-        noise_waveform = self.noise_waveform[start_index:end_index]
-        self.current_noise_index = end_index % len(self.noise_waveform)
-        n_steps = len(noise_waveform)
-        noise_waveform_data = [0]*(n_steps)
-        if freq_noise:
-            noisy_dds.frequency_to_ram(noise_waveform, noise_waveform_data)
-        else:
-            # NOTE: The built-in amplitude_to_ram() method does not
-            #       comply with the AD9910 specification. Doing this
-            #       manually instead, until amplitude_to_ram() is fixed.
-            ##### noisy_dds.amplitude_to_ram(noise_waveform, noise_waveform_data)
-            for i in range(len(noise_waveform)):
-                noise_waveform_data[i] = (np.int32(round(noise_waveform[i]*0x3fff)) << 18)
-
-        # Print stuff
-        #print("n_steps", n_steps)
-        #print("noise_waveform", noise_waveform)
-        #self.core.break_realtime()
-
-        clock_cycles_per_step = 10 # each clock cycle is about 4 ns
-        start_address = 512
-        noisy_dds.set_profile_ram(start=start_address, end=start_address+n_steps-1,
-            step=clock_cycles_per_step, profile=self.noise_profile, mode=RAM_MODE_CONT_RAMPUP)
-        noisy_dds.cpld.set_profile(self.noise_profile)
-        noisy_dds.cpld.io_update.pulse_mu(8)
-        noisy_dds.write_ram(noise_waveform_data)
-
-        # Disable ramping and reset to profile 0 so we don't
-        # affect the next experiment.
-        noisy_dds.cpld.set_profile(0)
-        noisy_dds.cpld.io_update.pulse_mu(8)
-
-    @kernel
-    def start_noisy_single_pass(self, phase_ref_time, freq_noise=False,
-        freq_sp=80*MHz, amp_sp=1.0, att_sp=8*dB, phase_sp=0.,
-        use_bichro=False, freq_sp_bichro=80*MHz, amp_sp_bichro=1.0, att_sp_bichro=8*dB, phase_sp_bichro=0.,
-        id=0):
-        #
-        # Turns on the two single-pass channels with the specified parameters.
-        # Must have already called prepare_noisy_single_pass to program the noise waveform.
-        #
-
-        # Get the DDS channels.
-        noisy_dds = self.dds_729_SP
-        noisy_dds_bichro = self.dds_729_SP_bichro
-        if id == 1:
-            noisy_dds = self.dds_729_SP1
-            noisy_dds_bichro = self.dds_729_SP_bichro1
-
-        # If we have no noise waveform, turn on the DDS channels
-        # using the default profiles and parameters, and return.
-        if len(self.noise_waveform) <= 1:
-            noisy_dds.set(freq_sp, amplitude=amp_sp, phase=phase_sp, ref_time_mu=phase_ref_time)
-            noisy_dds.set_att(att_sp)
-            if use_bichro:
-                noisy_dds_bichro.set(freq_sp_bichro, amplitude=amp_sp_bichro, phase=phase_sp_bichro, ref_time_mu=phase_ref_time)
-                noisy_dds_bichro.set_att(att_sp_bichro)
-                with parallel:
-                    noisy_dds.sw.on()
-                    noisy_dds_bichro.sw.on()
-            else:
-                noisy_dds.sw.on()
-            return
-
-        # Start by disabling ramping and resetting to profile 0.
-        noisy_dds.set_cfr1(ram_enable=0)
-        noisy_dds.cpld.io_update.pulse_mu(8)
-        noisy_dds.cpld.set_profile(0)
-        noisy_dds.cpld.io_update.pulse_mu(8)
-
-        # Set the desired initial parameters and turn on each DDS.
-        noisy_dds.set_frequency(freq_sp)
-        noisy_dds.set_amplitude(amp_sp)
-        noisy_dds.set_att(att_sp)
-        noisy_dds.set_phase(phase_sp)
-        if use_bichro:
-            noisy_dds_bichro.set(freq_sp_bichro, amplitude=amp_sp_bichro, phase=phase_sp_bichro,
-                profile=self.noise_profile, ref_time_mu=phase_ref_time)
-            noisy_dds_bichro.set_att(att_sp_bichro)
-            with parallel:
-                noisy_dds.sw.on()
-                noisy_dds_bichro.sw.on()
-        else:
-            noisy_dds.sw.on()
-
-        # Set the current profile to the ramp-up profile constructed above.
-        noisy_dds.cpld.set_profile(self.noise_profile)
-        noisy_dds.cpld.io_update.pulse_mu(8)
-
-        # Enable the ramping on noisy_dds, which immediately starts playing the ramp waveform.
-        ram_destination = RAM_DEST_FTW if freq_noise else RAM_DEST_ASF
-        noisy_dds.set_cfr1(ram_enable=1, ram_destination=ram_destination)
-        noisy_dds.cpld.io_update.pulse_mu(8)
-
-    @kernel
-    def stop_noisy_single_pass(self, use_bichro=False, id=0):
-        #
-        # Turns off the two single-pass channels, disables ramping, and
-        # resets to the default profile.
-        #
-
-        # Get the DDS channels.
-        noisy_dds = self.dds_729_SP
-        noisy_dds_bichro = self.dds_729_SP_bichro
-        if id == 1:
-            noisy_dds = self.dds_729_SP1
-            noisy_dds_bichro = self.dds_729_SP_bichro1
-
-        # Turn off the DDS outputs.
-        # if use_bichro:
-        #     with parallel:
-        #         noisy_dds.sw.off()
-        #         noisy_dds_bichro.sw.off()
-        # else:
-        #     noisy_dds.sw.off()
-
-        # Disable ramping so we don't affect the next experiment.
-        # Also reset to profile 0.
-        noisy_dds.set_cfr1(ram_enable=0)
-        noisy_dds.cpld.io_update.pulse_mu(8)
-        noisy_dds.cpld.set_profile(0)
-        noisy_dds.cpld.io_update.pulse_mu(8)
+    def stop_ram_modulation(self, dds):
+        dds.set_cfr1(ram_enable=0)
+        dds.cpld.io_update.pulse_mu(8)
+        dds.cpld.set_profile(0)
+        dds.cpld.io_update.pulse_mu(8)
 
     @kernel
     def prepare_pulse_with_amplitude_ramp(
