@@ -337,6 +337,7 @@ class AD9910:
         self.bus.set_config_mu(urukul.SPI_CONFIG, 32,
                                urukul.SPIT_DDS_WR, self.chip_select)
         for i in range(len(data) - 1):
+            delay_mu(200)
             self.bus.write(data[i])
         self.bus.set_config_mu(urukul.SPI_CONFIG | spi.SPI_END, 32,
                                urukul.SPIT_DDS_WR, self.chip_select)
