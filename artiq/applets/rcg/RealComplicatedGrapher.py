@@ -134,7 +134,7 @@ class graphTab(QtWidgets.QWidget):
         for gw in self.gw_dict.values():
             s1 = gw.tw.sizeHint().width()
             s2 = gw.pg.sizeHint().width()
-            gw.main_widget.setSizes([s1 * .4, s2 * 1.25])
+            gw.main_widget.setSizes([int(s1 * .4), int(s2 * 1.25)])
 
         self.setLayout(layout)
 
@@ -166,7 +166,7 @@ class graphWindow(QtWidgets.QWidget):
 
         self.color_chooser = cycle(conf.default_colors)
         self.custom_colors = conf.custom_colors
-        self.color_dialog = QtGui.QColorDialog()
+        self.color_dialog = QtWidgets.QColorDialog()
         try:
             for i in range(self.color_dialog.customCount()):
                 self.color_dialog.setCustomColor(i, self.custom_colors[i])

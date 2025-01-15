@@ -49,14 +49,14 @@ class PulseSequenceVisualizer(QtWidgets.QDockWidget):
     
     def create_layout(self):
         # Creates GUI layout
-        layout = QtGui.QVBoxLayout()
+        layout = QtWidgets.QVBoxLayout()
         plot_layout = self.create_plot_layout()
         layout.addLayout(plot_layout)
         self.main_widget.setLayout(layout)
    
     def create_plot_layout(self):
         # Creates empty matplotlib plot layout
-        layout = QtGui.QVBoxLayout()
+        layout = QtWidgets.QVBoxLayout()
         self.fig = Figure()
         self.canvas = FigureCanvas(self.fig)
         self.canvas.setParent(self)
